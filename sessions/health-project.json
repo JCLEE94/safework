@@ -1,0 +1,31 @@
+{
+  "session_id": "health-project",
+  "project": "health",
+  "created_at": "2025-06-20T12:10:05+09:00",
+  "last_activity": "2025-06-20T12:11:03+09:00",
+  "status": "active",
+  "stats": {
+    "commands_executed": 0,
+    "notifications_sent": 0,
+    "errors_handled": 0,
+    "uptime_seconds": 0
+  },
+  "context": {
+    "working_directory": "/home/jclee/dev/health",
+    "environment": "Linux",
+    "hostname": "localhost.localdomain",
+    "tools_available": {
+      "docker": true,
+      "python": true,
+      "node": true,
+      "git": true
+    }
+  },
+  "activity_log": [
+    {
+      "timestamp": "2025-06-20T12:11:03+09:00",
+      "type": "helper",
+      "description": "Context provided: pdf"
+    }
+  ]
+}

@@ -1,0 +1,87 @@
+version: '3.8'
+
+services:
+  # Main health management application
+  health-app:
+    build: 
+      context: ..
+      dockerfile: docker/Dockerfile
+    container_name: health-management-system
+    ports:
+      - "3001:8000"
+    environment:
+      - DATABASE_URL=postgresql://admin:password@postgres:5432/health_management
+      - REDIS_URL=redis://redis:6379/0
+      - SECRET_KEY=${JWT_SECRET}
+      - DEBUG=false
+      - LOG_LEVEL=INFO
+    volumes:
+      - ./uploads:/app/uploads
+      - ./logs:/app/logs
+      - ./dist:/app/dist
+    depends_on:
+      - postgres
+      - redis
+    networks:
+      - health-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+  # PostgreSQL database
+  postgres:
+    image: postgres:15-alpine
+    container_name: health-postgres
+    environment:
+      - POSTGRES_DB=health_management
+      - POSTGRES_USER=admin
+      - POSTGRES_PASSWORD=password
+      - POSTGRES_INITDB_ARGS=--encoding=UTF-8 --locale=ko_KR.UTF-8
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    # ports:
+      # - "5432:5432"  # Internal DB access only
+    networks:
+      - health-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U admin -d health_management"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # Redis for caching and sessions
+  redis:
+    image: redis:7-alpine
+    container_name: health-redis
+    command: redis-server --appendonly yes --requirepass ${REDIS_PASSWORD:-redispass}
+    volumes:
+      - redis_data:/data
+    # ports:
+      # - "6379:6379"  # Internal Redis access only
+    networks:
+      - health-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+
+volumes:
+  postgres_data:
+    driver: local
+  redis_data:
+    driver: local
+
+networks:
+  health-network:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 192.168.100.0/24

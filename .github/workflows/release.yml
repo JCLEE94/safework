@@ -1,0 +1,290 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+env:
+  REGISTRY: ghcr.io
+  IMAGE_NAME: ${{ github.repository }}
+
+jobs:
+  # Create GitHub Release
+  create-release:
+    runs-on: ubuntu-latest
+    outputs:
+      release_id: ${{ steps.create_release.outputs.id }}
+      upload_url: ${{ steps.create_release.outputs.upload_url }}
+    
+    steps:
+    - uses: actions/checkout@v4
+      with:
+        fetch-depth: 0
+    
+    - name: Generate changelog
+      id: changelog
+      run: |
+        PREVIOUS_TAG=$(git describe --tags --abbrev=0 HEAD^ 2>/dev/null || echo "")
+        if [ -z "$PREVIOUS_TAG" ]; then
+          CHANGELOG=$(git log --pretty=format:"- %s (%h)" --no-merges)
+        else
+          CHANGELOG=$(git log --pretty=format:"- %s (%h)" --no-merges ${PREVIOUS_TAG}..HEAD)
+        fi
+        echo "CHANGELOG<<EOF" >> $GITHUB_OUTPUT
+        echo "$CHANGELOG" >> $GITHUB_OUTPUT
+        echo "EOF" >> $GITHUB_OUTPUT
+    
+    - name: Create Release
+      id: create_release
+      uses: actions/create-release@v1
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      with:
+        tag_name: ${{ github.ref_name }}
+        release_name: Release ${{ github.ref_name }}
+        body: |
+          ## Changes in this release:
+          
+          ${{ steps.changelog.outputs.CHANGELOG }}
+          
+          ## Installation
+          
+          ### Docker
+          ```bash
+          docker pull ghcr.io/${{ github.repository }}:${{ github.ref_name }}
+          ```
+          
+          ### Manual Installation
+          1. Download the source code
+          2. Follow the setup instructions in README.md
+          
+          ## Full Changelog
+          **Full Changelog**: https://github.com/${{ github.repository }}/compare/${{ steps.previous_tag.outputs.tag }}...${{ github.ref_name }}
+        draft: false
+        prerelease: false
+
+  # Build and push production image
+  build-release-image:
+    runs-on: ubuntu-latest
+    needs: create-release
+    permissions:
+      contents: read
+      packages: write
+    
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Set up Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: "18"
+        cache: 'npm'
+    
+    - name: Build frontend
+      run: |
+        npm ci
+        npm run build
+    
+    - name: Set up Docker Buildx
+      uses: docker/setup-buildx-action@v3
+    
+    - name: Login to Container Registry
+      uses: docker/login-action@v3
+      with:
+        registry: ${{ env.REGISTRY }}
+        username: ${{ github.actor }}
+        password: ${{ secrets.GITHUB_TOKEN }}
+    
+    - name: Extract metadata
+      id: meta
+      uses: docker/metadata-action@v5
+      with:
+        images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
+        tags: |
+          type=ref,event=tag
+          type=raw,value=stable
+          type=raw,value=latest
+    
+    - name: Build and push Docker image
+      uses: docker/build-push-action@v5
+      with:
+        context: .
+        push: true
+        tags: ${{ steps.meta.outputs.tags }}
+        labels: ${{ steps.meta.outputs.labels }}
+        cache-from: type=gha
+        cache-to: type=gha,mode=max
+        platforms: linux/amd64,linux/arm64
+
+  # Create distribution package
+  create-package:
+    runs-on: ubuntu-latest
+    needs: create-release
+    
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Set up Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: "18"
+        cache: 'npm'
+    
+    - name: Build frontend
+      run: |
+        npm ci
+        npm run build
+    
+    - name: Create distribution package
+      run: |
+        mkdir -p release-package
+        
+        # Copy source code (excluding development files)
+        rsync -av \
+          --exclude='.git*' \
+          --exclude='node_modules' \
+          --exclude='__pycache__' \
+          --exclude='*.pyc' \
+          --exclude='.pytest_cache' \
+          --exclude='coverage*' \
+          --exclude='.env*' \
+          --exclude='logs/*' \
+          --exclude='uploads/*' \
+          . release-package/
+        
+        # Create version file
+        echo "VERSION=${{ github.ref_name }}" > release-package/VERSION
+        echo "BUILD_DATE=$(date -u +%Y-%m-%dT%H:%M:%SZ)" >> release-package/VERSION
+        echo "COMMIT_SHA=${{ github.sha }}" >> release-package/VERSION
+        
+        # Create installation script
+        cat > release-package/install.sh << 'EOF'
+        #!/bin/bash
+        set -e
+        
+        echo "🚀 Installing SafeWork Pro Health Management System"
+        echo "Version: ${{ github.ref_name }}"
+        
+        # Check prerequisites
+        if ! command -v docker &> /dev/null; then
+            echo "❌ Docker is required but not installed."
+            exit 1
+        fi
+        
+        if ! command -v docker-compose &> /dev/null; then
+            echo "❌ Docker Compose is required but not installed."
+            exit 1
+        fi
+        
+        # Create necessary directories
+        mkdir -p logs uploads
+        
+        # Set permissions
+        chmod 755 logs uploads
+        
+        # Copy environment template if .env doesn't exist
+        if [ ! -f .env ]; then
+            cp .env.example .env
+            echo "📝 Created .env file from template. Please review and update the configuration."
+        fi
+        
+        # Build and start services
+        echo "🏗️  Building and starting services..."
+        docker-compose up -d --build
+        
+        echo "✅ Installation completed!"
+        echo "🌐 Application will be available at http://localhost:3001"
+        echo "📚 API documentation: http://localhost:3001/api/docs"
+        
+        # Wait for services to be ready
+        echo "⏳ Waiting for services to be ready..."
+        sleep 10
+        
+        # Health check
+        if curl -s http://localhost:3001/health > /dev/null; then
+            echo "✅ Health check passed!"
+        else
+            echo "⚠️  Health check failed. Please check the logs:"
+            echo "   docker-compose logs"
+        fi
+        EOF
+        
+        chmod +x release-package/install.sh
+        
+        # Create archive
+        tar -czf safework-pro-${{ github.ref_name }}.tar.gz -C release-package .
+        zip -r safework-pro-${{ github.ref_name }}.zip release-package/
+    
+    - name: Upload release assets
+      uses: actions/upload-release-asset@v1
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      with:
+        upload_url: ${{ needs.create-release.outputs.upload_url }}
+        asset_path: ./safework-pro-${{ github.ref_name }}.tar.gz
+        asset_name: safework-pro-${{ github.ref_name }}.tar.gz
+        asset_content_type: application/gzip
+    
+    - name: Upload release assets (ZIP)
+      uses: actions/upload-release-asset@v1
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      with:
+        upload_url: ${{ needs.create-release.outputs.upload_url }}
+        asset_path: ./safework-pro-${{ github.ref_name }}.zip
+        asset_name: safework-pro-${{ github.ref_name }}.zip
+        asset_content_type: application/zip
+
+  # Deploy to production automatically on release
+  auto-deploy-production:
+    runs-on: ubuntu-latest
+    needs: [create-release, build-release-image]
+    if: ${{ !contains(github.ref_name, 'beta') && !contains(github.ref_name, 'alpha') }}
+    environment: production
+    
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Deploy to production
+      run: |
+        echo "🚀 Deploying version ${{ github.ref_name }} to production..."
+        echo "Image: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ github.ref_name }}"
+        
+        # Add actual deployment commands here
+        # Examples:
+        # - Update Kubernetes deployment
+        # - Update Docker Compose on remote server
+        # - Trigger deployment webhook
+        # - Update infrastructure as code
+        
+        echo "✅ Production deployment completed!"
+
+  # Notify stakeholders
+  notify-release:
+    runs-on: ubuntu-latest
+    needs: [create-release, build-release-image, create-package]
+    if: always()
+    
+    steps:
+    - name: Notify success
+      if: ${{ needs.create-release.result == 'success' }}
+      run: |
+        echo "🎉 Release ${{ github.ref_name }} created successfully!"
+        echo "📦 Docker image: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ github.ref_name }}"
+        echo "🔗 Release page: https://github.com/${{ github.repository }}/releases/tag/${{ github.ref_name }}"
+        
+        # Add notification logic here (Slack, Teams, email, etc.)
+        # curl -X POST -H 'Content-type: application/json' \
+        #   --data '{"text":"🎉 New release: ${{ github.ref_name }}"}' \
+        #   ${{ secrets.SLACK_WEBHOOK_URL }}
+    
+    - name: Notify failure
+      if: ${{ needs.create-release.result == 'failure' || needs.build-release-image.result == 'failure' }}
+      run: |
+        echo "❌ Release ${{ github.ref_name }} failed!"
+        
+        # Add notification logic here
+        # curl -X POST -H 'Content-type: application/json' \
+        #   --data '{"text":"❌ Release failed: ${{ github.ref_name }}"}' \
+        #   ${{ secrets.SLACK_WEBHOOK_URL }}
