@@ -83,7 +83,8 @@ jobs:
       - name: Run backend tests
         run: |
           mkdir -p logs
-          pytest tests/ -v --tb=short || echo "Tests completed with warnings"
+          pytest tests/ -v --tb=short --cov=src --cov-report=term-missing
+        continue-on-error: false
       
       # Upload artifacts
       - name: Upload frontend build

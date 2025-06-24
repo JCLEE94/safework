@@ -8,6 +8,19 @@
   <img src="https://img.shields.io/badge/Docker-Ready-2496ED?style=for-the-badge&logo=docker">
 </div>
 
+<div align="center">
+  <br>
+  <a href="https://github.com/qws941/health-management-system/actions/workflows/ci.yml">
+    <img src="https://github.com/qws941/health-management-system/actions/workflows/ci.yml/badge.svg" alt="CI/CD Pipeline">
+  </a>
+  <a href="https://github.com/qws941/health-management-system/actions/workflows/deploy.yml">
+    <img src="https://github.com/qws941/health-management-system/actions/workflows/deploy.yml/badge.svg" alt="Deploy Status">
+  </a>
+  <a href="LICENSE">
+    <img src="https://img.shields.io/badge/license-MIT-blue.svg" alt="License">
+  </a>
+</div>
+
 ## 🏗️ 프로젝트 소개
 
 SafeWork Pro는 한국 산업안전보건법에 따른 건설업 보건관리를 위한 통합 웹 애플리케이션입니다. 근로자 건강관리, 작업환경 측정, 보건교육, 화학물질 관리, 산업재해 보고 등을 효율적으로 관리할 수 있습니다.
