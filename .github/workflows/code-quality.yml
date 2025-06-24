@@ -54,7 +54,7 @@ jobs:
         safety check
     
     - name: Upload security reports
-      uses: actions/upload-artifact@v3
+      uses: actions/upload-artifact@v4
       if: always()
       with:
         name: python-security-reports
@@ -196,7 +196,7 @@ jobs:
         xenon --max-absolute B --max-modules A --max-average A src/
     
     - name: Upload complexity report
-      uses: actions/upload-artifact@v3
+      uses: actions/upload-artifact@v4
       with:
         name: complexity-report
         path: complexity-report.md
@@ -232,7 +232,7 @@ jobs:
         python -m pytest tests/test_performance.py -v --benchmark-only --benchmark-json=benchmark.json
     
     - name: Upload benchmark results
-      uses: actions/upload-artifact@v3
+      uses: actions/upload-artifact@v4
       with:
         name: performance-benchmarks
         path: benchmark.json
@@ -306,7 +306,7 @@ jobs:
     
     steps:
     - name: Download all artifacts
-      uses: actions/download-artifact@v3
+      uses: actions/download-artifact@v4
     
     - name: Create quality summary
       run: |
@@ -336,7 +336,7 @@ jobs:
         cat quality-summary.md
     
     - name: Upload quality summary
-      uses: actions/upload-artifact@v3
+      uses: actions/upload-artifact@v4
       with:
         name: quality-summary
         path: quality-summary.md
