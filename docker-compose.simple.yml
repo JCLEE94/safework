@@ -1,0 +1,17 @@
+version: '3.8'
+
+services:
+  health-app:
+    image: registry.jclee.me/health-management-system:latest
+    container_name: health-app
+    restart: unless-stopped
+    ports:
+      - "3001:8000"
+    environment:
+      - DATABASE_URL=postgresql://admin:password@health-postgres:5432/health_management
+      - REDIS_URL=redis://health-redis:6379/0
+      - JWT_SECRET=your-super-secret-jwt-key-here-32-chars-long
+      - TZ=Asia/Seoul
+    volumes:
+      - ./uploads:/app/uploads
+      - ./logs:/app/logs

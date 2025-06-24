@@ -1,70 +1,70 @@
-﻿2025-06-24T07:26:18.0656233Z ##[group]Run actions/checkout@v4
-2025-06-24T07:26:18.0657041Z with:
-2025-06-24T07:26:18.0657446Z   repository: ***/health-management-system
-2025-06-24T07:26:18.0658014Z   token: ***
-2025-06-24T07:26:18.0658320Z   ssh-strict: true
-2025-06-24T07:26:18.0658607Z   ssh-user: git
-2025-06-24T07:26:18.0658969Z   persist-credentials: true
-2025-06-24T07:26:18.0659302Z   clean: true
-2025-06-24T07:26:18.0659598Z   sparse-checkout-cone-mode: true
-2025-06-24T07:26:18.0659982Z   fetch-depth: 1
-2025-06-24T07:26:18.0660297Z   fetch-tags: false
-2025-06-24T07:26:18.0660579Z   show-progress: true
-2025-06-24T07:26:18.0661196Z   lfs: false
-2025-06-24T07:26:18.0661478Z   submodules: false
-2025-06-24T07:26:18.0661785Z   set-safe-directory: true
-2025-06-24T07:26:18.0662437Z env:
-2025-06-24T07:26:18.0662810Z   REGISTRY: ***
-2025-06-24T07:26:18.0663216Z   IMAGE_NAME: health-management-system
-2025-06-24T07:26:18.0663581Z ##[endgroup]
-2025-06-24T07:26:18.1854613Z Syncing repository: ***/health-management-system
-2025-06-24T07:26:18.1857092Z ##[group]Getting Git version info
-2025-06-24T07:26:18.1858222Z Working directory is '/home/runner/work/health-management-system/health-management-system'
-2025-06-24T07:26:18.1859813Z [command]/usr/bin/git version
-2025-06-24T07:26:18.1860462Z git version 2.49.0
-2025-06-24T07:26:18.1875842Z ##[endgroup]
-2025-06-24T07:26:18.1888781Z Temporarily overriding HOME='/home/runner/work/_temp/5a27580c-0f99-4b54-9d2b-eaee08e35b64' before making global git config changes
-2025-06-24T07:26:18.1892667Z Adding repository directory to the temporary git global config as a safe directory
-2025-06-24T07:26:18.1907136Z [command]/usr/bin/git config --global --add safe.directory /home/runner/work/health-management-system/health-management-system
-2025-06-24T07:26:18.1942405Z Deleting the contents of '/home/runner/work/health-management-system/health-management-system'
-2025-06-24T07:26:18.1947229Z ##[group]Initializing the repository
-2025-06-24T07:26:18.1953942Z [command]/usr/bin/git init /home/runner/work/health-management-system/health-management-system
-2025-06-24T07:26:18.2009834Z hint: Using 'master' as the name for the initial branch. This default branch name
-2025-06-24T07:26:18.2012841Z hint: is subject to change. To configure the initial branch name to use in all
-2025-06-24T07:26:18.2013893Z hint: of your new repositories, which will suppress this warning, call:
-2025-06-24T07:26:18.2014737Z hint:
-2025-06-24T07:26:18.2015276Z hint: 	git config --global init.defaultBranch <name>
-2025-06-24T07:26:18.2015890Z hint:
-2025-06-24T07:26:18.2016536Z hint: Names commonly chosen instead of 'master' are 'main', 'trunk' and
-2025-06-24T07:26:18.2017591Z hint: 'development'. The just-created branch can be renamed via this command:
-2025-06-24T07:26:18.2019643Z hint:
-2025-06-24T07:26:18.2020336Z hint: 	git branch -m <name>
-2025-06-24T07:26:18.2021848Z Initialized empty Git repository in /home/runner/work/health-management-system/health-management-system/.git/
-2025-06-24T07:26:18.2032333Z [command]/usr/bin/git remote add origin https://github.com/***/health-management-system
-2025-06-24T07:26:18.2069745Z ##[endgroup]
-2025-06-24T07:26:18.2074519Z ##[group]Disabling automatic garbage collection
-2025-06-24T07:26:18.2075376Z [command]/usr/bin/git config --local gc.auto 0
-2025-06-24T07:26:18.2107199Z ##[endgroup]
-2025-06-24T07:26:18.2109841Z ##[group]Setting up auth
-2025-06-24T07:26:18.2114153Z [command]/usr/bin/git config --local --name-only --get-regexp core\.sshCommand
-2025-06-24T07:26:18.2146605Z [command]/usr/bin/git submodule foreach --recursive sh -c "git config --local --name-only --get-regexp 'core\.sshCommand' && git config --local --unset-all 'core.sshCommand' || :"
-2025-06-24T07:26:18.2428072Z [command]/usr/bin/git config --local --name-only --get-regexp http\.https\:\/\/github\.com\/\.extraheader
-2025-06-24T07:26:18.2462086Z [command]/usr/bin/git submodule foreach --recursive sh -c "git config --local --name-only --get-regexp 'http\.https\:\/\/github\.com\/\.extraheader' && git config --local --unset-all 'http.https://github.com/.extraheader' || :"
-2025-06-24T07:26:18.2694032Z [command]/usr/bin/git config --local http.https://github.com/.extraheader AUTHORIZATION: basic ***
-2025-06-24T07:26:18.2742490Z ##[endgroup]
-2025-06-24T07:26:18.2743483Z ##[group]Fetching the repository
-2025-06-24T07:26:18.2752132Z [command]/usr/bin/git -c protocol.version=2 fetch --no-tags --prune --no-recurse-submodules --depth=1 origin +a2a512d0659eff0b6ef9760a09dcc83f0f3c45f7:refs/remotes/origin/main
-2025-06-24T07:26:21.5463708Z From https://github.com/***/health-management-system
-2025-06-24T07:26:21.5465746Z  * [new ref]         a2a512d0659eff0b6ef9760a09dcc83f0f3c45f7 -> origin/main
-2025-06-24T07:26:21.5500197Z ##[endgroup]
-2025-06-24T07:26:21.5501410Z ##[group]Determining the checkout info
-2025-06-24T07:26:21.5502849Z ##[endgroup]
-2025-06-24T07:26:21.5508273Z [command]/usr/bin/git sparse-checkout disable
-2025-06-24T07:26:21.5553594Z [command]/usr/bin/git config --local --unset-all extensions.worktreeConfig
-2025-06-24T07:26:21.5583833Z ##[group]Checking out the ref
-2025-06-24T07:26:21.5591594Z [command]/usr/bin/git checkout --progress --force -B main refs/remotes/origin/main
-2025-06-24T07:26:22.1794216Z Switched to a new branch 'main'
-2025-06-24T07:26:22.1797313Z branch 'main' set up to track 'origin/main'.
-2025-06-24T07:26:22.1853476Z ##[endgroup]
-2025-06-24T07:26:22.1899330Z [command]/usr/bin/git log -1 --format=%H
-2025-06-24T07:26:22.1925364Z a2a512d0659eff0b6ef9760a09dcc83f0f3c45f7
+﻿2025-06-24T07:37:52.0830355Z ##[group]Run actions/checkout@v4
+2025-06-24T07:37:52.0831279Z with:
+2025-06-24T07:37:52.0831613Z   repository: ***/health-management-system
+2025-06-24T07:37:52.0831998Z   token: ***
+2025-06-24T07:37:52.0832194Z   ssh-strict: true
+2025-06-24T07:37:52.0832391Z   ssh-user: git
+2025-06-24T07:37:52.0832594Z   persist-credentials: true
+2025-06-24T07:37:52.0832831Z   clean: true
+2025-06-24T07:37:52.0833037Z   sparse-checkout-cone-mode: true
+2025-06-24T07:37:52.0833283Z   fetch-depth: 1
+2025-06-24T07:37:52.0833787Z   fetch-tags: false
+2025-06-24T07:37:52.0833990Z   show-progress: true
+2025-06-24T07:37:52.0834217Z   lfs: false
+2025-06-24T07:37:52.0834405Z   submodules: false
+2025-06-24T07:37:52.0834610Z   set-safe-directory: true
+2025-06-24T07:37:52.0835134Z env:
+2025-06-24T07:37:52.0835384Z   REGISTRY: ***
+2025-06-24T07:37:52.0835603Z   IMAGE_NAME: health-management-system
+2025-06-24T07:37:52.0835873Z ##[endgroup]
+2025-06-24T07:37:52.2014254Z Syncing repository: ***/health-management-system
+2025-06-24T07:37:52.2016356Z ##[group]Getting Git version info
+2025-06-24T07:37:52.2017318Z Working directory is '/home/runner/work/health-management-system/health-management-system'
+2025-06-24T07:37:52.2018520Z [command]/usr/bin/git version
+2025-06-24T07:37:52.2049779Z git version 2.49.0
+2025-06-24T07:37:52.2110666Z ##[endgroup]
+2025-06-24T07:37:52.2116418Z Temporarily overriding HOME='/home/runner/work/_temp/93472726-9364-4fb0-9cd8-bf3f3b12136e' before making global git config changes
+2025-06-24T07:37:52.2117635Z Adding repository directory to the temporary git global config as a safe directory
+2025-06-24T07:37:52.2122969Z [command]/usr/bin/git config --global --add safe.directory /home/runner/work/health-management-system/health-management-system
+2025-06-24T07:37:52.2160015Z Deleting the contents of '/home/runner/work/health-management-system/health-management-system'
+2025-06-24T07:37:52.2163815Z ##[group]Initializing the repository
+2025-06-24T07:37:52.2167924Z [command]/usr/bin/git init /home/runner/work/health-management-system/health-management-system
+2025-06-24T07:37:52.2251591Z hint: Using 'master' as the name for the initial branch. This default branch name
+2025-06-24T07:37:52.2254201Z hint: is subject to change. To configure the initial branch name to use in all
+2025-06-24T07:37:52.2256466Z hint: of your new repositories, which will suppress this warning, call:
+2025-06-24T07:37:52.2257104Z hint:
+2025-06-24T07:37:52.2257599Z hint: 	git config --global init.defaultBranch <name>
+2025-06-24T07:37:52.2258140Z hint:
+2025-06-24T07:37:52.2258668Z hint: Names commonly chosen instead of 'master' are 'main', 'trunk' and
+2025-06-24T07:37:52.2259569Z hint: 'development'. The just-created branch can be renamed via this command:
+2025-06-24T07:37:52.2260277Z hint:
+2025-06-24T07:37:52.2260657Z hint: 	git branch -m <name>
+2025-06-24T07:37:52.2263697Z Initialized empty Git repository in /home/runner/work/health-management-system/health-management-system/.git/
+2025-06-24T07:37:52.2270042Z [command]/usr/bin/git remote add origin https://github.com/***/health-management-system
+2025-06-24T07:37:52.2308278Z ##[endgroup]
+2025-06-24T07:37:52.2310966Z ##[group]Disabling automatic garbage collection
+2025-06-24T07:37:52.2313044Z [command]/usr/bin/git config --local gc.auto 0
+2025-06-24T07:37:52.2344134Z ##[endgroup]
+2025-06-24T07:37:52.2346215Z ##[group]Setting up auth
+2025-06-24T07:37:52.2350748Z [command]/usr/bin/git config --local --name-only --get-regexp core\.sshCommand
+2025-06-24T07:37:52.2384104Z [command]/usr/bin/git submodule foreach --recursive sh -c "git config --local --name-only --get-regexp 'core\.sshCommand' && git config --local --unset-all 'core.sshCommand' || :"
+2025-06-24T07:37:52.2728618Z [command]/usr/bin/git config --local --name-only --get-regexp http\.https\:\/\/github\.com\/\.extraheader
+2025-06-24T07:37:52.2761241Z [command]/usr/bin/git submodule foreach --recursive sh -c "git config --local --name-only --get-regexp 'http\.https\:\/\/github\.com\/\.extraheader' && git config --local --unset-all 'http.https://github.com/.extraheader' || :"
+2025-06-24T07:37:52.2990469Z [command]/usr/bin/git config --local http.https://github.com/.extraheader AUTHORIZATION: basic ***
+2025-06-24T07:37:52.3028105Z ##[endgroup]
+2025-06-24T07:37:52.3029567Z ##[group]Fetching the repository
+2025-06-24T07:37:52.3047003Z [command]/usr/bin/git -c protocol.version=2 fetch --no-tags --prune --no-recurse-submodules --depth=1 origin +43dbccda066392f8f81ab87191dc7fc3f91b219e:refs/remotes/origin/main
+2025-06-24T07:37:55.8405291Z From https://github.com/***/health-management-system
+2025-06-24T07:37:55.8406288Z  * [new ref]         43dbccda066392f8f81ab87191dc7fc3f91b219e -> origin/main
+2025-06-24T07:37:55.8446504Z ##[endgroup]
+2025-06-24T07:37:55.8451162Z ##[group]Determining the checkout info
+2025-06-24T07:37:55.8454726Z ##[endgroup]
+2025-06-24T07:37:55.8457269Z [command]/usr/bin/git sparse-checkout disable
+2025-06-24T07:37:55.8497647Z [command]/usr/bin/git config --local --unset-all extensions.worktreeConfig
+2025-06-24T07:37:55.8545126Z ##[group]Checking out the ref
+2025-06-24T07:37:55.8546220Z [command]/usr/bin/git checkout --progress --force -B main refs/remotes/origin/main
+2025-06-24T07:37:56.4772880Z Switched to a new branch 'main'
+2025-06-24T07:37:56.4778393Z branch 'main' set up to track 'origin/main'.
+2025-06-24T07:37:56.4837746Z ##[endgroup]
+2025-06-24T07:37:56.4881859Z [command]/usr/bin/git log -1 --format=%H
+2025-06-24T07:37:56.4905275Z 43dbccda066392f8f81ab87191dc7fc3f91b219e
