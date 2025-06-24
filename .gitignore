@@ -42,6 +42,7 @@ env/
 .env
 .env.*
 !.env.example
+!.env.production.template
 
 # Node
 node_modules/
