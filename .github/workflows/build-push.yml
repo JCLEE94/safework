@@ -27,6 +27,8 @@ jobs:
           registry: ${{ env.REGISTRY }}
           username: ${{ secrets.REGISTRY_USERNAME }}
           password: ${{ secrets.REGISTRY_PASSWORD }}
+        env:
+          DOCKER_REGISTRY_INSECURE: "true"
           
       - name: Build and Push to Private Registry
         uses: docker/build-push-action@v5
