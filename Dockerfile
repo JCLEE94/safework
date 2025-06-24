@@ -8,7 +8,7 @@ ENV VITE_BUILD_TIME=$BUILD_TIME
 WORKDIR /app
 COPY package*.json ./
 COPY index.html ./
-RUN npm ci
+RUN npm install
 
 COPY src/ ./src/
 COPY vite.config.ts tsconfig.json tsconfig.node.json ./
