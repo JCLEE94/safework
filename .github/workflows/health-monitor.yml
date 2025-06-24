@@ -1,8 +1,8 @@
 name: Health Monitor
 
 on:
-  schedule:
-    - cron: '0 */6 * * *'  # 6시간마다 (하루 4번)
+#  schedule:
+#    - cron: '0 */6 * * *'  # 6시간마다 (하루 4번)
   workflow_dispatch:  # 수동 실행 가능
 
 env:
