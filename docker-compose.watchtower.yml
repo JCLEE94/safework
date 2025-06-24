@@ -5,7 +5,6 @@ services:
     image: containrrr/watchtower:latest
     container_name: watchtower
     restart: unless-stopped
-    volumes:
       - /var/run/docker.sock:/var/run/docker.sock
       - ~/.docker/config.json:/config.json:ro
     environment:
@@ -60,10 +59,6 @@ services:
       - DEBUG=false
       - LOG_LEVEL=INFO
       - TZ=Asia/Seoul
-    volumes:
-      - ./uploads:/app/uploads
-      - ./logs:/app/logs
-      - ./dist:/app/dist
     labels:
       - "com.centurylinklabs.watchtower.enable=true"
       - "com.centurylinklabs.watchtower.stop-signal=SIGTERM"
@@ -90,7 +85,6 @@ services:
       - POSTGRES_DB=health_management
       - POSTGRES_INITDB_ARGS=--encoding=UTF-8
       - TZ=Asia/Seoul
-    volumes:
       - postgres_data:/var/lib/postgresql/data
     networks:
       - health-network
@@ -104,7 +98,6 @@ services:
     image: redis:7-alpine
     container_name: health-redis
     restart: unless-stopped
-    volumes:
       - redis_data:/data
     networks:
       - health-network
@@ -114,7 +107,6 @@ services:
       timeout: 5s
       retries: 5
 
-volumes:
   postgres_data:
   redis_data:
 

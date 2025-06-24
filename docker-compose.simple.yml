@@ -12,6 +12,3 @@ services:
       - REDIS_URL=redis://health-redis:6379/0
       - JWT_SECRET=your-super-secret-jwt-key-here-32-chars-long
       - TZ=Asia/Seoul
-    volumes:
-      - ./uploads:/app/uploads
-      - ./logs:/app/logs

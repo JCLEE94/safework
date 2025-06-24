@@ -18,10 +18,7 @@ services:
       LOG_LEVEL: ${LOG_LEVEL:-INFO}
       TZ: Asia/Seoul
       PYTHONUNBUFFERED: 1
-    volumes:
-      - ./uploads:/app/uploads
-      - ./logs:/app/logs
-      - ./dist:/app/dist
+    # volumes removed for containerized deployment
     depends_on:
       postgres:
         condition: service_healthy

@@ -13,10 +13,7 @@ services:
       - SECRET_KEY=${JWT_SECRET}
       - DEBUG=false
       - LOG_LEVEL=INFO
-    volumes:
-      - ./uploads:/app/uploads
-      - ./logs:/app/logs
-      - ./dist:/app/dist
+    # volumes removed for containerized deployment
     depends_on:
       postgres:
         condition: service_healthy

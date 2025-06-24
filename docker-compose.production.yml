@@ -14,10 +14,6 @@ services:
       - DEBUG=${DEBUG:-false}
       - LOG_LEVEL=${LOG_LEVEL:-INFO}
       - TZ=${TZ:-Asia/Seoul}
-    volumes:
-      - ./uploads:/app/uploads
-      - ./logs:/app/logs
-      - ./dist:/app/dist
     depends_on:
       postgres:
         condition: service_healthy
@@ -42,7 +38,6 @@ services:
       - POSTGRES_DB=${POSTGRES_DB:-health_management}
       - POSTGRES_INITDB_ARGS=${POSTGRES_INITDB_ARGS:---encoding=UTF-8}
       - TZ=${TZ:-Asia/Seoul}
-    volumes:
       - postgres_data:/var/lib/postgresql/data
     networks:
       - health-network
@@ -56,7 +51,6 @@ services:
     image: redis:7-alpine
     container_name: ${REDIS_CONTAINER_NAME:-health-redis}
     restart: unless-stopped
-    volumes:
       - redis_data:/data
     networks:
       - health-network
@@ -66,7 +60,6 @@ services:
       timeout: 5s
       retries: 5
 
-volumes:
   postgres_data:
   redis_data:
 
