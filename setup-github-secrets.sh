@@ -68,7 +68,7 @@ if [[ "$SETUP_SSH" =~ ^[Yy]$ ]]; then
         echo -e "${YELLOW}⚠️  ~/.ssh/id_rsa 파일을 찾을 수 없습니다.${NC}"
     fi
     
-    gh secret set DEPLOY_HOST -b "192.168.50.215" 2>/dev/null && echo -e "${GREEN}✅ DEPLOY_HOST 설정 완료${NC}"
+    gh secret set DEPLOY_HOST -b "soonmin.jclee.me" 2>/dev/null && echo -e "${GREEN}✅ DEPLOY_HOST 설정 완료${NC}"
     gh secret set DEPLOY_PORT -b "1111" 2>/dev/null && echo -e "${GREEN}✅ DEPLOY_PORT 설정 완료${NC}"
     gh secret set DEPLOY_USER -b "docker" 2>/dev/null && echo -e "${GREEN}✅ DEPLOY_USER 설정 완료${NC}"
 fi

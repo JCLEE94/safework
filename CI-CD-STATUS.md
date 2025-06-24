@@ -44,9 +44,9 @@ graph LR
 ## 🔍 모니터링 링크
 
 - [GitHub Actions](https://github.com/qws941/health-management-system/actions)
-- [프로덕션 서버](http://192.168.50.215:3001)
-- [헬스체크](http://192.168.50.215:3001/health)
-- [API 문서](http://192.168.50.215:3001/api/docs)
+- [프로덕션 서버](http://soonmin.jclee.me)
+- [헬스체크](http://soonmin.jclee.me/health)
+- [API 문서](http://soonmin.jclee.me/api/docs)
 
 ## 📝 최근 배포
 

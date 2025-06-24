@@ -7,7 +7,7 @@ import requests
 import json
 
 def test_all_pdf_forms():
-    base_url = 'http://192.168.50.215:3001/api/v1/documents'
+    base_url = 'http://soonmin.jclee.me/api/v1/documents'
     
     # 테스트 데이터
     test_data = {

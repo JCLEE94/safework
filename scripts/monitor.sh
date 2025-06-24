@@ -391,7 +391,7 @@ Examples:
     $0                  # Run full monitoring
     $0 status           # Check service status only
     $0 health           # Check health endpoint only
-    $0 --health-url http://192.168.50.215:3001/health
+    $0 --health-url http://soonmin.jclee.me/health
 EOF
 }
 

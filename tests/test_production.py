@@ -6,7 +6,7 @@ import pytest
 import httpx
 import json
 
-PRODUCTION_URL = "http://192.168.50.215:3001"
+PRODUCTION_URL = "http://soonmin.jclee.me"
 
 @pytest.mark.asyncio
 class TestProductionServer:

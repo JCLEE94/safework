@@ -3,7 +3,7 @@ version: '3.8'
 services:
   # Main health management application
   health-app:
-    image: 192.168.50.215:1234/health-management-system:latest
+    image: registry.jclee.me/health-management-system:latest
     container_name: health-management-system
     ports:
       - "3001:8000"

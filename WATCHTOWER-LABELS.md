@@ -66,7 +66,7 @@ labels:
   - "org.label-schema.name=SafeWork Pro"
   - "org.label-schema.description=건설업 보건관리 시스템"
   - "org.label-schema.vendor=JC Lee"
-  - "org.label-schema.url=http://192.168.50.215:3001"
+  - "org.label-schema.url=http://soonmin.jclee.me"
 ```
 
 ## ✅ 라벨 확인 방법
@@ -82,7 +82,7 @@ docker inspect health-management-system | grep watchtower
 
 ### 2. 운영 서버에서 확인
 ```bash
-ssh -p 1111 docker@192.168.50.215 'docker inspect health-management-system | grep watchtower'
+ssh -p 1111 docker@soonmin.jclee.me 'docker inspect health-management-system | grep watchtower'
 ```
 
 ## 🚀 적용 방법
