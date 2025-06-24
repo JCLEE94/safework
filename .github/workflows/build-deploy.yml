@@ -62,7 +62,7 @@ jobs:
           port: 1111
           timeout: 60s
           command_timeout: 30s
-        script: |
+          script: |
             # Pull new image
             /usr/local/bin/docker pull registry.jclee.me/health:latest
             

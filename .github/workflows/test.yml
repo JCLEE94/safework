@@ -23,7 +23,7 @@ jobs:
           --health-timeout 5s
           --health-retries 5
         ports:
-          - 5432:5432
+          - 15432:5432
           
       redis:
         image: redis:7
@@ -33,7 +33,7 @@ jobs:
           --health-timeout 5s
           --health-retries 5
         ports:
-          - 6379:6379
+          - 16379:6379
     
     steps:
       - name: Checkout code
@@ -52,8 +52,8 @@ jobs:
           
       - name: Run tests
         env:
-          DATABASE_URL: postgresql://admin:password@localhost:5432/health_management
-          REDIS_URL: redis://localhost:6379/0
+          DATABASE_URL: postgresql://admin:password@localhost:15432/health_management
+          REDIS_URL: redis://localhost:16379/0
           JWT_SECRET: test-secret-key
         run: |
           pytest tests/ -v --cov=src --cov-report=html --cov-report=term
