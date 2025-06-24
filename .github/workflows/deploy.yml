@@ -140,20 +140,34 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       
-      - name: Deploy to production
+      - name: Deploy to production (same server)
         uses: appleboy/ssh-action@v1.0.0
         with:
           host: ${{ secrets.DEPLOY_HOST }}
           username: ${{ secrets.DEPLOY_USER }}
-          password: ${{ secrets.DEPLOY_PASSWORD }}
+          key: ${{ secrets.DEPLOY_SSH_KEY }}
           port: ${{ secrets.DEPLOY_PORT }}
           script: |
+            echo "🚀 Starting local deployment on registry server..."
             cd ~/app/health
+            
+            # 로컬 registry에서 바로 pull (네트워크 트래픽 없음)
+            docker pull localhost:5000/health-management-system:latest || \
+            docker pull registry.jclee.me/health-management-system:latest
+            
+            # 컨테이너 재시작
             /usr/local/bin/docker-compose pull
-            /usr/local/bin/docker-compose up -d
-            sleep 10
-            curl -f http://localhost:3001/health || exit 1
-            echo "Deployment successful!"
+            /usr/local/bin/docker-compose up -d --force-recreate
+            
+            # 헬스체크
+            sleep 15
+            if curl -f http://localhost:3001/health; then
+              echo "✅ Deployment successful!"
+            else
+              echo "❌ Health check failed"
+              /usr/local/bin/docker-compose logs --tail=50 health-app
+              exit 1
+            fi
 
   notify:
     runs-on: ubuntu-latest
