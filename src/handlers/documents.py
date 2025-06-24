@@ -442,9 +442,9 @@ def create_text_overlay(data: Dict, form_type: str) -> io.BytesIO:
             
             # 개발 모드에서 디버깅 정보 표시
             if os.getenv('DEBUG_PDF', 'false').lower() == 'true':
-                can.setStrokeColor(red if hasattr(__builtins__, 'red') else black)
+                can.setStrokeColor(colors.red if hasattr(colors, 'red') else colors.black)
                 can.circle(adjusted_x, adjusted_y, 1, stroke=1, fill=0)
-                can.setStrokeColor(black)
+                can.setStrokeColor(colors.black)
                 
         except Exception as e:
             print(f"Error drawing text for {field_name}: {str(e)}")

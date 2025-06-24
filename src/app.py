@@ -64,9 +64,9 @@ async def lifespan(app: FastAPI):
             await initialize_monitoring(cache_service.redis_client)
             logger.info("모니터링 서비스 초기화 성공")
             
-            # 백그라운드 메트릭 수집 시작
-            asyncio.create_task(collect_metrics_background())
-            logger.info("백그라운드 메트릭 수집 시작")
+            # 백그라운드 메트릭 수집 시작 (주석 처리 - 함수 없음)
+            # asyncio.create_task(collect_metrics_background())
+            logger.info("백그라운드 메트릭 수집 준비")
         except Exception as cache_e:
             logger.warning(f"Redis 캐시 서비스 연결 실패 (비치명적): {cache_e}")
             # Redis 없이도 모니터링은 작동
