@@ -1,7 +1,7 @@
 # SafeWork Pro - 건설업 보건관리 시스템
 
 <div align="center">
-  <img src="https://img.shields.io/badge/Python-3.11-blue?style=for-the-badge&logo=python">
+  <img src="https://img.shields.io/badge/Python-3.9+-blue?style=for-the-badge&logo=python">
   <img src="https://img.shields.io/badge/FastAPI-0.104.1-green?style=for-the-badge&logo=fastapi">
   <img src="https://img.shields.io/badge/React-18-blue?style=for-the-badge&logo=react">
   <img src="https://img.shields.io/badge/PostgreSQL-15-blue?style=for-the-badge&logo=postgresql">
@@ -10,8 +10,8 @@
 
 <div align="center">
   <br>
-  <a href="https://github.com/qws941/health/actions/workflows/build-deploy.yml">
-    <img src="https://github.com/qws941/health/actions/workflows/build-deploy.yml/badge.svg" alt="Build & Deploy">
+  <a href="https://github.com/qws941/health/actions/workflows/build-push.yml">
+    <img src="https://github.com/qws941/health/actions/workflows/build-push.yml/badge.svg" alt="Build & Push">
   </a>
   <a href="https://github.com/qws941/health/actions/workflows/test.yml">
     <img src="https://github.com/qws941/health/actions/workflows/test.yml/badge.svg" alt="Tests">
@@ -98,7 +98,7 @@ npm run build
 ```
 
 ### 기술 스택
-- **Backend**: Python 3.11, FastAPI, SQLAlchemy, Alembic
+- **Backend**: Python 3.9+, FastAPI, SQLAlchemy, Alembic
 - **Frontend**: React 18, TypeScript, Vite, Tailwind CSS
 - **Database**: PostgreSQL 15
 - **Cache**: Redis 7
@@ -108,7 +108,11 @@ npm run build
 ## 📁 프로젝트 구조
 
 ```
-health-management-system/
+health/
+├── config/                 # 프로젝트 설정
+│   ├── project.yml         # 프로젝트 메타데이터
+│   ├── workflows.yml       # CI/CD 설정
+│   └── watchtower.yml      # 자동 배포 설정
 ├── src/
 │   ├── app.py              # FastAPI 애플리케이션
 │   ├── config/             # 설정 및 데이터베이스
@@ -118,10 +122,11 @@ health-management-system/
 │   ├── services/           # 비즈니스 로직
 │   ├── middleware/         # 미들웨어 (보안, 캐싱, 성능)
 │   └── utils/              # 유틸리티 함수
+├── docker/
+│   └── compose/            # Docker Compose 파일들
+├── scripts/                # 유틸리티 스크립트
 ├── tests/                  # 테스트 코드
 ├── document/               # PDF 템플릿 및 문서
-├── docker-compose.yml      # 프로덕션 설정
-├── docker-compose.dev.yml  # 개발 환경 설정
 └── requirements.txt        # Python 의존성
 ```
 
@@ -174,19 +179,13 @@ docker-compose -f docker-compose.test.yml up --abort-on-container-exit
 
 ## 🚀 배포
 
-### GitHub Actions CI/CD
+### 자동 배포 (Watchtower)
 
-`.github/workflows/deploy.yml`이 자동으로:
-1. 코드 품질 검사 (lint, type check)
-2. 테스트 실행
-3. Docker 이미지 빌드
-4. Registry 푸시 (registry.jclee.me)
-5. 프로덕션 서버 배포
+1. **개발자**: `git push origin main`
+2. **GitHub Actions**: Docker 이미지 빌드 → registry.jclee.me 푸시
+3. **Watchtower**: 30초마다 체크 → 자동 배포
 
-### 수동 배포
-```bash
-./deploy.sh health
-```
+상세 설정: [Watchtower 설정 가이드](docs/deployment/WATCHTOWER-SETUP.md)
 
 ## 🔒 보안 기능
 
