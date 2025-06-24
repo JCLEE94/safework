@@ -1,0 +1,33 @@
+# Code Owners for SafeWork Pro
+
+# 전체 프로젝트
+* @qws941
+
+# Backend
+/src/ @qws941
+/tests/ @qws941
+*.py @qws941
+
+# Frontend
+/src/components/ @qws941
+/src/App.tsx @qws941
+*.tsx @qws941
+*.ts @qws941
+
+# Database
+/src/models/ @qws941
+/migrations/ @qws941
+
+# CI/CD
+/.github/ @qws941
+/docker* @qws941
+/Dockerfile @qws941
+
+# Documentation
+*.md @qws941
+/docs/ @qws941
+
+# Security sensitive files
+.env* @qws941
+*secret* @qws941
+*password* @qws941

@@ -1,0 +1,206 @@
+name: Automated Rollback
+
+on:
+  workflow_run:
+    workflows: ["Deploy Status", "Simple Deploy with Watchtower"]
+    types:
+      - completed
+
+env:
+  REGISTRY: registry.jclee.me
+  IMAGE_NAME: health-management-system
+  DEPLOY_HOST: ${{ secrets.DEPLOY_HOST || '192.168.50.215' }}
+  DEPLOY_PORT: ${{ secrets.DEPLOY_PORT || '1111' }}
+  DEPLOY_USER: ${{ secrets.DEPLOY_USER || 'docker' }}
+  HEALTH_CHECK_RETRIES: 10
+  HEALTH_CHECK_DELAY: 30
+
+jobs:
+  health-verification:
+    runs-on: ubuntu-latest
+    if: github.event.workflow_run.conclusion == 'success'
+    outputs:
+      rollback_needed: ${{ steps.health_check.outputs.rollback_needed }}
+      previous_version: ${{ steps.version_info.outputs.previous_version }}
+    
+    steps:
+      - name: Wait for deployment
+        run: |
+          echo "⏳ Waiting for deployment to complete..."
+          sleep ${{ env.HEALTH_CHECK_DELAY }}
+      
+      - name: Get version info
+        id: version_info
+        run: |
+          # 현재 버전과 이전 버전 태그 가져오기
+          CURRENT_SHA="${{ github.event.workflow_run.head_sha }}"
+          echo "current_sha=$CURRENT_SHA" >> $GITHUB_OUTPUT
+          
+          # 이전 성공한 배포의 SHA 찾기 (임시로 설정)
+          PREVIOUS_SHA="${{ github.event.workflow_run.head_sha }}"
+          echo "previous_version=$PREVIOUS_SHA" >> $GITHUB_OUTPUT
+      
+      - name: Health check with retries
+        id: health_check
+        run: |
+          ROLLBACK_NEEDED="false"
+          SUCCESS_COUNT=0
+          REQUIRED_SUCCESS=3
+          
+          for i in $(seq 1 ${{ env.HEALTH_CHECK_RETRIES }}); do
+            echo "🔍 Health check attempt $i/${{ env.HEALTH_CHECK_RETRIES }}"
+            
+            HTTP_CODE=$(curl -s -o /dev/null -w "%{http_code}" http://${{ env.DEPLOY_HOST }}:3001/health || echo "000")
+            
+            if [ "$HTTP_CODE" = "200" ]; then
+              SUCCESS_COUNT=$((SUCCESS_COUNT + 1))
+              echo "✅ Health check passed ($SUCCESS_COUNT/$REQUIRED_SUCCESS)"
+              
+              if [ $SUCCESS_COUNT -ge $REQUIRED_SUCCESS ]; then
+                echo "🎉 Deployment verified successfully!"
+                break
+              fi
+            else
+              echo "❌ Health check failed: HTTP $HTTP_CODE"
+              SUCCESS_COUNT=0
+            fi
+            
+            if [ $i -lt ${{ env.HEALTH_CHECK_RETRIES }} ]; then
+              sleep 10
+            fi
+          done
+          
+          if [ $SUCCESS_COUNT -lt $REQUIRED_SUCCESS ]; then
+            echo "🚨 Health checks failed! Rollback needed."
+            ROLLBACK_NEEDED="true"
+          fi
+          
+          echo "rollback_needed=$ROLLBACK_NEEDED" >> $GITHUB_OUTPUT
+      
+      - name: Performance check
+        if: steps.health_check.outputs.rollback_needed == 'false'
+        run: |
+          # 응답 시간 확인
+          AVG_TIME=0
+          for i in {1..5}; do
+            TIME=$(curl -o /dev/null -s -w '%{time_total}' http://${{ env.DEPLOY_HOST }}:3001/health || echo "10")
+            AVG_TIME=$(echo "$AVG_TIME + $TIME" | bc)
+          done
+          AVG_TIME=$(echo "scale=3; $AVG_TIME / 5" | bc)
+          
+          echo "📊 Average response time: ${AVG_TIME}s"
+          
+          # 2초 이상이면 롤백
+          if (( $(echo "$AVG_TIME > 2" | bc -l) )); then
+            echo "🚨 Performance degradation detected!"
+            echo "rollback_needed=true" >> $GITHUB_OUTPUT
+          fi
+
+  automatic-rollback:
+    runs-on: ubuntu-latest
+    needs: health-verification
+    if: needs.health-verification.outputs.rollback_needed == 'true'
+    
+    steps:
+      - name: Trigger rollback
+        uses: appleboy/ssh-action@v1.0.0
+        with:
+          host: ${{ env.DEPLOY_HOST }}
+          port: ${{ env.DEPLOY_PORT }}
+          username: ${{ env.DEPLOY_USER }}
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          script: |
+            set -e
+            echo "🔄 Starting automatic rollback..."
+            
+            cd ~/app/health
+            
+            # 이전 버전으로 롤백
+            PREVIOUS_TAG="${{ needs.health-verification.outputs.previous_version }}"
+            
+            # 이미지 태그 변경
+            docker tag ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:rollback \
+                       ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest || {
+              echo "❌ No rollback image found!"
+              exit 1
+            }
+            
+            # 컨테이너 재시작
+            /usr/local/bin/docker-compose down
+            /usr/local/bin/docker-compose up -d
+            
+            # 롤백 후 헬스체크
+            sleep 10
+            if curl -f http://localhost:3001/health; then
+              echo "✅ Rollback successful!"
+            else
+              echo "❌ Rollback failed!"
+              exit 1
+            fi
+      
+      - name: Send rollback notification
+        if: always()
+        run: |
+          MESSAGE="🔄 **Automatic Rollback Triggered**\n\n"
+          MESSAGE+="- Service: SafeWork Pro\n"
+          MESSAGE+="- Reason: Health check failures\n"
+          MESSAGE+="- Original commit: ${{ github.event.workflow_run.head_sha }}\n"
+          MESSAGE+="- Rolled back to: ${{ needs.health-verification.outputs.previous_version }}\n"
+          MESSAGE+="- Status: ${{ job.status }}\n"
+          MESSAGE+="- Time: $(date -u +%Y-%m-%d' '%H:%M:%S' UTC')\n"
+          
+          echo "$MESSAGE"
+          
+          # Slack/Discord 알림 (설정된 경우)
+          if [ ! -z "${{ secrets.SLACK_WEBHOOK }}" ]; then
+            curl -X POST ${{ secrets.SLACK_WEBHOOK }} \
+              -H 'Content-Type: application/json' \
+              -d "{\"text\": \"$MESSAGE\"}"
+          fi
+      
+      - name: Create rollback issue
+        uses: actions/github-script@v6
+        with:
+          script: |
+            const issue = await github.rest.issues.create({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              title: `🔄 Automatic Rollback: ${context.sha.substring(0, 7)}`,
+              body: `## Automatic Rollback Report
+              
+              **Deployment Failed Health Checks**
+              
+              - **Commit**: ${context.sha}
+              - **Workflow**: ${context.workflow}
+              - **Time**: ${new Date().toISOString()}
+              
+              ### Actions Required
+              - [ ] Investigate deployment failure
+              - [ ] Fix issues
+              - [ ] Re-deploy with fixes
+              
+              ### Logs
+              Check the [workflow run](${context.serverUrl}/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}) for details.
+              `,
+              labels: ['bug', 'deployment', 'rollback']
+            });
+            
+            console.log(`Created issue #${issue.data.number}`);
+
+  manual-rollback:
+    runs-on: ubuntu-latest
+    if: github.event_name == 'workflow_dispatch'
+    
+    steps:
+      - name: Manual rollback options
+        run: |
+          echo "## 🔄 Manual Rollback Options"
+          echo ""
+          echo "1. Rollback to previous version:"
+          echo "   docker tag registry.jclee.me/health-management-system:rollback registry.jclee.me/health-management-system:latest"
+          echo ""
+          echo "2. Rollback to specific version:"
+          echo "   docker tag registry.jclee.me/health-management-system:SHA registry.jclee.me/health-management-system:latest"
+          echo ""
+          echo "3. Emergency rollback:"
+          echo "   docker-compose down && docker-compose up -d"
