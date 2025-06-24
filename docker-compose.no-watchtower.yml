@@ -1,0 +1,78 @@
+version: '3.8'
+
+services:
+  # 앱만 (Watchtower 라벨 없음)
+  health-app:
+    image: registry.jclee.me/health-management-system:latest
+    container_name: health-management-system
+    restart: unless-stopped
+    ports:
+      - "3001:8000"
+    environment:
+      - DATABASE_URL=postgresql://admin:password@postgres:5432/health_management
+      - REDIS_URL=redis://redis:6379/0
+      - JWT_SECRET=${JWT_SECRET:-your-super-secret-jwt-key-here-32-chars-long}
+      - DEBUG=false
+      - LOG_LEVEL=INFO
+      - TZ=Asia/Seoul
+    volumes:
+      - ./uploads:/app/uploads
+      - ./logs:/app/logs
+      - ./dist:/app/dist
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - health-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 60s
+
+  # PostgreSQL
+  postgres:
+    image: postgres:15-alpine
+    container_name: health-postgres
+    restart: unless-stopped
+    environment:
+      - POSTGRES_USER=admin
+      - POSTGRES_PASSWORD=password
+      - POSTGRES_DB=health_management
+      - POSTGRES_INITDB_ARGS=--encoding=UTF-8
+      - TZ=Asia/Seoul
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    networks:
+      - health-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U admin -d health_management"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # Redis
+  redis:
+    image: redis:7-alpine
+    container_name: health-redis
+    restart: unless-stopped
+    volumes:
+      - redis_data:/data
+    networks:
+      - health-network
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+volumes:
+  postgres_data:
+  redis_data:
+
+networks:
+  health-network:
+    driver: bridge
