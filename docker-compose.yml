@@ -3,7 +3,7 @@ version: '3.8'
 services:
   # Main health management application
   health-app:
-    build: .
+    image: registry.jclee.me/health-management-system:latest
     container_name: health-management-system
     ports:
       - "3001:8000"
@@ -25,6 +25,11 @@ services:
     networks:
       - health-network
     restart: unless-stopped
+    labels:
+      # Watchtower 자동 업데이트 활성화
+      - "com.centurylinklabs.watchtower.enable=true"
+      - "com.centurylinklabs.watchtower.stop-signal=SIGTERM"
+      - "com.centurylinklabs.watchtower.timeout=30s"
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
       interval: 30s

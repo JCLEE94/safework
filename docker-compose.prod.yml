@@ -35,6 +35,19 @@ services:
       start_period: 40s
     networks:
       - health-network
+    labels:
+      # Watchtower 자동 업데이트 설정
+      - "com.centurylinklabs.watchtower.enable=true"
+      - "com.centurylinklabs.watchtower.stop-signal=SIGTERM"
+      - "com.centurylinklabs.watchtower.timeout=30s"
+      - "com.centurylinklabs.watchtower.scope=health"
+      # 추가 메타데이터
+      - "com.docker.compose.project=health"
+      - "com.docker.compose.service=app"
+      - "org.label-schema.name=SafeWork Pro"
+      - "org.label-schema.description=건설업 보건관리 시스템"
+      - "org.label-schema.vendor=JC Lee"
+      - "org.label-schema.url=http://192.168.50.215:3001"
     logging:
       driver: "json-file"
       options:

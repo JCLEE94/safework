@@ -8,12 +8,12 @@ set -e
 echo "🚀 Health Management System Production Deployment"
 echo "=============================================="
 
-# Configuration
-REGISTRY="registry.jclee.me"
-IMAGE_NAME="health-management-system"
-REGISTRY_USER="qws941"
-REGISTRY_PASS="bingogo1l7!"
-TARGET_DIR="/var/services/homes/docker/app/health"
+# Configuration - Use environment variables or defaults
+REGISTRY="${DOCKER_REGISTRY:-registry.jclee.me}"
+IMAGE_NAME="${DOCKER_IMAGE_NAME:-health-management-system}"
+REGISTRY_USER="${DOCKER_REGISTRY_USER:-}"
+REGISTRY_PASS="${DOCKER_REGISTRY_PASS:-}"
+TARGET_DIR="${DEPLOY_TARGET_DIR:-/var/services/homes/docker/app/health}"
 
 # Colors for output
 GREEN='\033[0;32m'
@@ -76,34 +76,34 @@ if [ "$FIRST_TIME_SETUP" = true ]; then
         print_info "Creating .env file..."
         cat > .env << 'EOF'
 # Database Configuration
-DATABASE_URL=postgresql://admin:password@health-postgres:5432/health_management
-POSTGRES_USER=admin
-POSTGRES_PASSWORD=password
-POSTGRES_DB=health_management
+DATABASE_URL=postgresql://${POSTGRES_USER:-admin}:${POSTGRES_PASSWORD:-password}@health-postgres:5432/${POSTGRES_DB:-health_management}
+POSTGRES_USER=${POSTGRES_USER:-admin}
+POSTGRES_PASSWORD=${POSTGRES_PASSWORD:-password}
+POSTGRES_DB=${POSTGRES_DB:-health_management}
 
 # Redis Configuration
 REDIS_URL=redis://health-redis:6379/0
-REDIS_PASSWORD=
+REDIS_PASSWORD=${REDIS_PASSWORD:-}
 
 # JWT Configuration
-JWT_SECRET=your-super-secret-jwt-key-here-32-chars-long
-JWT_ALGORITHM=HS256
-JWT_EXPIRATION_MINUTES=1440
+JWT_SECRET=${JWT_SECRET:-your-super-secret-jwt-key-here-32-chars-long}
+JWT_ALGORITHM=${JWT_ALGORITHM:-HS256}
+JWT_EXPIRATION_MINUTES=${JWT_EXPIRATION_MINUTES:-1440}
 
 # Application Settings
-DEBUG=false
-LOG_LEVEL=INFO
-TZ=Asia/Seoul
+DEBUG=${DEBUG:-false}
+LOG_LEVEL=${LOG_LEVEL:-INFO}
+TZ=${TZ:-Asia/Seoul}
 
 # API Keys (update as needed)
-API_KEY_SALT=your-api-key-salt-here
+API_KEY_SALT=${API_KEY_SALT:-your-api-key-salt-here}
 
 # CORS Settings
-CORS_ORIGINS=["http://localhost:3001", "http://192.168.50.215:3001", "https://registry.jclee.me:3001"]
+CORS_ORIGINS=${CORS_ORIGINS:-'["http://localhost:3001", "http://192.168.50.215:3001", "https://registry.jclee.me:3001"]'}
 
 # Rate Limiting
-RATE_LIMIT_REQUESTS=100
-RATE_LIMIT_PERIOD=60
+RATE_LIMIT_REQUESTS=${RATE_LIMIT_REQUESTS:-100}
+RATE_LIMIT_PERIOD=${RATE_LIMIT_PERIOD:-60}
 EOF
         print_status ".env file created"
         print_warning "Please update .env file with your actual configuration"
@@ -145,12 +145,16 @@ print_status "Docker environment OK"
 echo ""
 echo "🔐 Step 3: Registry Authentication"
 echo "---------------------------------"
-echo "$REGISTRY_PASS" | docker login $REGISTRY -u $REGISTRY_USER --password-stdin
-if [ $? -eq 0 ]; then
-    print_status "Successfully logged in to $REGISTRY"
+if [ -n "$REGISTRY_USER" ] && [ -n "$REGISTRY_PASS" ]; then
+    echo "$REGISTRY_PASS" | docker login $REGISTRY -u $REGISTRY_USER --password-stdin
+    if [ $? -eq 0 ]; then
+        print_status "Successfully logged in to $REGISTRY"
+    else
+        print_error "Failed to login to registry"
+        exit 1
+    fi
 else
-    print_error "Failed to login to registry"
-    exit 1
+    print_warning "Registry credentials not provided, attempting pull without authentication"
 fi
 
 # Step 4: Pull latest image

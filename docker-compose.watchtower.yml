@@ -2,24 +2,50 @@ version: '3.8'
 
 services:
   watchtower:
-    image: containrrr/watchtower
+    image: containrrr/watchtower:latest
     container_name: watchtower
     restart: unless-stopped
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
       - ~/.docker/config.json:/config.json:ro
     environment:
-      - WATCHTOWER_POLL_INTERVAL=30
-      - WATCHTOWER_CLEANUP=true
-      - WATCHTOWER_INCLUDE_STOPPED=false
-      - WATCHTOWER_INCLUDE_RESTARTING=true
-      - WATCHTOWER_LABEL_ENABLE=true
-      - WATCHTOWER_ROLLING_RESTART=true
-      - WATCHTOWER_NO_PULL=false
-      - WATCHTOWER_MONITOR_ONLY=false
-      - DOCKER_CONFIG=/config.json
+      # Core Configuration
+      - WATCHTOWER_POLL_INTERVAL=30              # Check every 30 seconds
+      - WATCHTOWER_CLEANUP=true                  # Remove old images
+      - WATCHTOWER_INCLUDE_STOPPED=false         # Don't update stopped containers
+      - WATCHTOWER_INCLUDE_RESTARTING=true       # Update restarting containers
+      - WATCHTOWER_LABEL_ENABLE=true             # Only update labeled containers
+      - WATCHTOWER_ROLLING_RESTART=true          # Zero-downtime updates
+      - WATCHTOWER_NO_PULL=false                 # Pull images from registry
+      - WATCHTOWER_MONITOR_ONLY=false            # Actually perform updates
+      - WATCHTOWER_TIMEOUT=300                   # 5 minute timeout per update
+      
+      # Authentication
+      - DOCKER_CONFIG=/config.json               # Use mounted config for registry auth
+      
+      # Notifications (optional)
+      - WATCHTOWER_NOTIFICATIONS=${WATCHTOWER_NOTIFICATIONS:-log}
+      - WATCHTOWER_NOTIFICATION_LEVEL=info
+      
+      # Timezone
       - TZ=Asia/Seoul
-    command: --interval 30 --label-enable --cleanup
+      
+      # HTTP API for manual triggers (optional)
+      - WATCHTOWER_HTTP_API_UPDATE=${WATCHTOWER_API_ENABLED:-false}
+      - WATCHTOWER_HTTP_API_TOKEN=${WATCHTOWER_API_TOKEN:-your-secure-token-here}
+    command: --interval 30 --label-enable --cleanup --rolling-restart
+    labels:
+      - "com.centurylinklabs.watchtower.enable=false"  # Don't auto-update watchtower itself
+    networks:
+      - health-network
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "-q", "http://localhost:8080/v1/metrics"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+    ports:
+      - "8080:8080"  # API endpoint (only if WATCHTOWER_HTTP_API_UPDATE=true)
 
   health-app:
     image: registry.jclee.me/health-management-system:latest

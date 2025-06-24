@@ -2,18 +2,18 @@ version: '3.8'
 
 services:
   health-app:
-    image: registry.jclee.me/health-management-system:latest
-    container_name: health-management-system
+    image: ${DOCKER_REGISTRY:-registry.jclee.me}/${DOCKER_IMAGE_NAME:-health-management-system}:${DOCKER_TAG:-latest}
+    container_name: ${CONTAINER_NAME:-health-management-system}
     restart: unless-stopped
     ports:
-      - "3001:8000"
+      - "${APP_PORT:-3001}:8000"
     environment:
-      - DATABASE_URL=postgresql://admin:password@postgres:5432/health_management
+      - DATABASE_URL=postgresql://${POSTGRES_USER:-admin}:${POSTGRES_PASSWORD:-password}@postgres:5432/${POSTGRES_DB:-health_management}
       - REDIS_URL=redis://redis:6379/0
-      - JWT_SECRET=your-super-secret-jwt-key-here-32-chars-long
-      - DEBUG=false
-      - LOG_LEVEL=INFO
-      - TZ=Asia/Seoul
+      - JWT_SECRET=${JWT_SECRET:-your-super-secret-jwt-key-here-32-chars-long}
+      - DEBUG=${DEBUG:-false}
+      - LOG_LEVEL=${LOG_LEVEL:-INFO}
+      - TZ=${TZ:-Asia/Seoul}
     volumes:
       - ./uploads:/app/uploads
       - ./logs:/app/logs
@@ -34,14 +34,14 @@ services:
 
   postgres:
     image: postgres:15
-    container_name: health-postgres
+    container_name: ${POSTGRES_CONTAINER_NAME:-health-postgres}
     restart: unless-stopped
     environment:
-      - POSTGRES_USER=admin
-      - POSTGRES_PASSWORD=password
-      - POSTGRES_DB=health_management
-      - POSTGRES_INITDB_ARGS=--encoding=UTF-8
-      - TZ=Asia/Seoul
+      - POSTGRES_USER=${POSTGRES_USER:-admin}
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:-password}
+      - POSTGRES_DB=${POSTGRES_DB:-health_management}
+      - POSTGRES_INITDB_ARGS=${POSTGRES_INITDB_ARGS:---encoding=UTF-8}
+      - TZ=${TZ:-Asia/Seoul}
     volumes:
       - postgres_data:/var/lib/postgresql/data
     networks:
@@ -54,7 +54,7 @@ services:
 
   redis:
     image: redis:7-alpine
-    container_name: health-redis
+    container_name: ${REDIS_CONTAINER_NAME:-health-redis}
     restart: unless-stopped
     volumes:
       - redis_data:/data
