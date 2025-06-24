@@ -10,7 +10,7 @@ on:
 
 jobs:
   security-scan:
-    runs-on: ubuntu-latest
+    runs-on: self-hosted
     
     steps:
       - name: Checkout code
@@ -31,7 +31,7 @@ jobs:
           sarif_file: 'trivy-results.sarif'
           
   docker-scan:
-    runs-on: ubuntu-latest
+    runs-on: self-hosted
     needs: security-scan
     
     steps:
@@ -52,7 +52,7 @@ jobs:
           severity: 'CRITICAL,HIGH'
           
   dependency-check:
-    runs-on: ubuntu-latest
+    runs-on: self-hosted
     
     steps:
       - name: Checkout code

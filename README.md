@@ -10,14 +10,14 @@
 
 <div align="center">
   <br>
-  <a href="https://github.com/qws941/health-management-system/actions/workflows/build-deploy.yml">
-    <img src="https://github.com/qws941/health-management-system/actions/workflows/build-deploy.yml/badge.svg" alt="Build & Deploy">
+  <a href="https://github.com/qws941/health/actions/workflows/build-deploy.yml">
+    <img src="https://github.com/qws941/health/actions/workflows/build-deploy.yml/badge.svg" alt="Build & Deploy">
   </a>
-  <a href="https://github.com/qws941/health-management-system/actions/workflows/test.yml">
-    <img src="https://github.com/qws941/health-management-system/actions/workflows/test.yml/badge.svg" alt="Tests">
+  <a href="https://github.com/qws941/health/actions/workflows/test.yml">
+    <img src="https://github.com/qws941/health/actions/workflows/test.yml/badge.svg" alt="Tests">
   </a>
-  <a href="https://github.com/qws941/health-management-system/actions/workflows/security.yml">
-    <img src="https://github.com/qws941/health-management-system/actions/workflows/security.yml/badge.svg" alt="Security">
+  <a href="https://github.com/qws941/health/actions/workflows/security.yml">
+    <img src="https://github.com/qws941/health/actions/workflows/security.yml/badge.svg" alt="Security">
   </a>
   <a href="LICENSE">
     <img src="https://img.shields.io/badge/license-MIT-blue.svg" alt="License">
@@ -279,7 +279,7 @@ gh secret set DEPLOY_KEY < ~/.ssh/id_rsa
 
 ## 📞 문의
 
-프로젝트 관련 문의사항은 [Issues](https://github.com/qws941/health-management-system/issues)에 등록해주세요.
+프로젝트 관련 문의사항은 [Issues](https://github.com/qws941/health/issues)에 등록해주세요.
 
 ---
 

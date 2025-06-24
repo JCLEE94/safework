@@ -8,7 +8,7 @@ on:
 
 jobs:
   test-backend:
-    runs-on: ubuntu-latest
+    runs-on: self-hosted
     
     services:
       postgres:
@@ -65,7 +65,7 @@ jobs:
           path: htmlcov/
 
   test-frontend:
-    runs-on: ubuntu-latest
+    runs-on: self-hosted
     
     steps:
       - name: Checkout code

@@ -8,11 +8,11 @@ on:
 
 env:
   REGISTRY: registry.jclee.me
-  IMAGE_NAME: health-management-system
+  IMAGE_NAME: health
 
 jobs:
   build:
-    runs-on: ubuntu-latest
+    runs-on: self-hosted
     
     steps:
       - name: Checkout code
@@ -41,14 +41,14 @@ jobs:
           platforms: linux/amd64,linux/arm64
           push: true
           tags: |
-            qws941/${{ env.IMAGE_NAME }}:latest
-            qws941/${{ env.IMAGE_NAME }}:${{ github.sha }}
-          cache-from: type=registry,ref=qws941/${{ env.IMAGE_NAME }}:buildcache
-          cache-to: type=registry,ref=qws941/${{ env.IMAGE_NAME }}:buildcache,mode=max
+            qws941/health:latest
+            qws941/health:${{ github.sha }}
+          cache-from: type=registry,ref=qws941/health:buildcache
+          cache-to: type=registry,ref=qws941/health:buildcache,mode=max
 
   deploy:
     needs: build
-    runs-on: ubuntu-latest
+    runs-on: self-hosted
     if: github.ref == 'refs/heads/main'
     
     steps:
@@ -61,15 +61,15 @@ jobs:
           port: 1111
           script: |
             # Pull new image
-            docker pull qws941/${{ env.IMAGE_NAME }}:latest
+            docker pull qws941/health:latest
             
             # Stop and remove old container
-            docker stop health-management-system || true
-            docker rm health-management-system || true
+            docker stop health || true
+            docker rm health || true
             
             # Run new container
             docker run -d \
-              --name health-management-system \
+              --name health \
               --restart always \
               -p 3001:8000 \
               -v /volume1/app/health/uploads:/app/uploads \
@@ -80,7 +80,7 @@ jobs:
               --health-timeout=10s \
               --health-retries=3 \
               --label com.centurylinklabs.watchtower.enable=true \
-              qws941/${{ env.IMAGE_NAME }}:latest
+              qws941/health:latest
             
             # Wait for health check
             sleep 10

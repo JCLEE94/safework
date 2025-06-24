@@ -7,11 +7,11 @@ on:
 
 env:
   REGISTRY: registry.jclee.me
-  IMAGE_NAME: health-management-system
+  IMAGE_NAME: health
 
 jobs:
   create-release:
-    runs-on: ubuntu-latest
+    runs-on: self-hosted
     permissions:
       contents: write
       
@@ -28,7 +28,7 @@ jobs:
           git log --pretty=format:"* %s (%h)" $(git describe --tags --abbrev=0 HEAD^)..HEAD >> ${{ github.workspace }}-CHANGELOG.txt
           echo "" >> ${{ github.workspace }}-CHANGELOG.txt
           echo "## Docker Image" >> ${{ github.workspace }}-CHANGELOG.txt
-          echo "- \`docker pull qws941/${{ env.IMAGE_NAME }}:${{ github.ref_name }}\`" >> ${{ github.workspace }}-CHANGELOG.txt
+          echo "- \`docker pull qws941/health:${{ github.ref_name }}\`" >> ${{ github.workspace }}-CHANGELOG.txt
           
       - name: Create Release
         uses: softprops/action-gh-release@v2
@@ -38,7 +38,7 @@ jobs:
           prerelease: false
           
   build-release:
-    runs-on: ubuntu-latest
+    runs-on: self-hosted
     needs: create-release
     
     steps:
@@ -58,7 +58,7 @@ jobs:
         id: meta
         uses: docker/metadata-action@v5
         with:
-          images: qws941/${{ env.IMAGE_NAME }}
+          images: qws941/health
           tags: |
             type=semver,pattern={{version}}
             type=semver,pattern={{major}}.{{minor}}
@@ -73,5 +73,5 @@ jobs:
           push: true
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
-          cache-from: type=registry,ref=qws941/${{ env.IMAGE_NAME }}:buildcache
-          cache-to: type=registry,ref=qws941/${{ env.IMAGE_NAME }}:buildcache,mode=max
+          cache-from: type=registry,ref=qws941/health:buildcache
+          cache-to: type=registry,ref=qws941/health:buildcache,mode=max
