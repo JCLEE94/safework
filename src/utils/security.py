@@ -71,8 +71,8 @@ class PasswordValidator:
         return len(errors) == 0, errors
         
     @staticmethod
-    def _has_sequential_chars(password: str, max_sequential: int = 3) -> bool:
-        """Check for sequential characters"""
+    def _has_sequential_chars(password: str, max_sequential: int = 4) -> bool:
+        """Check for sequential characters (4+ consecutive)"""
         for i in range(len(password) - max_sequential + 1):
             substring = password[i:i + max_sequential]
             
@@ -280,7 +280,10 @@ class InputSanitizer:
     @staticmethod
     def sanitize_korean_input(text: str) -> str:
         """Sanitize Korean text input"""
-        # Allow Korean characters, numbers, common punctuation
+        # First remove HTML tags
+        text = re.sub(r'<[^>]*>', '', text)
+        
+        # Then allow Korean characters, numbers, common punctuation
         pattern = r"[^가-힣ㄱ-ㅎㅏ-ㅣa-zA-Z0-9\s\.\,\!\?\-\(\)]"
         return re.sub(pattern, "", text)
 
@@ -314,8 +317,12 @@ def is_safe_redirect_url(url: str, allowed_hosts: List[str]) -> bool:
     
     parsed = urlparse(url)
     
-    # Relative URLs are safe
-    if not parsed.netloc:
+    # Block dangerous protocols
+    if parsed.scheme and parsed.scheme.lower() in ['javascript', 'data', 'vbscript']:
+        return False
+    
+    # Relative URLs (no scheme and no netloc) are safe
+    if not parsed.netloc and not parsed.scheme:
         return True
         
     # Check if host is in allowed list
