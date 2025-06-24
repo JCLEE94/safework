@@ -1,0 +1,76 @@
+name: Health Monitor
+
+on:
+  schedule:
+    - cron: '0 */6 * * *'  # 6시간마다 (하루 4번)
+  workflow_dispatch:  # 수동 실행 가능
+
+env:
+  PROD_URL: http://192.168.50.215:3001
+
+jobs:
+  health-check:
+    runs-on: self-hosted
+    steps:
+      - name: Check production health
+        run: |
+          echo "🏥 Checking production health..."
+          
+          # Health endpoint 확인
+          RESPONSE=$(curl -s -w "\n%{http_code}" ${{ env.PROD_URL }}/health || echo -e "\n000")
+          HTTP_CODE=$(echo "$RESPONSE" | tail -n1)
+          BODY=$(echo "$RESPONSE" | head -n-1)
+          
+          echo "HTTP Code: $HTTP_CODE"
+          echo "Response: $BODY"
+          
+          if [ "$HTTP_CODE" = "200" ]; then
+            echo "✅ Production health check passed"
+            
+            # JSON 파싱해서 상태 확인
+            STATUS=$(echo "$BODY" | jq -r '.status' 2>/dev/null || echo "unknown")
+            if [ "$STATUS" = "healthy" ]; then
+              echo "✅ Application status: healthy"
+            else
+              echo "⚠️ Application status: $STATUS"
+            fi
+          else
+            echo "❌ Production health check failed!"
+            echo "HTTP Code: $HTTP_CODE"
+            exit 1
+          fi
+      
+      - name: Quick API test
+        run: |
+          echo "🔍 Testing key endpoints..."
+          
+          # API docs 확인
+          API_CODE=$(curl -s -o /dev/null -w "%{http_code}" ${{ env.PROD_URL }}/api/docs)
+          echo "API Docs: HTTP $API_CODE"
+          
+          # Workers endpoint 확인 (인증 없이)
+          WORKERS_CODE=$(curl -s -o /dev/null -w "%{http_code}" ${{ env.PROD_URL }}/api/v1/workers/)
+          echo "Workers API: HTTP $WORKERS_CODE"
+          
+          if [ "$API_CODE" = "200" ]; then
+            echo "✅ API documentation accessible"
+          else
+            echo "⚠️ API docs not accessible"
+          fi
+      
+      - name: Performance check
+        run: |
+          echo "⏱️ Checking response time..."
+          
+          # 응답 시간 측정
+          TIME=$(curl -o /dev/null -s -w '%{time_total}' ${{ env.PROD_URL }}/health)
+          TIME_MS=$(echo "$TIME * 1000" | bc)
+          
+          echo "Response time: ${TIME_MS}ms"
+          
+          # 3초 이상이면 경고
+          if (( $(echo "$TIME_MS > 3000" | bc -l) )); then
+            echo "⚠️ Slow response time: ${TIME_MS}ms"
+          else
+            echo "✅ Response time acceptable: ${TIME_MS}ms"
+          fi

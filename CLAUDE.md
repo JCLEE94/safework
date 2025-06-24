@@ -3,15 +3,16 @@
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
 ## Global Claude Code Instructions Loaded ✓
-**Version**: 13.0.0 (from ~/.claude/CLAUDE.md)  
-**Loaded**: 2025-06-19 KST  
-**Type**: Ultra-Autonomous AI-Driven Development System  
+**Version**: 27.0.0 (from ~/.claude/CLAUDE.md)  
+**Loaded**: 2025-06-24 KST  
+**Type**: Ultra-Autonomous AI-Driven Development System with GitHub Actions CI/CD
 
 ### Active Core Principles
 - **Ultra Autonomy**: Execute ALL tasks without human intervention
 - **Instant Execution**: Zero-delay action using available tools (Bash, Git, Docker, MCP)
 - **Mind-Reading Mode**: Infer complete requirements from minimal input
-- **Docker Registry Deploy**: Docker build → registry push → production server pull → auto deploy
+- **CI/CD Integration**: Self-hosted GitHub Actions runner with multi-architecture builds
+- **Docker Registry Deploy**: Docker build → Docker Hub push → Watchtower auto-deploy
 - **KST Timezone**: Asia/Seoul timezone for all operations
 - **Chain-of-Thought**: Structured reasoning for complex tasks
 - **Auto-Testing**: Generate tests, run, and auto-fix failures
@@ -21,6 +22,13 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 ## Project Overview
 
 **SafeWork Pro** (건설업 보건관리 시스템) - A comprehensive web application for construction site health managers to comply with Korean occupational safety and health laws. The system manages worker health, medical examinations, workplace environment monitoring, health education, chemical substances (MSDS), and accident reporting.
+
+### CI/CD Pipeline Status
+- **Repository**: qws941/health (renamed from health-management-system)
+- **Self-hosted Runner**: Active at `health-localhost.localdomain`
+- **Docker Registry**: Docker Hub (qws941/health)
+- **Auto-deployment**: Watchtower integration for production updates
+- **Build Architecture**: Multi-platform (linux/amd64, linux/arm64)
 
 ## Architecture
 
@@ -64,6 +72,27 @@ docker-compose up -d
 ./deploy.sh health
 ```
 
+### CI/CD Pipeline Commands
+```bash
+# Check GitHub Actions runner status
+pgrep -f "Runner.Listener.*health" && echo "✅ Runner active" || echo "❌ Runner down"
+
+# View runner logs
+tail -f /home/jclee/actions-runner-health/runner.log
+
+# Check workflow runs
+gh run list --repo qws941/health --limit 5
+
+# Watch specific workflow
+gh run watch <run-id> --repo qws941/health
+
+# Manual trigger deployment
+git commit --allow-empty -m "deploy: trigger CI/CD" && git push
+
+# Start/restart GitHub runner (if needed)
+/home/jclee/.claude/automation/start-github-runner.sh qws941/health
+```
+
 ### Local Development (For reference only)
 ```bash
 # Backend
@@ -89,35 +118,48 @@ ssh -p 1111 docker@192.168.50.215 "cd ~/app/health && /usr/local/bin/docker-comp
 ## Code Architecture
 
 ### Backend Structure
-The backend follows a layered architecture pattern:
+The backend follows a sophisticated layered architecture with extensive middleware:
 
 1. **Entry Point** (`main.py`): Simple wrapper that imports and runs the FastAPI app
 2. **Application Factory** (`src/app.py`): Creates and configures the FastAPI instance with:
+   - Comprehensive middleware stack (logging, caching, security, performance)
    - CORS middleware for frontend integration
    - Static file serving for the React build
-   - Lifespan management for database initialization
-   - Route registration
+   - Lifespan management for database and Redis initialization
+   - Route registration with proper error handling
 
-3. **Data Layer** (`src/models/`):
-   - SQLAlchemy models with Korean enum types
-   - Async database operations
-   - Comprehensive field validation
+3. **Middleware Stack** (`src/middleware/`):
+   - **Security**: CSRF, XSS, SQL injection protection, API key auth, IP whitelist
+   - **Performance**: Rate limiting, compression, connection pooling, query optimization
+   - **Caching**: Response caching with Redis, cache invalidation strategies
+   - **Logging**: Structured logging with performance metrics and security events
+   - **Auth**: JWT authentication, role-based access control, session management
 
-4. **API Layer** (`src/handlers/`):
+4. **Data Layer** (`src/models/`):
+   - SQLAlchemy async models with Korean enum types
+   - Database optimization utilities
+   - Repository pattern implementation
+   - Comprehensive field validation with Korean construction industry specifics
+
+5. **API Layer** (`src/handlers/`):
    - RESTful endpoints with Pydantic validation
    - Korean/English bilingual responses
    - Pagination and filtering support
+   - Specialized handlers for workers, health exams, chemical substances, accidents
 
-5. **Business Logic**: Korean construction industry specific:
-   - Health examination scheduling rules
-   - Work environment measurement compliance
-   - Education hour tracking requirements
+6. **Services Layer** (`src/services/`):
+   - Business logic encapsulation
+   - Cache service with Redis integration
+   - Translation services for bilingual support
+   - Monitoring and metrics collection services
 
-6. **PDF Form System** (`src/handlers/documents.py`):
-   - PDF template-based form generation with coordinate mapping
+7. **PDF Form System** (`src/handlers/documents.py`):
+   - Advanced PDF template-based form generation with coordinate mapping
    - Korean font support (NanumGothic TTF)
    - Text overlay system for precise field positioning
    - Base64 encoding for instant preview functionality
+   - PDF caching with Redis for performance
+   - Support for 4 major Korean construction industry forms
 
 ### Frontend Structure
 The frontend is a single-page React application:
@@ -224,39 +266,88 @@ When adding new PDF forms:
 - Minimum 80% test coverage required
 - Auto-generate tests for all new code
 - Test categories: unit, integration, e2e, performance, security
-- Run before every deployment
+- Run before every deployment via GitHub Actions
 - Auto-fix failing tests when possible
 
 #### Key Testing Commands
 ```bash
-# Run all tests with coverage
-pytest tests/ -v --cov=src --cov-report=html
+# Backend testing
+pytest tests/ -v --cov=src --cov-report=html --cov-report=term
 
-# Run specific test files
+# Run specific test modules
 pytest tests/test_workers.py -v
 pytest tests/test_integration.py -v
 pytest tests/test_production.py -v
 
-# Frontend tests
-npm run test
+# Frontend testing (currently placeholder)
+npm run test  # Returns "테스트 통과" - needs actual test implementation
 
-# Run integration tests (requires running containers)
+# Integration testing with Docker
 docker-compose up -d && pytest tests/test_integration.py
 
-# Run production validation tests
+# Production validation tests
 pytest tests/test_production.py -v
+
+# CI/CD Testing via GitHub Actions
+# Tests run automatically on push to main/develop branches
+# Include: backend tests, frontend tests, security scans, dependency checks
 ```
 
-### Deployment Checklist (Auto-handled by deploy.sh)
-- ✅ Clean cache files (Python __pycache__, npm cache)
-- ✅ Run all tests with coverage check
-- ✅ Build Docker image with KST timestamp (--no-cache)
-- ✅ Test Docker image
-- ✅ Push to registry
-- ✅ Remote server pull and deploy
-- ✅ Health check verification
-- ✅ Auto-rollback on failure
-- ✅ Display logs with error highlighting
+### GitHub Actions Workflows
+The project includes 4 main workflows:
+
+1. **Build and Deploy** (`build-deploy.yml`):
+   - Multi-architecture Docker builds (amd64, arm64)
+   - Push to Docker Hub (qws941/health)
+   - Automatic deployment to production via SSH
+
+2. **Test** (`test.yml`):
+   - Backend tests with PostgreSQL/Redis services
+   - Frontend build and test validation
+   - Coverage reporting and artifact upload
+
+3. **Security Scan** (`security.yml`):
+   - Trivy vulnerability scanning
+   - Docker image security analysis
+   - Python/npm dependency auditing
+   - Weekly scheduled scans
+
+4. **Release** (`release.yml`):
+   - Triggered on version tags (v*)
+   - Automatic changelog generation
+   - GitHub release creation with Docker images
+
+### Deployment Methods
+
+#### Automated CI/CD (Preferred)
+```bash
+# Trigger automated deployment via GitHub Actions
+git add . && git commit -m "feat: your changes" && git push
+
+# The CI/CD pipeline automatically:
+# 1. Runs all tests (backend + frontend + security)
+# 2. Builds multi-architecture Docker images
+# 3. Pushes to Docker Hub (qws941/health:latest)
+# 4. Deploys to production via SSH
+# 5. Watchtower detects and auto-updates containers
+```
+
+#### Manual Deployment (Backup method)
+```bash
+# Manual deployment script with full validation
+./deploy.sh health
+
+# Checklist (Auto-handled by deploy.sh):
+# - ✅ Clean cache files (Python __pycache__, npm cache)
+# - ✅ Run all tests with coverage check
+# - ✅ Build Docker image with KST timestamp (--no-cache)
+# - ✅ Test Docker image
+# - ✅ Push to registry
+# - ✅ Remote server pull and deploy
+# - ✅ Health check verification
+# - ✅ Auto-rollback on failure
+# - ✅ Display logs with error highlighting
+```
 
 ## Domain-Specific Context
 
@@ -345,19 +436,32 @@ The system includes automatic database connection retry logic:
 8. **Container startup order**: Use `depends_on` with `service_healthy` conditions
 9. **Database initialization fails**: Check async database connection retry logic in `src/config/database.py`
 
+### CI/CD Pipeline Issues
+1. **GitHub Actions not running**: Check self-hosted runner status
+   ```bash
+   pgrep -f "Runner.Listener.*health" || /home/jclee/.claude/automation/start-github-runner.sh qws941/health
+   ```
+2. **Build failures**: Check runner logs and Docker buildx availability
+3. **Multi-architecture build timeouts**: Normal for first builds; use build cache
+4. **Deployment failures**: Verify SSH keys and Docker Hub credentials in GitHub secrets
+5. **Watchtower not updating**: Ensure containers have `com.centurylinklabs.watchtower.enable=true` label
+
 ### Remote Deployment Issues
 - Always use full paths for docker-compose: `/usr/local/bin/docker-compose`
 - Clear browser cache when UI changes don't appear
 - Check container logs: `docker logs health-management-system`
+- Verify Watchtower is running: `docker logs watchtower`
 
 ### Quick Debug Commands
 ```bash
 # View container status and health
 docker-compose ps
+docker ps | grep health
 
 # Check logs with error highlighting
 ./logs.sh health-app
 docker-compose logs --tail=50 health-app
+docker logs health-management-system
 
 # Debug container shell
 docker-compose exec health-app sh
@@ -373,17 +477,47 @@ curl http://localhost:3001/api/docs
 # Check PDF generation
 curl -X POST http://localhost:3001/api/v1/documents/fill-pdf/health_consultation_log \
   -H "Content-Type: application/json" \
-  -d '{"entries": [{"date": "2025-06-19", "worker_name": "테스트"}]}'
+  -d '{"entries": [{"date": "2025-06-24", "worker_name": "테스트"}]}'
 
 # Database debugging
 docker exec health-postgres psql -U admin -d health_management -c "\dt"
 docker exec health-postgres psql -U admin -d health_management -c "SELECT COUNT(*) FROM workers;"
 
+# CI/CD debugging
+gh run list --repo qws941/health --limit 10
+gh run view <run-id> --repo qws941/health --log
+tail -f /home/jclee/actions-runner-health/runner.log
+
+# Watchtower debugging
+docker logs watchtower --tail=50
+docker inspect health-management-system | grep -A5 Labels
+
 # Force rebuild and restart
 docker-compose down && docker-compose up -d --build --force-recreate
+
+# Trigger manual CI/CD
+git commit --allow-empty -m "deploy: manual trigger" && git push
 ```
 
+## Architecture Decision Records
+
+### Middleware Stack Design
+The application uses a comprehensive middleware stack for production-grade features:
+- **Security middleware** protects against common web vulnerabilities
+- **Performance middleware** optimizes response times and resource usage  
+- **Caching middleware** reduces database load with Redis-backed caching
+- **Logging middleware** provides structured logging for debugging and monitoring
+
+### Korean Construction Industry Compliance
+The system is specifically designed for Korean construction industry regulations:
+- **Enum values** use English internally but display Korean labels in UI
+- **PDF forms** use precise coordinate mapping for official government forms
+- **Database schema** reflects Korean occupational safety and health law requirements
+- **Bilingual support** throughout the API and UI components
+
 ---
-**Global CLAUDE.md Instructions**: Successfully loaded and integrated  
-**Project-Specific Context**: Preserved and enhanced  
-**Ready for**: Ultra-autonomous development with instant execution
+**Global CLAUDE.md Instructions**: Successfully loaded and integrated (v27.0.0)
+**Project-Specific Context**: Enhanced with CI/CD pipeline integration
+**CI/CD Status**: ✅ Active GitHub Actions with self-hosted runner
+**Repository**: qws941/health (renamed from health-management-system)
+**Ready for**: Ultra-autonomous development with automated CI/CD deployment
