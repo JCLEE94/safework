@@ -1,0 +1,43 @@
+# GitHub Actions 워크플로우 설정
+workflows:
+  # 공통 환경변수
+  env:
+    REGISTRY: "registry.jclee.me"
+    IMAGE_NAME: "health"
+    NODE_VERSION: "20"
+    PYTHON_VERSION: "3.9"
+    
+  # 브랜치 설정
+  branches:
+    main: "main"
+    develop: "develop"
+    
+  # 러너 설정
+  runner: "self-hosted"
+  
+  # 타임아웃 설정  
+  timeouts:
+    build: "30m"
+    test: "15m"
+    deploy: "10m"
+    security_scan: "20m"
+    
+  # 재시도 설정
+  retries:
+    build: 2
+    deploy: 3
+    test: 1
+    
+  # 보안 스캔 설정
+  security:
+    trivy:
+      severity: "CRITICAL,HIGH"
+      timeout: "10m"
+      exit_code: "0"
+      
+  # 배포 설정
+  deploy:
+    ssh:
+      timeout: "60s"
+      command_timeout: "30s"
+      health_check_wait: 15

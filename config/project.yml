@@ -1,0 +1,38 @@
+# SafeWork Pro - 프로젝트 설정
+project:
+  name: "SafeWork Pro"
+  description: "건설업 보건관리 시스템"
+  version: "1.0.0"
+  
+  # Repository settings
+  repository:
+    name: "health"
+    owner: "qws941"
+    url: "https://github.com/qws941/health"
+    
+  # Docker Registry settings  
+  registry:
+    url: "registry.jclee.me"
+    namespace: "health"
+    
+  # Deployment settings
+  deployment:
+    production:
+      host: "192.168.50.215"
+      port: 1111
+      user: "docker"
+      path: "/volume1/app/health"
+      compose_file: "compose.yaml"
+      service_name: "health-app"
+      
+  # Port configuration
+  ports:
+    frontend: 3001
+    backend: 8000
+    postgres: 5432
+    redis: 6379
+    
+  # Test ports (to avoid conflicts)
+  test_ports:
+    postgres: 15432
+    redis: 16379

@@ -1,0 +1,38 @@
+# Watchtower 설정 - 운영 서버에서 사용
+# /volume1/app/watchtower/docker-compose.yml
+version: '3.8'
+
+services:
+  watchtower:
+    image: containrrr/watchtower
+    container_name: watchtower
+    restart: unless-stopped
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      - /var/services/homes/docker/.docker/config.json:/config/config.json:ro
+    environment:
+      # 모니터링 간격 (초단위, 30초마다 체크)
+      - WATCHTOWER_POLL_INTERVAL=30
+      
+      # 컨테이너 정리
+      - WATCHTOWER_CLEANUP=true
+      
+      # 라벨 기반 모니터링 (com.centurylinklabs.watchtower.enable=true 라벨이 있는 컨테이너만)
+      - WATCHTOWER_LABEL_ENABLE=true
+      
+      # 롤링 업데이트
+      - WATCHTOWER_ROLLING_RESTART=true
+      
+      # Docker 설정 경로
+      - DOCKER_CONFIG=/config
+      
+      # Private Registry HTTPS 검증 건너뛰기
+      - WATCHTOWER_HTTP_API_SKIP_TLS_VERIFY=true
+      
+      # 타임존
+      - TZ=Asia/Seoul
+      
+      # 로그 레벨
+      - WATCHTOWER_LOG_LEVEL=info
+      
+    command: --interval 30 --cleanup
