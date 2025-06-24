@@ -248,21 +248,19 @@ jobs:
         # Add actual deployment commands here
         # e.g., blue-green deployment, rolling update, etc.
 
-  # Notification
-  notify:
+  # Notification - 성공 시에만
+  notify-success:
     runs-on: ubuntu-latest
     needs: [backend-tests, frontend-tests, security-scan, docker-build]
-    if: always()
+    if: ${{ needs.backend-tests.result == 'success' && needs.frontend-tests.result == 'success' && needs.security-scan.result == 'success' && needs.docker-build.result == 'success' }}
     
     steps:
     - name: Notify on success
-      if: ${{ needs.backend-tests.result == 'success' && needs.frontend-tests.result == 'success' }}
       run: |
-        echo "✅ All tests passed successfully!"
-        # Add notification logic (Slack, email, etc.)
-    
-    - name: Notify on failure
-      if: ${{ needs.backend-tests.result == 'failure' || needs.frontend-tests.result == 'failure' }}
-      run: |
-        echo "❌ Some tests failed!"
-        # Add notification logic (Slack, email, etc.)
+        echo "🎉 CI/CD 파이프라인 성공!"
+        echo "✅ 백엔드 테스트 통과"
+        echo "✅ 프론트엔드 테스트 통과" 
+        echo "✅ 보안 스캔 통과"
+        echo "✅ Docker 빌드 완료"
+        echo "🚀 배포 준비 완료"
+        # 성공 시 Slack/Discord 등 알림 추가 가능
