@@ -24,9 +24,12 @@ jobs:
       
       - name: Build and push Docker image
         run: |
-          # Build the image
-          docker build -t ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest .
-          docker tag ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ github.sha }}
+          # Build the image with a temporary tag
+          docker build -t health-temp:latest .
+          
+          # Tag for private registry
+          docker tag health-temp:latest ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest
+          docker tag health-temp:latest ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ github.sha }}
           
           # Push to registry (no auth needed as per user)
           docker push ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest
