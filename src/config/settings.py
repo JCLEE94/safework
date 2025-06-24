@@ -12,7 +12,7 @@ class Settings(BaseSettings):
     
     # 애플리케이션 기본 설정
     app_name: str = "건설업 보건관리 시스템"
-    app_version: str = "1.0.0"
+    app_version: str = "1.0.1"
     debug: bool = True
     
     # 데이터베이스 설정
