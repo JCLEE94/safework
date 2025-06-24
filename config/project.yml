@@ -7,8 +7,8 @@ project:
   # Repository settings
   repository:
     name: "health"
-    owner: "qws941"
-    url: "https://github.com/qws941/health"
+    owner: "JCLEE94"
+    url: "https://github.com/JCLEE94/health"
     
   # Docker Registry settings  
   registry:

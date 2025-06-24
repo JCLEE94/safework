@@ -10,14 +10,14 @@
 
 <div align="center">
   <br>
-  <a href="https://github.com/qws941/health/actions/workflows/build-push.yml">
-    <img src="https://github.com/qws941/health/actions/workflows/build-push.yml/badge.svg" alt="Build & Push">
+  <a href="https://github.com/JCLEE94/health/actions/workflows/build-push.yml">
+    <img src="https://github.com/JCLEE94/health/actions/workflows/build-push.yml/badge.svg" alt="Build & Push">
   </a>
-  <a href="https://github.com/qws941/health/actions/workflows/test.yml">
-    <img src="https://github.com/qws941/health/actions/workflows/test.yml/badge.svg" alt="Tests">
+  <a href="https://github.com/JCLEE94/health/actions/workflows/test.yml">
+    <img src="https://github.com/JCLEE94/health/actions/workflows/test.yml/badge.svg" alt="Tests">
   </a>
-  <a href="https://github.com/qws941/health/actions/workflows/security.yml">
-    <img src="https://github.com/qws941/health/actions/workflows/security.yml/badge.svg" alt="Security">
+  <a href="https://github.com/JCLEE94/health/actions/workflows/security.yml">
+    <img src="https://github.com/JCLEE94/health/actions/workflows/security.yml/badge.svg" alt="Security">
   </a>
   <a href="LICENSE">
     <img src="https://img.shields.io/badge/license-MIT-blue.svg" alt="License">
