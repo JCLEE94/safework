@@ -1,0 +1,12 @@
+﻿2025-06-24T07:32:04.5598588Z ##[group]Run docker/login-action@v3
+2025-06-24T07:32:04.5598857Z with:
+2025-06-24T07:32:04.5599135Z   username: ***
+2025-06-24T07:32:04.5599382Z   password: ***
+2025-06-24T07:32:04.5599576Z   ecr: auto
+2025-06-24T07:32:04.5599739Z   logout: true
+2025-06-24T07:32:04.5599908Z env:
+2025-06-24T07:32:04.5600082Z   REGISTRY: registry.jclee.me
+2025-06-24T07:32:04.5600328Z   IMAGE_NAME: health-management-system
+2025-06-24T07:32:04.5600572Z ##[endgroup]
+2025-06-24T07:32:04.8809300Z Logging into Docker Hub...
+2025-06-24T07:32:05.0002865Z Login Succeeded!
