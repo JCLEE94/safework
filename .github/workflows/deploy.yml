@@ -16,25 +16,6 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       
-      - name: Login to Docker Hub
-        uses: docker/login-action@v3
-        with:
-          username: ${{ secrets.DOCKERHUB_USERNAME }}
-          password: ${{ secrets.DOCKERHUB_TOKEN }}
-      
-      - name: Build and push Docker image
-        run: |
-          # Build the image with a temporary tag
-          docker build -t health-temp:latest .
-          
-          # Tag for private registry
-          docker tag health-temp:latest ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest
-          docker tag health-temp:latest ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ github.sha }}
-          
-          # Push to registry (no auth needed as per user)
-          docker push ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest
-          docker push ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ github.sha }}
-
       - name: Deploy to production server
         uses: appleboy/ssh-action@v1.0.0
         with:
@@ -46,8 +27,12 @@ jobs:
             echo "🚀 Starting deployment..."
             cd ~/app/health
             
-            # Pull latest image
-            docker pull ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest
+            # Pull latest code
+            git pull origin main
+            
+            # Build locally on the server
+            echo "🔨 Building Docker image..."
+            docker build -t ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest .
             
             # Update and restart
             /usr/local/bin/docker-compose pull
