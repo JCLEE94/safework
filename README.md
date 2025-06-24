@@ -10,11 +10,14 @@
 
 <div align="center">
   <br>
-  <a href="https://github.com/qws941/health-management-system/actions/workflows/ci.yml">
-    <img src="https://github.com/qws941/health-management-system/actions/workflows/ci.yml/badge.svg" alt="CI/CD Pipeline">
+  <a href="https://github.com/qws941/health-management-system/actions/workflows/build-deploy.yml">
+    <img src="https://github.com/qws941/health-management-system/actions/workflows/build-deploy.yml/badge.svg" alt="Build & Deploy">
   </a>
-  <a href="https://github.com/qws941/health-management-system/actions/workflows/deploy.yml">
-    <img src="https://github.com/qws941/health-management-system/actions/workflows/deploy.yml/badge.svg" alt="Deploy Status">
+  <a href="https://github.com/qws941/health-management-system/actions/workflows/test.yml">
+    <img src="https://github.com/qws941/health-management-system/actions/workflows/test.yml/badge.svg" alt="Tests">
+  </a>
+  <a href="https://github.com/qws941/health-management-system/actions/workflows/security.yml">
+    <img src="https://github.com/qws941/health-management-system/actions/workflows/security.yml/badge.svg" alt="Security">
   </a>
   <a href="LICENSE">
     <img src="https://img.shields.io/badge/license-MIT-blue.svg" alt="License">
@@ -202,6 +205,65 @@ docker-compose -f docker-compose.test.yml up --abort-on-container-exit
 - 압축 미들웨어
 - 비동기 처리
 - Connection Pooling
+
+## 🚀 CI/CD 파이프라인
+
+이 프로젝트는 GitHub Actions를 사용하여 자동화된 CI/CD 파이프라인을 구현합니다.
+
+### GitHub Actions Workflows
+
+#### 1. Build & Deploy (`build-deploy.yml`)
+- **트리거**: main/develop 브랜치 푸시, PR
+- **기능**: 
+  - Docker 이미지 빌드 (multi-arch: amd64, arm64)
+  - Docker Hub 푸시
+  - 프로덕션 자동 배포 (main 브랜치만)
+  - Watchtower를 통한 자동 업데이트
+
+#### 2. Test (`test.yml`)
+- **트리거**: 모든 푸시 및 PR
+- **기능**:
+  - Python 백엔드 테스트 (pytest)
+  - React 프론트엔드 테스트
+  - 테스트 커버리지 리포트
+  - PostgreSQL/Redis 통합 테스트
+
+#### 3. Security Scan (`security.yml`)
+- **트리거**: 푸시, PR, 주간 스케줄
+- **기능**:
+  - Trivy 취약점 스캔
+  - Docker 이미지 보안 검사
+  - Python/npm 의존성 감사
+
+#### 4. Release (`release.yml`)
+- **트리거**: 버전 태그 (v*)
+- **기능**:
+  - 자동 changelog 생성
+  - GitHub Release 생성
+  - 버전별 Docker 이미지 배포
+
+### GitHub Secrets 설정
+
+필요한 secrets를 설정하려면:
+
+```bash
+# 자동 설정 스크립트 실행
+./setup-github-secrets.sh
+
+# 또는 수동 설정
+gh secret set DOCKER_USERNAME -b "your-username"
+gh secret set DOCKER_PASSWORD -b "your-password"
+gh secret set DEPLOY_HOST -b "192.168.50.215"
+gh secret set DEPLOY_USER -b "docker"
+gh secret set DEPLOY_KEY < ~/.ssh/id_rsa
+```
+
+### 배포 프로세스
+
+1. **개발**: develop 브랜치에 푸시 → 테스트 실행
+2. **스테이징**: develop → main PR → 모든 테스트 통과 필요
+3. **프로덕션**: main 브랜치 머지 → 자동 배포
+4. **모니터링**: Watchtower가 새 이미지 감지 시 자동 업데이트
 
 ## 🤝 기여하기
 

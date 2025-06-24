@@ -1,0 +1,89 @@
+name: Build and Deploy
+
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+    branches: [main]
+
+env:
+  REGISTRY: registry.jclee.me
+  IMAGE_NAME: health-management-system
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+        
+      - name: Login to Docker Hub
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKER_USERNAME }}
+          password: ${{ secrets.DOCKER_PASSWORD }}
+          
+      # - name: Login to Private Registry
+      #   uses: docker/login-action@v3
+      #   with:
+      #     registry: ${{ env.REGISTRY }}
+      #     username: ${{ secrets.REGISTRY_USERNAME }}
+      #     password: ${{ secrets.REGISTRY_PASSWORD }}
+          
+      - name: Build and Push to Docker Hub
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          platforms: linux/amd64,linux/arm64
+          push: true
+          tags: |
+            qws941/${{ env.IMAGE_NAME }}:latest
+            qws941/${{ env.IMAGE_NAME }}:${{ github.sha }}
+          cache-from: type=registry,ref=qws941/${{ env.IMAGE_NAME }}:buildcache
+          cache-to: type=registry,ref=qws941/${{ env.IMAGE_NAME }}:buildcache,mode=max
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main'
+    
+    steps:
+      - name: Deploy to Production
+        uses: appleboy/ssh-action@v1.2.0
+        with:
+          host: ${{ secrets.DEPLOY_HOST }}
+          username: ${{ secrets.DEPLOY_USER }}
+          key: ${{ secrets.DEPLOY_KEY }}
+          port: 1111
+          script: |
+            # Pull new image
+            docker pull qws941/${{ env.IMAGE_NAME }}:latest
+            
+            # Stop and remove old container
+            docker stop health-management-system || true
+            docker rm health-management-system || true
+            
+            # Run new container
+            docker run -d \
+              --name health-management-system \
+              --restart always \
+              -p 3001:8000 \
+              -v /volume1/app/health/uploads:/app/uploads \
+              -v /volume1/app/health/logs:/app/logs \
+              -v /volume1/app/health/dist:/app/dist \
+              --health-cmd="curl -f http://localhost:8000/health || exit 1" \
+              --health-interval=30s \
+              --health-timeout=10s \
+              --health-retries=3 \
+              --label com.centurylinklabs.watchtower.enable=true \
+              qws941/${{ env.IMAGE_NAME }}:latest
+            
+            # Wait for health check
+            sleep 10
+            
+            # Verify deployment
+            curl -f http://localhost:3001/health || exit 1

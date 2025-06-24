@@ -1,84 +1,77 @@
 #!/bin/bash
 
 # GitHub Secrets 설정 스크립트
-# GitHub CLI(gh)가 설치되어 있어야 합니다
+# 사용법: ./setup-github-secrets.sh
 
-set -e
+echo "GitHub Secrets 설정을 시작합니다..."
 
-# Colors
-GREEN='\033[0;32m'
-YELLOW='\033[1;33m'
-RED='\033[0;31m'
-BLUE='\033[0;34m'
-NC='\033[0m'
-
-echo -e "${BLUE}🔐 GitHub Secrets 설정${NC}"
-echo "======================="
-
-# GitHub CLI 설치 확인
+# GitHub CLI가 설치되어 있는지 확인
 if ! command -v gh &> /dev/null; then
-    echo -e "${RED}❌ GitHub CLI가 설치되어 있지 않습니다.${NC}"
-    echo "설치 방법: https://cli.github.com/"
+    echo "GitHub CLI가 설치되어 있지 않습니다. 설치해주세요."
+    echo "설치 방법: https://cli.github.com/manual/installation"
     exit 1
 fi
 
 # GitHub 로그인 확인
 if ! gh auth status &> /dev/null; then
-    echo -e "${YELLOW}GitHub에 로그인합니다...${NC}"
-    gh auth login
-fi
-
-# Repository 확인
-REPO=$(gh repo view --json nameWithOwner -q .nameWithOwner 2>/dev/null || echo "")
-if [ -z "$REPO" ]; then
-    echo -e "${RED}❌ GitHub 저장소를 찾을 수 없습니다.${NC}"
-    echo "현재 디렉토리가 Git 저장소인지 확인하세요."
+    echo "GitHub에 로그인되어 있지 않습니다."
+    echo "실행: gh auth login"
     exit 1
 fi
 
-echo -e "${GREEN}✅ 저장소: $REPO${NC}"
+# Repository 확인
+REPO=$(gh repo view --json nameWithOwner -q .nameWithOwner 2>/dev/null)
+if [ -z "$REPO" ]; then
+    echo "GitHub repository를 찾을 수 없습니다."
+    echo "현재 디렉토리가 Git repository인지 확인하세요."
+    exit 1
+fi
+
+echo "Repository: $REPO"
+echo ""
 
 # Secrets 설정
-echo -e "\n${YELLOW}필수 Secrets 설정 중...${NC}"
+echo "필수 GitHub Secrets를 설정합니다..."
 
-# Registry credentials
-echo -e "\n1. Docker Registry 인증 정보"
-gh secret set REGISTRY_USERNAME -b "qws941" 2>/dev/null && echo -e "${GREEN}✅ REGISTRY_USERNAME 설정 완료${NC}" || echo -e "${YELLOW}⚠️  REGISTRY_USERNAME 이미 존재${NC}"
-gh secret set REGISTRY_PASSWORD -b "bingogo1l7!" 2>/dev/null && echo -e "${GREEN}✅ REGISTRY_PASSWORD 설정 완료${NC}" || echo -e "${YELLOW}⚠️  REGISTRY_PASSWORD 이미 존재${NC}"
+# Docker Hub
+echo "1. Docker Hub 인증 정보"
+gh secret set DOCKER_USERNAME -b "qws941"
+gh secret set DOCKER_PASSWORD -b "bingogo1l7!"
 
-# Optional: Docker Hub credentials (for base images)
-echo -e "\n2. Docker Hub 인증 정보 (선택사항)"
-echo "Docker Hub 계정이 있으시면 입력하세요 (없으면 Enter):"
-read -p "Docker Hub Username: " DOCKERHUB_USER
-if [ ! -z "$DOCKERHUB_USER" ]; then
-    read -s -p "Docker Hub Token: " DOCKERHUB_TOKEN
-    echo
-    gh secret set DOCKERHUB_USERNAME -b "$DOCKERHUB_USER" 2>/dev/null && echo -e "${GREEN}✅ DOCKERHUB_USERNAME 설정 완료${NC}"
-    gh secret set DOCKERHUB_TOKEN -b "$DOCKERHUB_TOKEN" 2>/dev/null && echo -e "${GREEN}✅ DOCKERHUB_TOKEN 설정 완료${NC}"
+# Private Registry (나중에 사용)
+echo "2. Private Registry 인증 정보 (현재 비활성화)"
+gh secret set REGISTRY_USERNAME -b "qws941"
+gh secret set REGISTRY_PASSWORD -b "bingogo1l7!"
+
+# Deployment Server
+echo "3. 배포 서버 정보"
+gh secret set DEPLOY_HOST -b "192.168.50.215"
+gh secret set DEPLOY_USER -b "docker"
+
+# SSH Key 설정
+echo "4. SSH 배포 키 설정"
+if [ -f ~/.ssh/id_rsa ]; then
+    gh secret set DEPLOY_KEY < ~/.ssh/id_rsa
+    echo "SSH 키가 설정되었습니다."
+else
+    echo "경고: ~/.ssh/id_rsa 파일을 찾을 수 없습니다."
+    echo "다음 명령으로 직접 설정하세요:"
+    echo "gh secret set DEPLOY_KEY < /path/to/your/private/key"
 fi
 
-# Optional: SSH key for deployment
-echo -e "\n3. SSH 배포 키 (선택사항 - 수동 배포용)"
-echo "SSH 키를 설정하시겠습니까? (y/N):"
-read -p "" SETUP_SSH
-if [[ "$SETUP_SSH" =~ ^[Yy]$ ]]; then
-    if [ -f ~/.ssh/id_rsa ]; then
-        gh secret set SSH_PRIVATE_KEY < ~/.ssh/id_rsa 2>/dev/null && echo -e "${GREEN}✅ SSH_PRIVATE_KEY 설정 완료${NC}"
-    else
-        echo -e "${YELLOW}⚠️  ~/.ssh/id_rsa 파일을 찾을 수 없습니다.${NC}"
-    fi
-    
-    gh secret set DEPLOY_HOST -b "soonmin.jclee.me" 2>/dev/null && echo -e "${GREEN}✅ DEPLOY_HOST 설정 완료${NC}"
-    gh secret set DEPLOY_PORT -b "1111" 2>/dev/null && echo -e "${GREEN}✅ DEPLOY_PORT 설정 완료${NC}"
-    gh secret set DEPLOY_USER -b "docker" 2>/dev/null && echo -e "${GREEN}✅ DEPLOY_USER 설정 완료${NC}"
-fi
+# Optional: Safety API Key (보안 스캔용)
+echo ""
+echo "5. Optional: Safety API Key (Python 의존성 스캔)"
+echo "Safety API Key가 있다면 다음 명령으로 설정하세요:"
+echo "gh secret set SAFETY_API_KEY -b 'your-safety-api-key'"
 
-# 설정된 Secrets 확인
-echo -e "\n${BLUE}📋 설정된 Secrets 목록:${NC}"
+echo ""
+echo "설정된 Secrets 목록:"
 gh secret list
 
-echo -e "\n${GREEN}✅ GitHub Secrets 설정 완료!${NC}"
 echo ""
-echo "다음 단계:"
-echo "1. 운영 서버 라벨 업데이트: ./update-production.sh"
-echo "2. 코드 푸시하여 자동 배포 테스트: git push origin main"
+echo "GitHub Actions Secrets 설정이 완료되었습니다!"
+echo ""
+echo "추가 설정이 필요한 경우:"
+echo "- GitHub 웹 UI: https://github.com/$REPO/settings/secrets/actions"
+echo "- CLI 명령: gh secret set SECRET_NAME -b 'value'"
