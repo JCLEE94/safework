@@ -28,9 +28,10 @@ class CSRFProtectionMiddleware(BaseHTTPMiddleware):
     
     def __init__(self, app, secret_key: str = None):
         super().__init__(app)
-        # Use a default secret key to avoid circular imports
-        self.secret_key = secret_key or "default-csrf-secret-key-change-in-production"
-        self.token_lifetime = 3600  # 1 hour
+        import os
+        # Use environment variable or generate random key
+        self.secret_key = secret_key or os.getenv("CSRF_SECRET_KEY", os.urandom(32).hex())
+        self.token_lifetime = int(os.getenv("CSRF_TOKEN_LIFETIME", "3600"))  # 1 hour
         self.safe_methods = {"GET", "HEAD", "OPTIONS"}
         
     async def dispatch(self, request: Request, call_next):
@@ -368,8 +369,10 @@ class IPWhitelistMiddleware(BaseHTTPMiddleware):
     
     def __init__(self, app, whitelist: Optional[Set[str]] = None, enabled: bool = False):
         super().__init__(app)
-        self.whitelist = whitelist or {"127.0.0.1", "::1", "localhost"}
-        self.enabled = enabled
+        import os
+        default_whitelist = os.getenv("IP_WHITELIST", "127.0.0.1,::1,localhost").split(",")
+        self.whitelist = whitelist or set(ip.strip() for ip in default_whitelist)
+        self.enabled = enabled or os.getenv("IP_WHITELIST_ENABLED", "false").lower() == "true"
         
     async def dispatch(self, request: Request, call_next):
         if not self.enabled:

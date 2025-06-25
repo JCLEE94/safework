@@ -48,16 +48,18 @@ COPY dist/ ./dist/
 # Create necessary directories
 RUN mkdir -p uploads logs /var/lib/postgresql/data /var/run/postgresql /var/lib/redis /var/run/redis
 
-# Environment variables
-ENV POSTGRES_USER=admin
-ENV POSTGRES_PASSWORD=safework123
-ENV POSTGRES_DB=health_management
-ENV DATABASE_URL=postgresql://admin:safework123@localhost:5432/health_management
-ENV REDIS_URL=redis://localhost:6379/0
-ENV JWT_SECRET=safework-pro-secret-key-2024
-ENV DEBUG=false
-ENV LOG_LEVEL=INFO
-ENV PORT=3001
+# Environment variables (can be overridden at runtime)
+ENV POSTGRES_USER=${POSTGRES_USER:-admin}
+ENV POSTGRES_PASSWORD=${POSTGRES_PASSWORD:-safework123}
+ENV POSTGRES_DB=${POSTGRES_DB:-health_management}
+ENV DATABASE_URL=${DATABASE_URL:-postgresql://admin:safework123@localhost:5432/health_management}
+ENV REDIS_URL=${REDIS_URL:-redis://localhost:6379/0}
+ENV JWT_SECRET=${JWT_SECRET:-safework-pro-secret-key-2024}
+ENV DEBUG=${DEBUG:-false}
+ENV LOG_LEVEL=${LOG_LEVEL:-INFO}
+ENV PORT=${PORT:-3001}
+ENV APP_NAME=${APP_NAME:-SafeWork Pro}
+ENV TZ=${TZ:-Asia/Seoul}
 
 # Configure PostgreSQL
 RUN chown -R postgres:postgres /var/lib/postgresql && \
