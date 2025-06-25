@@ -74,17 +74,23 @@ jobs:
       - name: Set up Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: '20'
-          cache: 'npm'
+          node-version: '18'
           
       - name: Install dependencies
-        run: npm ci
+        run: |
+          export NPM_CONFIG_CACHE=/tmp/.npm
+          mkdir -p /tmp/.npm
+          npm install --cache /tmp/.npm
         
       - name: Run tests
-        run: npm run test
+        run: |
+          export NPM_CONFIG_CACHE=/tmp/.npm
+          npm run test
         
       - name: Build frontend
-        run: npm run build
+        run: |
+          export NPM_CONFIG_CACHE=/tmp/.npm
+          npm run build
         
       - name: Upload build artifacts
         uses: actions/upload-artifact@v4
