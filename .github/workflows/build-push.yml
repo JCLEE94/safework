@@ -24,10 +24,13 @@ jobs:
         
       - name: Login to Private Registry
         run: |
+          mkdir -p /tmp/docker_config
+          export DOCKER_CONFIG=/tmp/docker_config
           echo "${{ secrets.REGISTRY_PASSWORD }}" | docker login ${{ env.REGISTRY }} -u "${{ secrets.REGISTRY_USERNAME }}" --password-stdin
           
       - name: Push to Private Registry
         run: |
+          export DOCKER_CONFIG=/tmp/docker_config
           docker push ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest
           docker push ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ github.sha }}
 
