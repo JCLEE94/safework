@@ -1,0 +1,76 @@
+version: '3.8'
+
+services:
+  postgres:
+    image: postgres:15-alpine
+    container_name: health-postgres-dev
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: admin
+      POSTGRES_PASSWORD: password
+      POSTGRES_DB: health_management
+      TZ: Asia/Seoul
+    volumes:
+      - postgres_data_dev:/var/lib/postgresql/data
+    networks:
+      - health-network-dev
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U admin -d health_management"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  redis:
+    image: redis:7-alpine
+    container_name: health-redis-dev
+    restart: unless-stopped
+    command: redis-server --appendonly yes
+    volumes:
+      - redis_data_dev:/data
+    networks:
+      - health-network-dev
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  health-app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        BUILD_TIME: ${BUILD_TIME:-$(date +%Y%m%d_%H%M%S_KST)}
+    container_name: health-management-system-dev
+    restart: unless-stopped
+    ports:
+      - "3001:8000"
+    environment:
+      DATABASE_URL: postgresql://admin:password@postgres:5432/health_management
+      REDIS_URL: redis://redis:6379/0
+      JWT_SECRET: your-secret-key-here
+      DEBUG: "true"
+      LOG_LEVEL: DEBUG
+      TZ: Asia/Seoul
+    volumes:
+      - ./src:/app/src
+      - ./main.py:/app/main.py
+      - ./uploads:/app/uploads
+      - ./logs:/app/logs
+      - ./dist:/app/dist
+    networks:
+      - health-network-dev
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    command: ["python", "-m", "uvicorn", "src.app:create_app", "--factory", "--host", "0.0.0.0", "--port", "8000", "--reload"]
+
+networks:
+  health-network-dev:
+    driver: bridge
+
+volumes:
+  postgres_data_dev:
+  redis_data_dev:
