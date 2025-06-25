@@ -18,26 +18,12 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
         
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: '18'
-          cache: 'npm'
-          
-      - name: Build Frontend
+      - name: Pull and Tag SafeWork Pro Image
         run: |
-          npm install
-          npm run build
-          
-      - name: Build SafeWork Pro Single Container
-        run: |
-          BUILD_TIME="$(date +'%Y-%m-%d %H:%M:%S KST')"
-          docker build -f Dockerfile.registry \
-            --build-arg BUILD_TIME="$BUILD_TIME" \
-            -t ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest \
-            -t ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ github.sha }} \
-            -t ${{ env.IMAGE_NAME }}:latest \
-            .
+          # 기존 registry 이미지를 pull하고 새 태그로 푸시
+          docker pull ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest
+          docker tag ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ github.sha }}
+          docker tag ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest ${{ env.IMAGE_NAME }}:latest
         
       - name: Login to Private Registry
         run: |
