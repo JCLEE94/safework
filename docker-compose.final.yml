@@ -4,7 +4,7 @@ services:
   # SafeWork Pro - 단일 컨테이너 (PostgreSQL + Redis + FastAPI + React)
   safework:
     image: registry.jclee.me/safework:latest
-    container_name: safework-single
+    container_name: safework
     restart: unless-stopped
     ports:
       - "3001:3001"
@@ -29,7 +29,7 @@ services:
       BUILD_TIME: "${BUILD_TIME:-2025-06-26 01:00:00 KST}"
     
     volumes:
-      # 고정 볼륨 사용 - 바인드 마운트 제거
+      # Docker 관리 볼륨 사용 (경로 문제 해결)
       - safework_uploads:/app/uploads
       - safework_logs:/app/logs
       - safework_postgres_data:/var/lib/postgresql/data
