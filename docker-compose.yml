@@ -67,33 +67,12 @@ services:
       - /tmp:size=100M
       - /var/tmp:size=50M
 
-# Docker 관리 볼륨 사용
+# Docker 관리 볼륨 사용 (단순화)
 volumes:
   safework_uploads:
-    driver: local
-    labels:
-      - "backup=daily"
-      - "description=SafeWork Pro 업로드 파일"
-  
   safework_logs:
-    driver: local
-    labels:
-      - "backup=weekly"
-      - "description=SafeWork Pro 로그 파일"
-      - "retention=30d"
-  
   safework_postgres_data:
-    driver: local
-    labels:
-      - "backup=daily"
-      - "description=SafeWork Pro PostgreSQL 데이터"
-      - "critical=true"
-  
   safework_redis_data:
-    driver: local
-    labels:
-      - "backup=weekly" 
-      - "description=SafeWork Pro Redis 데이터"
 
 # 네트워크 정의
 networks:
