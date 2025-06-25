@@ -309,6 +309,10 @@ class APIKeyAuthMiddleware(BaseHTTPMiddleware):
         if request.url.path in public_paths or not request.url.path.startswith("/api/"):
             return await call_next(request)
             
+        # If no API keys are configured, skip API key authentication (development mode)
+        if not self.api_keys:
+            return await call_next(request)
+            
         # Get API key from header
         api_key = request.headers.get("X-API-Key")
         

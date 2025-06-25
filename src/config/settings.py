@@ -15,6 +15,9 @@ class Settings(BaseSettings):
     app_version: str = "1.0.1"
     debug: bool = True
     
+    # 개발 환경 설정
+    disable_auth: bool = True  # 개발 환경에서 인증 비활성화
+    
     # 데이터베이스 설정
     database_url: str = "postgresql://admin:password@health-postgres:5432/health_management"
     

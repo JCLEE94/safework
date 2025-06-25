@@ -55,6 +55,11 @@ class JWTAuthMiddleware(BaseHTTPMiddleware):
         ]
         
     async def dispatch(self, request: Request, call_next):
+        # Skip authentication if disabled in settings (development mode)
+        settings = get_settings()
+        if getattr(settings, 'disable_auth', False):
+            return await call_next(request)
+            
         # Skip authentication for public paths
         if request.url.path in self.public_paths:
             return await call_next(request)
