@@ -3,7 +3,7 @@ version: '3.8'
 services:
   health-app:
     image: registry.jclee.me/health:latest
-    container_name: health-management-system
+    container_name: health-app-1
     restart: unless-stopped
     ports:
       - "3001:8000"
