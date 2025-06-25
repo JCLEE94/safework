@@ -21,7 +21,7 @@ export function Header({ onMenuToggle }: HeaderProps) {
             
             <div className="ml-4 md:ml-0">
               <h2 className="text-xl font-semibold text-gray-800">
-                건설업 보건관리 시스템
+                SafeWork Pro
               </h2>
               <p className="text-xs text-gray-500">Build: {BUILD_TIME}</p>
             </div>
