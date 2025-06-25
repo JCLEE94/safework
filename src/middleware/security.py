@@ -134,20 +134,25 @@ class XSSProtectionMiddleware(BaseHTTPMiddleware):
     async def dispatch(self, request: Request, call_next):
         # Check request body for XSS
         if request.method in ["POST", "PUT", "PATCH"]:
-            body = await request.body()
-            if body:
-                try:
-                    # Check for XSS in JSON body
-                    if request.headers.get("content-type", "").startswith("application/json"):
-                        data = json.loads(body)
-                        if self._contains_xss(data):
-                            logger.warning(f"XSS attempt detected from {request.client.host}")
-                            return JSONResponse(
-                                status_code=400,
-                                content={"detail": "Potential XSS detected in request"}
-                            )
-                except Exception:
-                    pass
+            try:
+                body = await request.body()
+                if body:
+                    try:
+                        # Check for XSS in JSON body
+                        if request.headers.get("content-type", "").startswith("application/json"):
+                            data = json.loads(body)
+                            if self._contains_xss(data):
+                                logger.warning(f"XSS attempt detected from {request.client.host}")
+                                return JSONResponse(
+                                    status_code=400,
+                                    content={"detail": "Potential XSS detected in request"}
+                                )
+                    except Exception:
+                        pass
+            except Exception as e:
+                # If body reading fails, continue without XSS check
+                logger.debug(f"Could not read request body for XSS check: {e}")
+                pass
                     
         response = await call_next(request)
         
