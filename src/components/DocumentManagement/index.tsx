@@ -15,22 +15,22 @@ interface FormData {
 
 const PDF_FORMS: PDFForm[] = [
   {
-    name: 'health_consultation_log',
+    name: '건강관리_상담방문_일지',
     description: '건강관리 상담방문 일지',
     template_path: '/documents/health_consultation_log.pdf'
   },
   {
-    name: 'msds_management_log',
+    name: 'MSDS_관리대장',
     description: 'MSDS 관리대장',
     template_path: '/documents/msds_management_log.pdf'
   },
   {
-    name: 'worker_health_findings',
+    name: '유소견자_관리대장',
     description: '유소견자 관리대장',
     template_path: '/documents/worker_health_findings.pdf'
   },
   {
-    name: 'special_substance_handling',
+    name: '특별관리물질_취급일지',
     description: '특별관리물질 취급일지',
     template_path: '/documents/special_substance_handling.pdf'
   }
@@ -97,34 +97,52 @@ export function DocumentManagement() {
 
   const getSampleDataForForm = (formName: string): FormData => {
     switch (formName) {
-      case 'health_consultation_log':
+      case '건강관리_상담방문_일지':
         return {
-          date: '2024-06-25',
-          worker_name: '김철수',
-          department: '건설팀',
-          consultation_type: '정기상담',
-          content: '건강상태 양호, 특이사항 없음'
+          visit_date: '2024-06-25',
+          site_name: '건설현장 A동',
+          counselor: '김보건',
+          work_type: '건설작업',
+          worker_count: '15',
+          participant_1: '김철수',
+          participant_2: '이영희',
+          counseling_topic: '정기 건강상담',
+          health_issues: '특이사항 없음',
+          immediate_actions: '지속적인 관찰 필요',
+          counselor_signature: '김보건',
+          signature_date: '2024-06-25'
         };
-      case 'msds_management_log':
+      case 'MSDS_관리대장':
         return {
+          company_name: '안전건설(주)',
           chemical_name: '아세톤',
           manufacturer: 'ABC화학',
-          received_date: '2024-06-20',
-          storage_location: '화학물질 저장소 A'
+          cas_number: '67-64-1',
+          usage: '청소용',
+          storage_location: '화학물질 저장소 A',
+          prepared_by: '김담당',
+          date: '2024-06-25'
         };
-      case 'worker_health_findings':
+      case '유소견자_관리대장':
         return {
           worker_name: '이영희',
+          employee_id: 'EMP001',
           exam_date: '2024-06-15',
-          findings: '혈압 관리 필요',
-          follow_up: '3개월 후 재검진'
+          exam_agency: '서울의료원',
+          exam_result: '혈압 주의',
+          opinion: '정기적인 관리 필요',
+          manager_signature: '김관리자'
         };
-      case 'special_substance_handling':
+      case '특별관리물질_취급일지':
         return {
-          substance_name: '석면',
-          handler_name: '박담당',
-          handling_date: '2024-06-25',
-          safety_measures: '방호복 착용, 마스크 착용'
+          work_date: '2024-06-25',
+          chemical_name: '석면',
+          worker_name: '박작업자',
+          work_location: '건물 해체 현장',
+          start_time: '09:00',
+          end_time: '17:00',
+          safety_measures: '방호복, 마스크 착용',
+          worker_signature: '박작업자'
         };
       default:
         return {};
@@ -158,22 +176,39 @@ export function DocumentManagement() {
 
   const getFieldLabel = (field: string): string => {
     const labels: { [key: string]: string } = {
-      date: '일자',
-      worker_name: '근로자명',
-      department: '부서',
-      consultation_type: '상담유형',
-      content: '상담내용',
+      visit_date: '방문일자',
+      site_name: '현장명',
+      counselor: '상담자',
+      work_type: '작업종류',
+      worker_count: '작업인원',
+      participant_1: '참여자 1',
+      participant_2: '참여자 2',
+      counseling_topic: '상담주제',
+      health_issues: '건강문제',
+      immediate_actions: '즉시조치사항',
+      counselor_signature: '상담자 서명',
+      signature_date: '서명일',
+      company_name: '회사명',
       chemical_name: '화학물질명',
       manufacturer: '제조사',
-      received_date: '입고일자',
+      cas_number: 'CAS 번호',
+      usage: '용도',
       storage_location: '보관장소',
+      prepared_by: '작성자',
+      date: '작성일',
+      worker_name: '근로자명',
+      employee_id: '사번',
       exam_date: '검진일자',
-      findings: '소견',
-      follow_up: '후속조치',
-      substance_name: '물질명',
-      handler_name: '취급자',
-      handling_date: '취급일자',
-      safety_measures: '안전조치'
+      exam_agency: '검진기관',
+      exam_result: '검진결과',
+      opinion: '의학적 소견',
+      manager_signature: '관리자 서명',
+      work_date: '작업일자',
+      work_location: '작업장소',
+      start_time: '시작시간',
+      end_time: '종료시간',
+      safety_measures: '안전조치',
+      worker_signature: '작업자 서명'
     };
     return labels[field] || field;
   };
