@@ -61,20 +61,20 @@ else
     exit 1
 fi
 
-# 4. Docker 이미지 업데이트
-log_info "최신 SafeWork Pro 이미지 pull..."
-docker pull registry.jclee.me/safework:latest || {
-    log_warning "이미지 pull 실패 - 로컬 이미지 사용"
-}
+# 4. 프론트엔드 빌드
+log_info "프론트엔드 빌드 실행..."
+npm install
+npm run build
+log_success "프론트엔드 빌드 완료"
 
 # 5. 빌드 시간 환경변수 설정
 export BUILD_TIME="$(date +'%Y-%m-%d %H:%M:%S KST')"
 log_info "빌드 시간 설정: $BUILD_TIME"
 
-# 6. 최종 docker-compose 실행
+# 6. 최종 docker-compose 실행 (빌드 포함)
 log_info "SafeWork Pro 단일 컨테이너 배포 시작..."
 docker-compose -f docker-compose.final.yml down 2>/dev/null || true
-docker-compose -f docker-compose.final.yml up -d
+docker-compose -f docker-compose.final.yml up -d --build
 
 # 7. 배포 확인
 log_info "배포 상태 확인 중..."
@@ -114,7 +114,8 @@ echo "=========================="
 echo ""
 echo "📊 서비스 정보:"
 echo "- 🌐 Public URL: https://safework.jclee.me"
-echo "- 🏠 Local URL: http://localhost:3001"
+echo "- 🏠 Local URL: http://192.168.50.215:3001"
+echo "- 🏠 Localhost: http://localhost:3001"
 echo "- ❤️  헬스체크: http://localhost:3001/health"
 echo "- 📖 API 문서: http://localhost:3001/api/docs"
 echo "- 🏥 건설업 보건관리 시스템"

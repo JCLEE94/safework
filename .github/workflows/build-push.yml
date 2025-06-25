@@ -76,5 +76,6 @@ jobs:
         run: |
           echo "🎉 SafeWork Pro 배포 완료!"
           echo "📍 Registry: registry.jclee.me/safework:latest"
-          echo "🔗 URL: https://safework.jclee.me"
+          echo "🔗 Public URL: https://safework.jclee.me"
+          echo "🏠 Local URL: http://192.168.50.215:3001"
           echo "🏥 건설업 보건관리 시스템 업데이트됨"

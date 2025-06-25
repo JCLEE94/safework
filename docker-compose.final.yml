@@ -3,7 +3,12 @@ version: '3.8'
 services:
   # SafeWork Pro - 단일 컨테이너 (PostgreSQL + Redis + FastAPI + React)
   safework:
-    image: registry.jclee.me/safework:latest
+    build:
+      context: .
+      dockerfile: Dockerfile.registry
+      args:
+        BUILD_TIME: "${BUILD_TIME:-2025-06-26 01:00:00 KST}"
+    image: safework:latest
     container_name: safework-single
     restart: unless-stopped
     ports:
