@@ -66,7 +66,7 @@ coverage
 .nyc_output
 
 # Build artifacts
-# dist는 git에 올리지 않고 Docker 빌드 시 생성됨
+dist
 build
 *.tar.gz
 *.zip
