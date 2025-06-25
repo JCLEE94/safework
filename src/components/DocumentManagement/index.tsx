@@ -112,10 +112,67 @@ export function DocumentManagement() {
     }
   };
 
+  const generateClientSidePDF = (data: FormData): string => {
+    // 실제 입력 데이터로 HTML 기반 미리보기 생성
+    const form = PDF_FORMS.find(f => f.name === selectedForm);
+    const formTitle = form ? form.description : '문서 양식';
+    
+    let htmlContent = `
+      <html>
+        <head>
+          <meta charset="UTF-8">
+          <style>
+            body { font-family: Arial, sans-serif; padding: 40px; line-height: 1.6; background: white; }
+            h1 { color: #333; border-bottom: 2px solid #007bff; padding-bottom: 10px; margin-bottom: 30px; }
+            .field { margin: 12px 0; padding: 12px; background: #f8f9fa; border-left: 4px solid #007bff; border-radius: 4px; }
+            .label { font-weight: bold; color: #495057; display: inline-block; min-width: 120px; }
+            .value { margin-left: 10px; color: #212529; }
+            .footer { margin-top: 40px; text-align: center; color: #6c757d; border-top: 1px solid #dee2e6; padding-top: 20px; }
+            .header-info { background: #e9ecef; padding: 15px; border-radius: 4px; margin-bottom: 20px; }
+          </style>
+        </head>
+        <body>
+          <h1>${formTitle}</h1>
+          <div class="header-info">
+            <strong>작성일:</strong> ${new Date().toLocaleDateString('ko-KR', { 
+              year: 'numeric', month: 'long', day: 'numeric' 
+            })}
+          </div>
+    `;
+    
+    // 입력된 데이터 추가
+    Object.entries(data).forEach(([key, value]) => {
+      if (value) {
+        const label = getFieldLabel(key);
+        htmlContent += `
+          <div class="field">
+            <span class="label">${label}:</span>
+            <span class="value">${value}</span>
+          </div>
+        `;
+      }
+    });
+    
+    htmlContent += `
+          <div class="footer">
+            <p><strong>SafeWork Pro Health Management System</strong></p>
+            <p>문서 생성 시각: ${new Date().toLocaleString('ko-KR')}</p>
+          </div>
+        </body>
+      </html>
+    `;
+    
+    // HTML을 Base64로 인코딩하여 데이터 URI로 반환
+    const base64HTML = btoa(unescape(encodeURIComponent(htmlContent)));
+    return `data:text/html;base64,${base64HTML}`;
+  };
+
   const generateSamplePDF = (): string => {
-    // 간단한 샘플 PDF (실제 PDF 헤더와 최소 구조)
-    const samplePDFBase64 = 'JVBERi0xLjQKMSAwIG9iago8PAovVHlwZSAvQ2F0YWxvZwovUGFnZXMgMiAwIFIKPj4KZW5kb2JqCjIgMCBvYmoKPDwKL1R5cGUgL1BhZ2VzCi9LaWRzIFszIDAgUl0KL0NvdW50IDEKL01lZGlhQm94IFswIDAgNTk1IDg0Ml0KPj4KZW5kb2JqCjMgMCBvYmoKPDwKL1R5cGUgL1BhZ2UKL1BhcmVudCAyIDAgUgovUmVzb3VyY2VzIDw8Ci9Gb250IDQ0IDAgUgo+PgovQ29udGVudHMgNSAwIFIKPj4KZW5kb2JqCjQgMCBvYmoKPDwKL0YxIDY2IDAgUgo+PgplbmRvYmoKNSAwIG9iago8PAovTGVuZ3RoIDU4Cj4+CnN0cmVhbQpCVApxCi9GMSA0OCBUZgoxMCA3MDAgVGQKKFNhZmVXb3JrIFBybyAtIFBERiBQcmV2aWV3KSBUKE4KUVAKZW5kc3RyZWFtCmVuZG9iago2IDAgb2JqCjw8Ci9UeXBlIC9Gb250Ci9TdWJ0eXBlIC9UeXBlMQovQmFzZUZvbnQgL0hlbHZldGljYQo+PgplbmRvYmoKeHJlZgowIDcKMDAwMDAwMDAwMCA2NTUzNSBmIAowMDAwMDAwMDA5IDAwMDAwIG4gCjAwMDAwMDAwNTggMDAwMDAgbiAKMDAwMDAwMDExNSAwMDAwMCBuIAowMDAwMDAwMjQ1IDAwMDAwIG4gCjAwMDAwMDAyNzQgMDAwMDAgbiAKMDAwMDAwMDM4NCAwMDAwMCBuIAp0cmFpbGVyCjw8Ci9TaXplIDcKL1Jvb3QgMSAwIFIKPj4Kc3RhcnR4cmVmCjQ4MQolJUVPRg==';
-    return `data:application/pdf;base64,${samplePDFBase64}`;
+    // 실제 입력 데이터를 사용하여 PDF 미리보기 생성
+    // const samplePDFBase64 = 'JVBERi0xLjQKMSAwIG9iago8PAovVHlwZSAvQ2F0YWxvZwovUGFnZXMgMiAwIFIKPj4KZW5kb2JqCjIgMCBvYmoKPDwKL1R5cGUgL1BhZ2VzCi9LaWRzIFszIDAgUl0KL0NvdW50IDEKL01lZGlhQm94IFswIDAgNTk1IDg0Ml0KPj4KZW5kb2JqCjMgMCBvYmoKPDwKL1R5cGUgL1BhZ2UKL1BhcmVudCAyIDAgUgovUmVzb3VyY2VzIDw8Ci9Gb250IDQ0IDAgUgo+PgovQ29udGVudHMgNSAwIFIKPj4KZW5kb2JqCjQgMCBvYmoKPDwKL0YxIDY2IDAgUgo+PgplbmRvYmoKNSAwIG9iago8PAovTGVuZ3RoIDU4Cj4+CnN0cmVhbQpCVApxCi9GMSA0OCBUZgoxMCA3MDAgVGQKKFNhZmVXb3JrIFBybyAtIFBERiBQcmV2aWV3KSBUKE4KUVAKZW5kc3RyZWFtCmVuZG9iago2IDAgb2JqCjw8Ci9UeXBlIC9Gb250Ci9TdWJ0eXBlIC9UeXBlMQovQmFzZUZvbnQgL0hlbHZldGljYQo+PgplbmRvYmoKeHJlZgowIDcKMDAwMDAwMDAwMCA2NTUzNSBmIAowMDAwMDAwMDA5IDAwMDAwIG4gCjAwMDAwMDAwNTggMDAwMDAgbiAKMDAwMDAwMDExNSAwMDAwMCBuIAowMDAwMDAwMjQ1IDAwMDAwIG4gCjAwMDAwMDAyNzQgMDAwMDAgbiAKMDAwMDAwMDM4NCAwMDAwMCBuIAp0cmFpbGVyCjw8Ci9TaXplIDcKL1Jvb3QgMSAwIFIKPj4Kc3RhcnR4cmVmCjQ4MQolJUVPRg==';
+    const sampleData = getSampleDataForForm(selectedForm);
+    const mergedData = { ...sampleData, ...formData };
+    return generateClientSidePDF(mergedData);
   };
 
   const getSampleDataForForm = (formName: string): FormData => {
