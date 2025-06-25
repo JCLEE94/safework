@@ -1,76 +1,106 @@
 version: '3.8'
 
 services:
-  postgres:
-    image: postgres:15-alpine
-    container_name: health-postgres
-    restart: unless-stopped
-    environment:
-      POSTGRES_USER: admin
-      POSTGRES_PASSWORD: password
-      POSTGRES_DB: health_management
-      TZ: Asia/Seoul
-    volumes:
-      - postgres_data:/var/lib/postgresql/data
-    networks:
-      - health-network
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U admin -d health_management"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
-
-  redis:
-    image: redis:7-alpine
-    container_name: health-redis
-    restart: unless-stopped
-    command: redis-server --appendonly yes
-    volumes:
-      - redis_data:/data
-    networks:
-      - health-network
-    healthcheck:
-      test: ["CMD", "redis-cli", "ping"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
-
-  health-app:
-    image: registry.jclee.me/health:latest
-    container_name: health-app-1
+  # SafeWork Pro - 단일 컨테이너 (PostgreSQL + Redis + FastAPI + React)
+  safework:
+    image: registry.jclee.me/safework:latest
+    container_name: safework
     restart: unless-stopped
     ports:
-      - "3001:8000"
+      - "3001:3001"
     environment:
-      DATABASE_URL: postgresql://admin:password@postgres:5432/health_management
-      REDIS_URL: redis://redis:6379/0
-      JWT_SECRET: your-secret-key-here
+      # 데이터베이스 설정
+      POSTGRES_USER: admin
+      POSTGRES_PASSWORD: safework123
+      POSTGRES_DB: health_management
+      DATABASE_URL: postgresql://admin:safework123@localhost:5432/health_management
+      
+      # Redis 설정
+      REDIS_URL: redis://localhost:6379/0
+      
+      # 애플리케이션 설정
+      JWT_SECRET: safework-pro-secret-key-2024
       DEBUG: "false"
       LOG_LEVEL: INFO
       TZ: Asia/Seoul
+      PORT: 3001
+      
+      # 빌드 시간 환경변수
+      BUILD_TIME: "${BUILD_TIME:-2025-06-26 01:00:00 KST}"
+    
     volumes:
-      - ./uploads:/app/uploads
-      - ./logs:/app/logs
-    networks:
-      - health-network
-    depends_on:
-      postgres:
-        condition: service_healthy
-      redis:
-        condition: service_healthy
+      # Docker 관리 볼륨 사용
+      - safework_uploads:/app/uploads
+      - safework_logs:/app/logs
+      - safework_postgres_data:/var/lib/postgresql/data
+      - safework_redis_data:/var/lib/redis
+    
     labels:
+      # Watchtower 자동 업데이트 활성화
       - "com.centurylinklabs.watchtower.enable=true"
+      - "com.centurylinklabs.watchtower.monitor-only=false"
+      
+      # 메타데이터 라벨
+      - "org.opencontainers.image.title=SafeWork Pro"
+      - "org.opencontainers.image.description=건설업 보건관리 시스템 - 단일 컨테이너"
+      - "org.opencontainers.image.version=1.0.0"
+      - "org.opencontainers.image.vendor=SafeWork Pro Team"
+      - "org.opencontainers.image.url=https://safework.jclee.me"
+      - "org.opencontainers.image.source=https://github.com/JCLEE94/safework"
+    
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      test: ["CMD", "curl", "-f", "http://localhost:3001/health"]
       interval: 30s
       timeout: 10s
-      retries: 3
-      start_period: 40s
+      retries: 5
+      start_period: 60s
+    
+    # 보안 설정
+    security_opt:
+      - no-new-privileges:true
+    
+    # 읽기 전용 루트 파일시스템 (데이터 디렉토리 제외)
+    read_only: false
+    
+    # 임시 파일시스템
+    tmpfs:
+      - /tmp:size=100M
+      - /var/tmp:size=50M
 
-networks:
-  health-network:
-    driver: bridge
-
+# Docker 관리 볼륨 사용
 volumes:
-  postgres_data:
-  redis_data:
+  safework_uploads:
+    driver: local
+    labels:
+      - "backup=daily"
+      - "description=SafeWork Pro 업로드 파일"
+  
+  safework_logs:
+    driver: local
+    labels:
+      - "backup=weekly"
+      - "description=SafeWork Pro 로그 파일"
+      - "retention=30d"
+  
+  safework_postgres_data:
+    driver: local
+    labels:
+      - "backup=daily"
+      - "description=SafeWork Pro PostgreSQL 데이터"
+      - "critical=true"
+  
+  safework_redis_data:
+    driver: local
+    labels:
+      - "backup=weekly" 
+      - "description=SafeWork Pro Redis 데이터"
+
+# 네트워크 정의
+networks:
+  default:
+    name: safework-network
+    driver: bridge
+    driver_opts:
+      com.docker.network.bridge.name: br-safework
+    labels:
+      - "description=SafeWork Pro 네트워크"
