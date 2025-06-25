@@ -15,6 +15,9 @@ COPY vite.config.ts tsconfig.json tsconfig.node.json ./
 COPY tailwind.config.js* postcss.config.js** ./
 RUN npm run build
 
+# 빌드 결과 검증
+RUN ls -la /app/dist/ && test -f /app/dist/index.html || (echo "❌ React 빌드 실패: index.html 없음" && exit 1)
+
 # Python backend
 FROM python:3.11-slim AS backend
 

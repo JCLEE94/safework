@@ -66,7 +66,7 @@ coverage
 .nyc_output
 
 # Build artifacts
-dist
+# dist  # CI/CD 수정: React 빌드 결과물을 Docker 이미지에 포함하기 위해 주석 처리
 build
 *.tar.gz
 *.zip
