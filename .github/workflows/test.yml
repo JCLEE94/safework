@@ -55,6 +55,7 @@ jobs:
           DATABASE_URL: postgresql://admin:password@localhost:25432/health_management
           REDIS_URL: redis://localhost:26379/0
           JWT_SECRET: test-secret-key
+          PYTHONPATH: ${{ github.workspace }}
         run: |
           pytest tests/ -v --cov=src --cov-report=html --cov-report=term
           
