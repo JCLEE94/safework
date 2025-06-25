@@ -35,13 +35,10 @@ jobs:
         
       - name: Login to Private Registry
         run: |
-          mkdir -p /tmp/docker_config
-          export DOCKER_CONFIG=/tmp/docker_config
           echo "${{ secrets.REGISTRY_PASSWORD }}" | docker login ${{ env.REGISTRY }} -u "${{ secrets.REGISTRY_USERNAME }}" --password-stdin
           
       - name: Push to Private Registry
         run: |
-          export DOCKER_CONFIG=/tmp/docker_config
           docker push ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest
           docker push ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ github.sha }}
 
@@ -75,7 +72,8 @@ jobs:
       - name: Notify Deployment
         run: |
           echo "🎉 SafeWork Pro 배포 완료!"
-          echo "📍 Registry: registry.jclee.me/safework:latest"
+          echo "📍 Registry: registry.jclee.me/safework:latest"  
           echo "🔗 Public URL: https://safework.jclee.me"
           echo "🏠 Local URL: http://192.168.50.215:3001"
           echo "🏥 건설업 보건관리 시스템 업데이트됨"
+          echo "📦 Repository: JCLEE94/safework"

@@ -51,7 +51,7 @@ services:
       - "org.opencontainers.image.version=1.0.0"
       - "org.opencontainers.image.vendor=SafeWork Pro Team"
       - "org.opencontainers.image.url=https://safework.jclee.me"
-      - "org.opencontainers.image.source=https://github.com/qws941/safework"
+      - "org.opencontainers.image.source=https://github.com/JCLEE94/safework"
     
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:3001/health"]
