@@ -60,15 +60,13 @@ services:
       retries: 5
       start_period: 60s
     
-    # 리소스 제한
+    # 리소스 제한 (CPU 제한 제거 - 커널 호환성)
     deploy:
       resources:
         limits:
           memory: 2G
-          cpus: '1.0'
         reservations:
           memory: 1G
-          cpus: '0.5'
     
     # 보안 설정
     security_opt:
@@ -82,24 +80,16 @@ services:
       - /tmp:size=100M
       - /var/tmp:size=50M
 
-# 고정 볼륨 정의 - 호스트 바인드 마운트 제거
+# Docker 관리 볼륨 사용 (단순화)
 volumes:
   safework_uploads:
     driver: local
-    driver_opts:
-      type: none
-      o: bind
-      device: /opt/safework/uploads
     labels:
       - "backup=daily"
       - "description=SafeWork Pro 업로드 파일"
   
   safework_logs:
     driver: local
-    driver_opts:
-      type: none
-      o: bind
-      device: /opt/safework/logs
     labels:
       - "backup=weekly"
       - "description=SafeWork Pro 로그 파일"
@@ -107,10 +97,6 @@ volumes:
   
   safework_postgres_data:
     driver: local
-    driver_opts:
-      type: none
-      o: bind
-      device: /opt/safework/postgres
     labels:
       - "backup=daily"
       - "description=SafeWork Pro PostgreSQL 데이터"
@@ -118,10 +104,6 @@ volumes:
   
   safework_redis_data:
     driver: local
-    driver_opts:
-      type: none
-      o: bind
-      device: /opt/safework/redis
     labels:
       - "backup=weekly" 
       - "description=SafeWork Pro Redis 데이터"
