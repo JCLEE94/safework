@@ -25,9 +25,17 @@ import subprocess
 import tempfile
 import base64
 import hashlib
+import shutil
 
 # 캐싱 서비스 import
 from ..services.cache import cache_pdf_result, get_cached_pdf, CacheTTL
+
+# PDF 양식 설정 import
+from ..config.pdf_forms import (
+    PDF_FORM_COORDINATES, 
+    AVAILABLE_PDF_FORMS, 
+    FIELD_LABELS
+)
 
 router = APIRouter(prefix="/api/v1/documents", tags=["documents"])
 
@@ -167,182 +175,59 @@ FORM_TEMPLATES = {
     }
 }
 
-# PDF 양식별 필드 좌표 정의 (x, y 좌표 - A4 용지 기준)
-# 좌표는 왼쪽 하단(0,0)에서 시작하는 PDF 좌표계 사용
-# A4 크기: 595.27 x 841.89 포인트
-PDF_FORM_COORDINATES = {
-    "유소견자_관리대장": {
-        # 표 헤더 정보
-        "company_name": (80, 750),       # 사업장명 - 상단
-        "department": (300, 750),        # 부서명
-        "year": (500, 750),              # 년도
+# 실제 Office 파일을 PDF로 변환하는 함수
+def convert_office_to_pdf_with_libreoffice(office_file_path: str) -> io.BytesIO:
+    """LibreOffice를 사용하여 Excel/Word 파일을 PDF로 변환"""
+    try:
+        print(f"Converting {office_file_path} to PDF using LibreOffice")
         
-        # 표 본문 - 더 정확한 좌표로 조정
-        "row_1": {
-            "worker_name": (85, 680),    # 근로자명 - 첫 번째 행
-            "employee_id": (165, 680),   # 사번
-            "position": (220, 680),      # 직책
-            "exam_date": (275, 680),     # 검진일
-            "exam_agency": (350, 680),   # 검진기관
-            "exam_result": (425, 680),   # 검진결과
-            "opinion": (480, 680),       # 의학적 소견
-        },
-        "row_2": {
-            "worker_name": (85, 650),    # 두 번째 행
-            "employee_id": (165, 650),
-            "position": (220, 650),
-            "exam_date": (275, 650),
-            "exam_agency": (350, 650),
-            "exam_result": (425, 650),
-            "opinion": (480, 650),
-        },
-        "row_3": {
-            "worker_name": (85, 620),    # 세 번째 행
-            "employee_id": (165, 620),
-            "position": (220, 620),
-            "exam_date": (275, 620),
-            "exam_agency": (350, 620),
-            "exam_result": (425, 620),
-            "opinion": (480, 620),
-        },
-        
-        # 단일 필드들 (첫 번째 행에 기본 입력)
-        "worker_name": (85, 680),
-        "employee_id": (165, 680),
-        "exam_date": (275, 680),
-        "exam_agency": (350, 680),
-        "exam_result": (425, 680),
-        "opinion": (480, 680),
-        
-        # 하단 서명란
-        "manager_signature": (100, 120), # 관리책임자 서명
-        "creation_date": (400, 120)      # 작성일
-    },
-    
-    "MSDS_관리대장": {
-        # 상단 정보
-        "company_name": (100, 780),      # 사업장명
-        "department": (350, 780),        # 부서명
-        "manager": (500, 780),           # 관리책임자
-        
-        # 표 본문 - 화학물질 정보
-        "chemical_name": (70, 700),      # 화학물질명
-        "manufacturer": (150, 700),      # 제조업체/수입업체
-        "cas_number": (240, 700),        # CAS 번호
-        "usage": (320, 700),             # 용도
-        "quantity": (380, 700),          # 사용량
-        "storage_location": (440, 700),  # 보관장소
-        "hazard_class": (500, 700),      # 유해성 분류
-        
-        # 두 번째 행
-        "chemical_name_2": (70, 670),
-        "manufacturer_2": (150, 670),
-        "cas_number_2": (240, 670),
-        "usage_2": (320, 670),
-        "quantity_2": (380, 670),
-        "storage_location_2": (440, 670),
-        "hazard_class_2": (500, 670),
-        
-        # MSDS 정보
-        "msds_date": (100, 600),         # MSDS 작성일
-        "msds_version": (250, 600),      # 버전
-        "update_date": (400, 600),       # 갱신일
-        
-        # 안전조치사항 (텍스트 영역)
-        "safety_measures": (80, 450),    # 안전조치사항
-        "emergency_procedures": (80, 350), # 응급조치방법
-        
-        # 서명란
-        "prepared_by": (100, 150),       # 작성자
-        "approved_by": (300, 150),       # 승인자
-        "date": (450, 150)               # 작성일
-    },
-    
-    "건강관리_상담방문_일지": {
-        # 상단 정보란
-        "visit_date": (120, 720),        # 방문일자
-        "site_name": (280, 720),         # 현장명
-        "weather": (450, 720),           # 날씨
-        "counselor": (120, 690),         # 상담자
-        "work_type": (280, 690),         # 작업종류
-        "worker_count": (450, 690),      # 작업인원수
-        
-        # 상담 대상자 정보
-        "participant_1": (80, 640),      # 참여자 1
-        "participant_2": (200, 640),     # 참여자 2
-        "participant_3": (320, 640),     # 참여자 3
-        "participant_4": (440, 640),     # 참여자 4
-        
-        # 상담내용 (큰 텍스트 영역)
-        "counseling_topic": (80, 580),   # 상담 주제
-        "health_issues": (80, 520),      # 건강문제 및 호소사항
-        "work_environment": (80, 460),   # 작업환경 상태
-        "improvement_suggestions": (80, 400), # 개선사항 제안
-        
-        # 조치사항
-        "immediate_actions": (80, 320),   # 즉시 조치사항
-        "follow_up_actions": (80, 280),   # 추후 조치사항
-        "next_visit_plan": (80, 240),     # 다음 방문 계획
-        
-        # 서명란
-        "counselor_signature": (100, 150), # 상담자 서명
-        "manager_signature": (300, 150),   # 관리자 서명
-        "signature_date": (450, 150)       # 서명일
-    },
-    
-    "특별관리물질_취급일지": {
-        # 상단 기본정보
-        "work_date": (120, 750),         # 작업일자
-        "department": (300, 750),        # 부서/작업장
-        "weather": (450, 750),           # 기상상황
-        
-        # 화학물질 정보
-        "chemical_name": (120, 710),     # 특별관리물질명
-        "manufacturer": (300, 710),      # 제조업체
-        "cas_number": (450, 710),        # CAS 번호
-        
-        # 작업 정보
-        "work_location": (120, 670),     # 작업장소
-        "work_content": (280, 670),      # 작업내용
-        "work_method": (440, 670),       # 작업방법
-        
-        # 작업자 정보
-        "worker_name": (120, 630),       # 작업자명
-        "worker_id": (220, 630),         # 사번
-        "work_experience": (320, 630),   # 작업경력
-        "health_status": (420, 630),     # 건강상태
-        
-        # 작업시간 및 량
-        "start_time": (120, 590),        # 작업시작시간
-        "end_time": (200, 590),          # 작업종료시간
-        "duration": (280, 590),          # 작업시간
-        "quantity_used": (380, 590),     # 사용량
-        "concentration": (460, 590),     # 농도
-        
-        # 보호구 착용현황
-        "respiratory_protection": (120, 520), # 호흡보호구
-        "hand_protection": (220, 520),        # 손 보호구
-        "eye_protection": (320, 520),         # 눈 보호구
-        "body_protection": (420, 520),        # 신체 보호구
-        
-        # 안전조치사항
-        "ventilation_status": (80, 460),      # 환기시설 가동상태
-        "emergency_equipment": (80, 420),     # 비상장비 점검상태
-        "safety_procedures": (80, 380),       # 안전작업절차 준수여부
-        "waste_disposal": (80, 340),          # 폐기물 처리방법
-        
-        # 특이사항 및 조치사항
-        "special_notes": (80, 280),           # 특이사항
-        "corrective_actions": (80, 240),      # 시정조치사항
-        "health_symptoms": (80, 200),         # 건강이상 증상
-        
-        # 서명란
-        "worker_signature": (100, 120),       # 작업자 서명
-        "supervisor_signature": (250, 120),   # 작업감독자 서명
-        "manager_signature": (400, 120),      # 관리책임자 서명
-        "signature_date": (500, 120)          # 서명일
-    }
-}
+        # 임시 디렉토리 생성
+        with tempfile.TemporaryDirectory() as temp_dir:
+            # 원본 파일을 임시 디렉토리에 복사
+            temp_input = os.path.join(temp_dir, os.path.basename(office_file_path))
+            shutil.copy2(office_file_path, temp_input)
+            
+            # LibreOffice로 PDF 변환
+            cmd = [
+                'libreoffice',
+                '--headless',
+                '--invisible',
+                '--nodefault',
+                '--nolockcheck',
+                '--nologo',
+                '--norestore',
+                '--convert-to',
+                'pdf',
+                '--outdir',
+                temp_dir,
+                temp_input
+            ]
+            
+            result = subprocess.run(cmd, capture_output=True, text=True)
+            
+            if result.returncode != 0:
+                print(f"LibreOffice conversion error: {result.stderr}")
+                raise Exception(f"LibreOffice conversion failed: {result.stderr}")
+            
+            # 변환된 PDF 파일 찾기
+            pdf_filename = os.path.splitext(os.path.basename(office_file_path))[0] + '.pdf'
+            pdf_path = os.path.join(temp_dir, pdf_filename)
+            
+            if not os.path.exists(pdf_path):
+                raise Exception(f"Converted PDF not found: {pdf_path}")
+            
+            # PDF 내용을 BytesIO로 읽기
+            with open(pdf_path, 'rb') as f:
+                pdf_content = f.read()
+            
+            return io.BytesIO(pdf_content)
+            
+    except Exception as e:
+        print(f"Office to PDF conversion error: {str(e)}")
+        # 변환 실패시 빈 PDF 생성
+        return create_blank_pdf_with_title(os.path.basename(office_file_path))
+
+
 
 
 def setup_korean_font(canvas_obj):
@@ -384,91 +269,46 @@ def create_text_overlay(data: Dict, form_type: str) -> io.BytesIO:
     if form_type not in PDF_FORM_COORDINATES:
         raise ValueError(f"지원하지 않는 양식입니다: {form_type}")
     
-    coordinates = PDF_FORM_COORDINATES[form_type]
+    form_config = PDF_FORM_COORDINATES[form_type]
+    fields = form_config.get("fields", {})
     
     print(f"Creating text overlay for {form_type} with data: {data}")
     
-    # 데이터를 좌표에 맞춰 텍스트 추가 - 개선된 매핑 방식
-    def process_field_data(field_name, field_coords, field_data):
-        """필드 데이터 처리 및 텍스트 그리기"""
-        if isinstance(field_coords, dict):
-            # 중첩된 좌표 구조 (예: row_1, row_2 등)
-            for sub_field, (x, y) in field_coords.items():
-                if sub_field in field_data and field_data[sub_field]:
-                    draw_text_at_position(str(field_data[sub_field]).strip(), x, y, sub_field)
-        elif isinstance(field_coords, tuple) and len(field_coords) == 2:
-            # 단일 좌표 (x, y)
-            if field_name in data and data[field_name]:
-                text = str(data[field_name]).strip()
-                if text:
-                    draw_text_at_position(text, field_coords[0], field_coords[1], field_name)
-    
-    def draw_text_at_position(text, x, y, field_name):
-        """지정된 위치에 텍스트 그리기"""
-        if not text:
-            return
+    # 각 필드에 대해 데이터 추가
+    for field_name, field_info in fields.items():
+        if field_name in data and data[field_name]:
+            x = field_info.get("x", 100)
+            y = field_info.get("y", 700)
+            label = field_info.get("label", field_name)
+            value = str(data[field_name]).strip()
             
-        # 필드별 텍스트 길이 제한 설정
-        text_limits = {
-            "유소견자_관리대장": 20,
-            "MSDS_관리대장": 18,
-            "건강관리_상담방문_일지": 35,
-            "특별관리물질_취급일지": 25
-        }
-        
-        max_length = text_limits.get(form_type, 30)
-        
-        # 긴 텍스트 처리
-        if len(text) > max_length:
-            text = text[:max_length-3] + "..."
-        
-        # 특수 필드 처리 (날짜, 시간 등)
-        if any(keyword in field_name.lower() for keyword in ['date', '일자', '시간']):
-            # 날짜 형식 정리
-            if '-' in text or '/' in text:
+            if value:
+                # 값이 있으면 해당 위치에 텍스트 추가
                 try:
-                    # 날짜 형식 통일 (YYYY-MM-DD -> YYYY.MM.DD)
-                    text = text.replace('-', '.').replace('/', '.')
-                except:
-                    pass
-        
-        try:
-            # 좌표 보정 (작은 조정으로 가독성 향상)
-            adjusted_x = x + 2  # 약간 오른쪽으로
-            adjusted_y = y - 2  # 약간 아래로
-            
-            # 텍스트 그리기
-            print(f"Drawing '{text}' at ({adjusted_x}, {adjusted_y}) for {field_name}")
-            can.drawString(adjusted_x, adjusted_y, text)
-            
-            # 개발 모드에서 디버깅 정보 표시
-            if os.getenv('DEBUG_PDF', 'false').lower() == 'true':
-                can.setStrokeColor(colors.red if hasattr(colors, 'red') else colors.black)
-                can.circle(adjusted_x, adjusted_y, 1, stroke=1, fill=0)
-                can.setStrokeColor(colors.black)
-                
-        except Exception as e:
-            print(f"Error drawing text for {field_name}: {str(e)}")
-            # 오류 시 필드명 표시
-            can.drawString(x, y, f"[{field_name}]")
-    
-    # 모든 필드 처리
-    for field_name, field_coords in coordinates.items():
-        if field_name.startswith('row_'):
-            # 행별 데이터 처리
-            row_data = data.get(field_name, {})
-            process_field_data(field_name, field_coords, row_data)
-        else:
-            # 일반 필드 처리
-            process_field_data(field_name, field_coords, data)
+                    # 긴 텍스트 처리
+                    max_length = 30
+                    if len(value) > max_length:
+                        value = value[:max_length-3] + "..."
+                    
+                    # 좌표 미세 조정
+                    adjusted_x = x + 2
+                    adjusted_y = y - 2
+                    
+                    can.drawString(adjusted_x, adjusted_y, value)
+                    print(f"Drew '{value}' at ({adjusted_x}, {adjusted_y}) for {field_name}")
+                    
+                except Exception as e:
+                    print(f"Error drawing text for {field_name}: {str(e)}")
     
     # 오버레이 정보 추가 (하단에 작게)
     can.setFont(font_name, 7)
-    can.drawString(50, 30, f"데이터 입력: {datetime.now().strftime('%Y-%m-%d %H:%M')}")
+    can.drawString(50, 30, f"입력일: {datetime.now().strftime('%Y-%m-%d %H:%M')}")
     
     can.save()
     packet.seek(0)
     return packet
+
+
 
 
 def fill_pdf_form(template_path: str, data: Dict, form_type: str) -> io.BytesIO:
@@ -506,75 +346,14 @@ def fill_pdf_form(template_path: str, data: Dict, form_type: str) -> io.BytesIO:
 
 
 def convert_office_to_pdf(office_file_path: str) -> io.BytesIO:
-    """Excel/Word 파일을 PDF로 변환 - 빈 템플릿 형태로 변환"""
-    try:
-        print(f"Converting office file to PDF: {office_file_path}")
-        
-        # 파일명에서 양식 형태 추론
-        filename = os.path.basename(office_file_path).lower()
-        
-        # 실제 Office 파일 변환 대신 빈 템플릿 생성
-        # 이렇게 하면 샘플 데이터가 들어가지 않음
-        if "유소견자" in filename:
-            return create_form_template_pdf("유소견자_관리대장")
-        elif "msds" in filename:
-            return create_form_template_pdf("MSDS_관리대장")
-        elif "상담방문" in filename or "건강관리" in filename:
-            return create_form_template_pdf("건강관리_상담방문_일지")
-        elif "특별관리물질" in filename:
-            return create_form_template_pdf("특별관리물질_취급일지")
-        else:
-            # 알 수 없는 양식은 기본 빈 PDF 생성
-            return create_blank_pdf_with_title(os.path.basename(office_file_path))
-            
-    except Exception as e:
-        print(f"Office to PDF conversion error: {str(e)}")
-        return create_blank_pdf_with_title(os.path.basename(office_file_path))
+    """Excel/Word 파일을 PDF로 변환 - LibreOffice 사용"""
+    # 새로운 함수로 대체
+    return convert_office_to_pdf_with_libreoffice(office_file_path)
 
 
 def get_field_labels() -> Dict[str, str]:
     """필드명을 한글 라벨로 변환하는 매핑"""
-    return {
-        "worker_name": "근로자명",
-        "employee_id": "사번",
-        "exam_date": "검진일",
-        "exam_agency": "검진기관",
-        "exam_result": "검진결과",
-        "opinion": "의학적 소견",
-        "work_fitness": "작업적합성",
-        "action_taken": "사후조치",
-        "follow_up_date": "추적관리 일정",
-        "counselor": "상담자",
-        "date": "작성일",
-        "chemical_name": "화학물질명",
-        "manufacturer": "제조업체",
-        "cas_number": "CAS 번호",
-        "usage": "용도",
-        "quantity": "사용량",
-        "storage_location": "보관장소",
-        "hazard_class": "유해성 분류",
-        "safety_measures": "안전조치",
-        "msds_date": "MSDS 작성일",
-        "manager": "관리책임자",
-        "update_date": "갱신일",
-        "visit_date": "방문일자",
-        "site_name": "현장명",
-        "weather": "날씨",
-        "work_type": "작업종류",
-        "worker_count": "작업인원",
-        "counseling_content": "상담내용",
-        "action_items": "조치사항",
-        "next_visit": "다음방문예정",
-        "counselor_name": "상담자",
-        "signature_date": "서명일",
-        "work_location": "작업장소",
-        "work_content": "작업내용",
-        "start_time": "작업시작시간",
-        "end_time": "작업종료시간",
-        "quantity_used": "사용량",
-        "protective_equipment": "보호구 착용",
-        "signature": "서명"
-    }
+    return FIELD_LABELS
 
 
 def create_form_template_pdf(form_id: str) -> io.BytesIO:
@@ -732,44 +511,12 @@ def create_blank_pdf_with_title(filename: str) -> io.BytesIO:
 
 def get_available_pdf_forms() -> List[Dict]:
     """사용 가능한 PDF 양식 목록 반환 (실제 파일 경로 포함)"""
-    forms = [
-        {
-            "id": "유소견자_관리대장",
-            "name": "유소견자 관리대장",
-            "name_korean": "유소견자 관리대장",
-            "description": "근로자 건강검진 유소견자 관리 양식",
-            "category": "관리대장",
-            "source_file": "003_유소견자_관리대장.xlsx",
-            "source_path": str(DOCUMENT_BASE_DIR / "03-관리대장" / "003_유소견자_관리대장.xlsx")
-        },
-        {
-            "id": "MSDS_관리대장",
-            "name": "MSDS 관리대장", 
-            "name_korean": "MSDS 관리대장",
-            "description": "화학물질 안전보건자료 관리 양식",
-            "category": "관리대장",
-            "source_file": "001_MSDS_관리대장.xls",
-            "source_path": str(DOCUMENT_BASE_DIR / "03-관리대장" / "001_MSDS_관리대장.xls")
-        },
-        {
-            "id": "건강관리_상담방문_일지",
-            "name": "건강관리 상담방문 일지",
-            "name_korean": "건강관리 상담방문 일지", 
-            "description": "근로자 건강관리 상담 방문 기록 양식",
-            "category": "건강관리",
-            "source_file": "002_건강관리_상담방문_일지.xls",
-            "source_path": str(DOCUMENT_BASE_DIR / "03-관리대장" / "002_건강관리_상담방문_일지.xls")
-        },
-        {
-            "id": "특별관리물질_취급일지",
-            "name": "특별관리물질 취급일지",
-            "name_korean": "특별관리물질 취급일지",
-            "description": "특별관리물질 취급 작업 기록 양식", 
-            "category": "특별관리물질",
-            "source_file": "003_특별관리물질_취급일지_A형.docx",
-            "source_path": str(DOCUMENT_BASE_DIR / "07-특별관리물질" / "003_특별관리물질_취급일지_A형.docx")
-        }
-    ]
+    forms = []
+    for form_info in AVAILABLE_PDF_FORMS:
+        form_dict = form_info.copy()
+        # 전체 경로 추가
+        form_dict["source_path"] = str(DOCUMENT_BASE_DIR / form_info["source_path"])
+        forms.append(form_dict)
     
     return forms
 
@@ -1259,49 +1006,6 @@ async def fill_pdf_form_api(form_id: str, request_data: PDFFormRequest):
         raise HTTPException(status_code=500, detail=f"PDF 생성 실패: {str(e)}")
 
 
-def get_field_labels() -> Dict:
-    """필드 라벨 매핑 반환"""
-    return {
-        "worker_name": "근로자명",
-        "employee_id": "사번",
-        "exam_date": "검진일",
-        "exam_agency": "검진기관",
-        "exam_result": "검진결과",
-        "opinion": "의학적 소견",
-        "work_fitness": "작업적합성",
-        "action_taken": "사후조치",
-        "follow_up_date": "추적관리일정",
-        "counselor": "상담자",
-        "date": "작성일",
-        "chemical_name": "화학물질명",
-        "manufacturer": "제조업체",
-        "cas_number": "CAS번호",
-        "usage": "용도",
-        "quantity": "사용량",
-        "storage_location": "보관장소",
-        "hazard_class": "유해성분류",
-        "safety_measures": "안전조치",
-        "msds_date": "MSDS작성일",
-        "manager": "관리책임자",
-        "update_date": "갱신일",
-        "visit_date": "방문일자",
-        "site_name": "현장명",
-        "weather": "날씨",
-        "work_type": "작업종류",
-        "worker_count": "작업인원",
-        "counseling_content": "상담내용",
-        "action_items": "조치사항",
-        "next_visit": "다음방문예정",
-        "counselor_name": "상담자명",
-        "signature_date": "서명일",
-        "work_location": "작업장소",
-        "work_content": "작업내용",
-        "start_time": "시작시간",
-        "end_time": "종료시간",
-        "quantity_used": "사용량",
-        "protective_equipment": "보호구착용",
-        "signature": "서명"
-    }
 
 
 @router.get("/pdf-forms/{form_id}/fields")
@@ -1310,61 +1014,19 @@ async def get_pdf_form_fields(form_id: str):
     if form_id not in PDF_FORM_COORDINATES:
         raise HTTPException(status_code=404, detail="양식을 찾을 수 없습니다")
     
-    fields = list(PDF_FORM_COORDINATES[form_id].keys())
-    
-    # 필드명을 사용자 친화적으로 변환
-    field_labels = {
-        "worker_name": "근로자명",
-        "employee_id": "사번", 
-        "exam_date": "검진일",
-        "exam_agency": "검진기관",
-        "exam_result": "검진결과",
-        "opinion": "의학적 소견",
-        "work_fitness": "작업적합성",
-        "action_taken": "사후조치",
-        "follow_up_date": "추적관리일정",
-        "counselor": "상담자",
-        "date": "작성일",
-        "chemical_name": "화학물질명",
-        "manufacturer": "제조업체", 
-        "cas_number": "CAS번호",
-        "usage": "용도",
-        "quantity": "사용량",
-        "storage_location": "보관장소",
-        "hazard_class": "유해성분류",
-        "safety_measures": "안전조치",
-        "msds_date": "MSDS작성일",
-        "manager": "관리책임자",
-        "update_date": "갱신일",
-        "visit_date": "방문일자",
-        "site_name": "현장명",
-        "weather": "날씨",
-        "work_type": "작업종류",
-        "worker_count": "작업인원",
-        "counseling_content": "상담내용",
-        "action_items": "조치사항",
-        "next_visit": "다음방문예정",
-        "counselor_name": "상담자명",
-        "signature_date": "서명일",
-        "work_location": "작업장소",
-        "work_content": "작업내용",
-        "start_time": "시작시간",
-        "end_time": "종료시간",
-        "quantity_used": "사용량",
-        "protective_equipment": "보호구착용",
-        "signature": "서명"
-    }
+    form_config = PDF_FORM_COORDINATES[form_id]
+    fields = form_config.get("fields", {})
     
     return {
         "form_id": form_id,
         "fields": [
             {
-                "name": field,
-                "label": field_labels.get(field, field),
+                "name": field_name,
+                "label": field_info.get("label", field_name),
                 "type": "text",
-                "required": field in ["worker_name", "date", "chemical_name"]
+                "required": field_name in ["worker_name", "date", "chemical_name"]
             }
-            for field in fields
+            for field_name, field_info in fields.items()
         ]
     }
 
@@ -1685,34 +1347,22 @@ def apply_field_edits(pdf_stream: io.BytesIO, field_updates: Dict, form_id: str)
         
         # 필드 좌표 설정 적용
         if form_id in PDF_FORM_COORDINATES:
-            coordinates = PDF_FORM_COORDINATES[form_id]
+            form_config = PDF_FORM_COORDINATES[form_id]
+            fields = form_config.get("fields", {})
             
-            for field_name, field_coords in coordinates.items():
-                if isinstance(field_coords, dict):
-                    # 중첩된 좌표 구조 (예: row_1, row_2 등) - 행별 데이터 처리
-                    row_data = field_updates.get(field_name, {})
-                    if isinstance(row_data, dict):
-                        for sub_field, (x, y) in field_coords.items():
-                            if sub_field in row_data and row_data[sub_field]:
-                                value = str(row_data[sub_field])
-                                if len(value) > 30:
-                                    value = value[:27] + "..."
-                                try:
-                                    can.drawString(x, y, value)
-                                except UnicodeDecodeError:
-                                    can.drawString(x, y, sub_field)
-                elif isinstance(field_coords, tuple) and len(field_coords) == 2:
-                    # 단일 좌표 (x, y)
-                    x, y = field_coords
-                    if field_name in field_updates and field_updates[field_name]:
-                        value = str(field_updates[field_name])
-                        # 긴 텍스트는 잘라서 표시
-                        if len(value) > 30:
-                            value = value[:27] + "..."
-                        try:
-                            can.drawString(x, y, value)
-                        except UnicodeDecodeError:
-                            can.drawString(x, y, field_name)
+            for field_name, field_info in fields.items():
+                if field_name in field_updates and field_updates[field_name]:
+                    x = field_info.get("x", 100)
+                    y = field_info.get("y", 700)
+                    value = str(field_updates[field_name])
+                    
+                    # 긴 텍스트는 잘라서 표시
+                    if len(value) > 30:
+                        value = value[:27] + "..."
+                    try:
+                        can.drawString(x, y, value)
+                    except UnicodeDecodeError:
+                        can.drawString(x, y, field_name)
         
         can.save()
         overlay_packet.seek(0)

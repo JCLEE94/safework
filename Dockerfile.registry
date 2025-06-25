@@ -21,6 +21,9 @@ RUN apt-get update && apt-get install -y \
     supervisor \
     wkhtmltopdf \
     fonts-nanum \
+    libreoffice \
+    libreoffice-writer \
+    libreoffice-calc \
     sudo \
     --no-install-recommends \
     && ln -snf /usr/share/zoneinfo/$TZ /etc/localtime \
