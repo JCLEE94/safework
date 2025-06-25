@@ -1,0 +1,103 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SafeWork Pro - 건설업 보건관리 시스템</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { 
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; 
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); 
+            min-height: 100vh; 
+            display: flex; 
+            align-items: center; 
+            justify-content: center; 
+        }
+        .container { 
+            background: white; 
+            padding: 2rem; 
+            border-radius: 10px; 
+            box-shadow: 0 10px 30px rgba(0,0,0,0.3); 
+            text-align: center; 
+            max-width: 600px; 
+        }
+        h1 { color: #333; margin-bottom: 1rem; font-size: 2rem; }
+        .status { 
+            background: #4CAF50; 
+            color: white; 
+            padding: 10px 20px; 
+            border-radius: 5px; 
+            margin: 1rem 0; 
+        }
+        .api-info { 
+            background: #f5f5f5; 
+            padding: 1rem; 
+            border-radius: 5px; 
+            margin: 1rem 0; 
+        }
+        button { 
+            background: #667eea; 
+            color: white; 
+            border: none; 
+            padding: 10px 20px; 
+            border-radius: 5px; 
+            cursor: pointer; 
+            margin: 5px; 
+        }
+        button:hover { background: #5a67d8; }
+        .loading { display: none; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🏗️ SafeWork Pro</h1>
+        <p>건설업 보건관리 시스템</p>
+        
+        <div class="status">
+            ✅ 시스템 정상 운영 중
+        </div>
+        
+        <div class="api-info">
+            <h3>📊 시스템 정보</h3>
+            <p>API 서버: <strong>192.168.50.215:3001</strong></p>
+            <p>상태: <span id="apiStatus">확인 중...</span></p>
+            <p>빌드 시간: <span id="buildTime">2025-06-25 03:26</span></p>
+        </div>
+        
+        <button onclick="checkHealth()">헬스 체크</button>
+        <button onclick="viewAPI()">API 문서</button>
+        <button onclick="location.reload()">새로고침</button>
+        
+        <div class="loading" id="loading">⏳ 시스템 확인 중...</div>
+        
+        <p style="margin-top: 2rem; color: #666; font-size: 0.9rem;">
+            🔧 전체 대시보드가 곧 복구됩니다<br>
+            CI/CD 파이프라인을 통해 자동 배포 진행 중
+        </p>
+    </div>
+
+    <script>
+        async function checkHealth() {
+            document.getElementById('loading').style.display = 'block';
+            try {
+                const response = await fetch('/health');
+                const data = await response.json();
+                document.getElementById('apiStatus').innerText = '✅ 정상';
+                alert('✅ 시스템 정상: ' + data.service);
+            } catch (error) {
+                document.getElementById('apiStatus').innerText = '❌ 오류';
+                alert('❌ 연결 오류: ' + error.message);
+            }
+            document.getElementById('loading').style.display = 'none';
+        }
+        
+        function viewAPI() {
+            window.open('/api/docs', '_blank');
+        }
+        
+        // 자동 헬스 체크
+        setTimeout(checkHealth, 1000);
+    </script>
+</body>
+</html>
