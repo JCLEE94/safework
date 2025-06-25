@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from 'react';
-import { Plus, Search, AlertTriangle, FileText, Calendar, Users, TrendingUp, Clock } from 'lucide-react';
+import { Plus, Search, AlertTriangle, FileText, Calendar, Users, TrendingUp, Clock, Edit, Eye } from 'lucide-react';
 import { Card, Button, Badge } from '../common';
 import { useApi } from '../../hooks/useApi';
+import { AccidentForm } from './AccidentForm';
 
 interface AccidentReport {
   id: number;
@@ -42,6 +43,10 @@ export function AccidentReports() {
   const [filterSeverity, setFilterSeverity] = useState<string>('all');
   const [filterStatus, setFilterStatus] = useState<string>('all');
   const [filterDateRange, setFilterDateRange] = useState<string>('all');
+  const [showForm, setShowForm] = useState(false);
+  const [formMode, setFormMode] = useState<'create' | 'edit'>('create');
+  const [selectedAccident, setSelectedAccident] = useState<AccidentReport | null>(null);
+  const [showDetailModal, setShowDetailModal] = useState(false);
   const { fetchApi } = useApi();
 
   useEffect(() => {
@@ -51,7 +56,24 @@ export function AccidentReports() {
   const loadAccidents = async () => {
     try {
       setLoading(true);
-      // 임시 더미 데이터
+      
+      // Try to fetch from API first
+      try {
+        const params = new URLSearchParams();
+        if (searchTerm) params.append('search', searchTerm);
+        if (filterSeverity !== 'all') params.append('severity', filterSeverity);
+        if (filterStatus !== 'all') params.append('status', filterStatus);
+        
+        const response = await fetchApi(`/accidents?${params}`);
+        if (response?.items) {
+          setAccidents(response.items);
+          return;
+        }
+      } catch (apiError) {
+        console.log('API 연결 실패, 임시 데이터 사용:', apiError);
+      }
+      
+      // Fallback to dummy data
       const dummyData = [
         {
           id: 1,
@@ -184,6 +206,65 @@ export function AccidentReports() {
     }
   };
 
+  const handleCreate = () => {
+    setFormMode('create');
+    setSelectedAccident(null);
+    setShowForm(true);
+  };
+
+  const handleEdit = (accident: AccidentReport) => {
+    setFormMode('edit');
+    setSelectedAccident(accident);
+    setShowForm(true);
+  };
+
+  const handleDetail = (accident: AccidentReport) => {
+    setSelectedAccident(accident);
+    setShowDetailModal(true);
+  };
+
+  const handleSubmit = async (data: Partial<AccidentReport>) => {
+    try {
+      if (formMode === 'create') {
+        try {
+          await fetchApi('/accidents', {
+            method: 'POST',
+            body: JSON.stringify(data)
+          });
+        } catch (apiError) {
+          console.log('API 생성 실패, 로컬 데이터에 추가:', apiError);
+          // Add to local state as fallback
+          const newAccident = {
+            ...data,
+            id: Math.max(...accidents.map(a => a.id), 0) + 1,
+            report_number: data.report_number || `ACC-${new Date().getFullYear()}-${Math.floor(Math.random() * 1000).toString().padStart(3, '0')}`
+          } as AccidentReport;
+          setAccidents(prev => [newAccident, ...prev]);
+        }
+      } else if (selectedAccident) {
+        try {
+          await fetchApi(`/accidents/${selectedAccident.id}`, {
+            method: 'PUT',
+            body: JSON.stringify(data)
+          });
+        } catch (apiError) {
+          console.log('API 수정 실패, 로컬 데이터 수정:', apiError);
+          // Update local state as fallback
+          setAccidents(prev => prev.map(a => 
+            a.id === selectedAccident.id ? { ...a, ...data } : a
+          ));
+        }
+      }
+      
+      setShowForm(false);
+      if (formMode === 'create') {
+        await loadAccidents(); // Refresh the list
+      }
+    } catch (error) {
+      console.error('사고 보고서 저장 실패:', error);
+    }
+  };
+
   const getSeverityBadge = (severity: string) => {
     switch (severity) {
       case 'minor':
@@ -237,7 +318,7 @@ export function AccidentReports() {
     <div className="p-6 space-y-6">
       <div className="flex justify-between items-center">
         <h1 className="text-2xl font-bold text-gray-800">산업재해 관리</h1>
-        <Button onClick={() => {}} className="flex items-center gap-2">
+        <Button onClick={handleCreate} className="flex items-center gap-2">
           <Plus className="w-4 h-4" />
           사고 신고
         </Button>
@@ -427,15 +508,17 @@ export function AccidentReports() {
                         <Button
                           variant="outline"
                           size="sm"
-                          onClick={() => {}}
+                          onClick={() => handleDetail(accident)}
                         >
+                          <Eye size={14} />
                           상세
                         </Button>
                         <Button
                           variant="outline"
                           size="sm"
-                          onClick={() => {}}
+                          onClick={() => handleEdit(accident)}
                         >
+                          <Edit size={14} />
                           편집
                         </Button>
                       </div>
@@ -466,6 +549,131 @@ export function AccidentReports() {
           </div>
         </div>
       </Card>
+
+      {/* 사고 신고/수정 폼 */}
+      <AccidentForm
+        isOpen={showForm}
+        onClose={() => setShowForm(false)}
+        onSubmit={handleSubmit}
+        initialData={selectedAccident}
+        mode={formMode}
+      />
+
+      {/* 상세 정보 모달 */}
+      {showDetailModal && selectedAccident && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg p-6 max-w-4xl w-full mx-4 max-h-[90vh] overflow-y-auto">
+            <div className="flex justify-between items-center mb-4">
+              <h2 className="text-xl font-bold">사고 상세 정보</h2>
+              <Button variant="outline" onClick={() => setShowDetailModal(false)}>
+                닫기
+              </Button>
+            </div>
+            
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <div className="space-y-4">
+                <div>
+                  <h3 className="font-medium text-gray-700 mb-2">기본 정보</h3>
+                  <div className="space-y-2 text-sm">
+                    <p><span className="font-medium">신고번호:</span> {selectedAccident.report_number}</p>
+                    <p><span className="font-medium">발생일:</span> {selectedAccident.incident_date}</p>
+                    <p><span className="font-medium">신고일:</span> {selectedAccident.report_date}</p>
+                    <p><span className="font-medium">장소:</span> {selectedAccident.location}</p>
+                    <p><span className="font-medium">부상자:</span> {selectedAccident.injured_person}</p>
+                    <p><span className="font-medium">부서:</span> {selectedAccident.department}</p>
+                  </div>
+                </div>
+                
+                <div>
+                  <h3 className="font-medium text-gray-700 mb-2">사고 정보</h3>
+                  <div className="space-y-2 text-sm">
+                    <p><span className="font-medium">사고유형:</span> {selectedAccident.accident_type}</p>
+                    <p><span className="font-medium">심각도:</span> {getSeverityBadge(selectedAccident.severity)}</p>
+                    <p><span className="font-medium">부상유형:</span> {selectedAccident.injury_type}</p>
+                    <p><span className="font-medium">휴업일수:</span> {selectedAccident.lost_work_days || 0}일</p>
+                    {selectedAccident.cost_estimate && (
+                      <p><span className="font-medium">예상비용:</span> {selectedAccident.cost_estimate.toLocaleString()}원</p>
+                    )}
+                  </div>
+                </div>
+                
+                <div>
+                  <h3 className="font-medium text-gray-700 mb-2">처리 상태</h3>
+                  <div className="space-y-2 text-sm">
+                    <p><span className="font-medium">상태:</span> {getStatusBadge(selectedAccident.status)}</p>
+                    <p><span className="font-medium">조사자:</span> {selectedAccident.investigated_by}</p>
+                    <p><span className="font-medium">조사일:</span> {selectedAccident.investigation_date}</p>
+                    {selectedAccident.follow_up_required && (
+                      <p><span className="font-medium">후속조치일:</span> {selectedAccident.follow_up_date}</p>
+                    )}
+                  </div>
+                </div>
+              </div>
+              
+              <div className="space-y-4">
+                <div>
+                  <h3 className="font-medium text-gray-700 mb-2">사고 경위</h3>
+                  <p className="text-sm bg-gray-50 p-3 rounded">{selectedAccident.description}</p>
+                </div>
+                
+                <div>
+                  <h3 className="font-medium text-gray-700 mb-2">원인 분석</h3>
+                  <div className="space-y-2 text-sm">
+                    <p><span className="font-medium">직접원인:</span> {selectedAccident.immediate_cause}</p>
+                    <p><span className="font-medium">근본원인:</span> {selectedAccident.root_cause}</p>
+                  </div>
+                </div>
+                
+                <div>
+                  <h3 className="font-medium text-gray-700 mb-2">시정 조치사항</h3>
+                  <ul className="text-sm space-y-1">
+                    {selectedAccident.corrective_actions.map((action, index) => (
+                      <li key={index} className="flex items-start">
+                        <span className="w-2 h-2 bg-blue-500 rounded-full mt-2 mr-2 flex-shrink-0"></span>
+                        {action}
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+                
+                <div>
+                  <h3 className="font-medium text-gray-700 mb-2">예방 대책</h3>
+                  <ul className="text-sm space-y-1">
+                    {selectedAccident.preventive_measures.map((measure, index) => (
+                      <li key={index} className="flex items-start">
+                        <span className="w-2 h-2 bg-green-500 rounded-full mt-2 mr-2 flex-shrink-0"></span>
+                        {measure}
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+                
+                {selectedAccident.witnesses.length > 0 && (
+                  <div>
+                    <h3 className="font-medium text-gray-700 mb-2">목격자</h3>
+                    <div className="text-sm">
+                      {selectedAccident.witnesses.join(', ')}
+                    </div>
+                  </div>
+                )}
+                
+                <div>
+                  <h3 className="font-medium text-gray-700 mb-2">추가 정보</h3>
+                  <div className="space-y-1 text-sm">
+                    <p><span className="font-medium">의료치료:</span> {selectedAccident.medical_treatment_required ? '필요' : '불필요'}</p>
+                    <p><span className="font-medium">정부신고:</span> {selectedAccident.government_notification_required ? '대상' : '비대상'}</p>
+                    <p><span className="font-medium">신고완료:</span> {selectedAccident.government_reported ? '완료' : '미완료'}</p>
+                    <p><span className="font-medium">사진첨부:</span> {selectedAccident.photos_attached ? '있음' : '없음'}</p>
+                    {selectedAccident.notes && (
+                      <p><span className="font-medium">비고:</span> {selectedAccident.notes}</p>
+                    )}
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

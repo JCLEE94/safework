@@ -119,11 +119,26 @@ export function Settings() {
   const handleSaveSettings = async () => {
     try {
       setSaving(true);
-      // 설정 저장 로직
-      console.log('설정 저장:', { systemSettings, userSettings });
       
-      // 임시로 성공 시뮬레이션
-      await new Promise(resolve => setTimeout(resolve, 1000));
+      // Try to save to API first
+      try {
+        await fetchApi('/settings', {
+          method: 'PUT',
+          body: JSON.stringify({
+            system: systemSettings,
+            user: userSettings
+          })
+        });
+        console.log('API 설정 저장 성공');
+      } catch (apiError) {
+        console.log('API 저장 실패, 로컬 저장소 사용:', apiError);
+        // Save to localStorage as fallback
+        localStorage.setItem('healthSystem_settings', JSON.stringify({
+          system: systemSettings,
+          user: userSettings,
+          saved_at: new Date().toISOString()
+        }));
+      }
       
       alert('설정이 저장되었습니다.');
     } catch (error) {

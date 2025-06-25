@@ -3,9 +3,9 @@
  * Constants definitions
  */
 
-export const API_BASE_URL = import.meta.env.VITE_API_URL || 'https://soonmin.jclee.me';
+export const API_BASE_URL = import.meta.env.VITE_API_URL || window.location.origin;
 
-export const BUILD_TIME = '2025-06-24 19:15:00 KST';
+export const BUILD_TIME = '2025-06-25 21:45:00 KST';
 
 // 메뉴 정의
 export const MENU_ITEMS = [

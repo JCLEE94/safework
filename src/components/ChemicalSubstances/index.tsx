@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from 'react';
-import { Plus, Search, AlertTriangle, FileText, Eye, Download, CheckCircle } from 'lucide-react';
+import { Plus, Search, AlertTriangle, FileText, Eye, Download, CheckCircle, Edit } from 'lucide-react';
 import { Card, Button, Badge } from '../common';
 import { useApi } from '../../hooks/useApi';
+import { ChemicalForm } from './ChemicalForm';
 
 interface ChemicalSubstance {
   id: number;
@@ -29,6 +30,9 @@ export function ChemicalSubstances() {
   const [searchTerm, setSearchTerm] = useState('');
   const [filterHazardLevel, setFilterHazardLevel] = useState<string>('all');
   const [filterMsdsStatus, setFilterMsdsStatus] = useState<string>('all');
+  const [showForm, setShowForm] = useState(false);
+  const [formMode, setFormMode] = useState<'create' | 'edit'>('create');
+  const [selectedSubstance, setSelectedSubstance] = useState<ChemicalSubstance | null>(null);
   const { fetchApi } = useApi();
 
   useEffect(() => {
@@ -38,7 +42,24 @@ export function ChemicalSubstances() {
   const loadSubstances = async () => {
     try {
       setLoading(true);
-      // 임시 더미 데이터
+      
+      // Try to fetch from API first
+      try {
+        const params = new URLSearchParams();
+        if (searchTerm) params.append('search', searchTerm);
+        if (filterHazardLevel !== 'all') params.append('hazard_level', filterHazardLevel);
+        if (filterMsdsStatus !== 'all') params.append('msds_status', filterMsdsStatus);
+        
+        const response = await fetchApi(`/chemicals?${params}`);
+        if (response?.items) {
+          setSubstances(response.items);
+          return;
+        }
+      } catch (apiError) {
+        console.log('API 연결 실패, 임시 데이터 사용:', apiError);
+      }
+      
+      // Fallback to dummy data
       const dummyData = [
         {
           id: 1,
@@ -144,6 +165,59 @@ export function ChemicalSubstances() {
     }
   };
 
+  const handleCreate = () => {
+    setFormMode('create');
+    setSelectedSubstance(null);
+    setShowForm(true);
+  };
+
+  const handleEdit = (substance: ChemicalSubstance) => {
+    setFormMode('edit');
+    setSelectedSubstance(substance);
+    setShowForm(true);
+  };
+
+  const handleSubmit = async (data: Partial<ChemicalSubstance>) => {
+    try {
+      if (formMode === 'create') {
+        try {
+          await fetchApi('/chemicals', {
+            method: 'POST',
+            body: JSON.stringify(data)
+          });
+        } catch (apiError) {
+          console.log('API 생성 실패, 로컬 데이터에 추가:', apiError);
+          // Add to local state as fallback
+          const newSubstance = {
+            ...data,
+            id: Math.max(...substances.map(s => s.id), 0) + 1
+          } as ChemicalSubstance;
+          setSubstances(prev => [newSubstance, ...prev]);
+        }
+      } else if (selectedSubstance) {
+        try {
+          await fetchApi(`/chemicals/${selectedSubstance.id}`, {
+            method: 'PUT',
+            body: JSON.stringify(data)
+          });
+        } catch (apiError) {
+          console.log('API 수정 실패, 로컬 데이터 수정:', apiError);
+          // Update local state as fallback
+          setSubstances(prev => prev.map(s => 
+            s.id === selectedSubstance.id ? { ...s, ...data } : s
+          ));
+        }
+      }
+      
+      setShowForm(false);
+      if (formMode === 'create') {
+        await loadSubstances(); // Refresh the list
+      }
+    } catch (error) {
+      console.error('화학물질 저장 실패:', error);
+    }
+  };
+
   const getHazardLevelBadge = (level: string) => {
     switch (level) {
       case 'low':
@@ -209,7 +283,7 @@ export function ChemicalSubstances() {
     <div className="p-6 space-y-6">
       <div className="flex justify-between items-center">
         <h1 className="text-2xl font-bold text-gray-800">화학물질 관리</h1>
-        <Button onClick={() => {}} className="flex items-center gap-2">
+        <Button onClick={handleCreate} className="flex items-center gap-2">
           <Plus className="w-4 h-4" />
           화학물질 등록
         </Button>
@@ -402,16 +476,10 @@ export function ChemicalSubstances() {
                         <Button
                           variant="outline"
                           size="sm"
-                          onClick={() => {}}
+                          onClick={() => handleEdit(substance)}
                         >
+                          <Edit size={14} />
                           편집
-                        </Button>
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={() => {}}
-                        >
-                          상세
                         </Button>
                       </div>
                     </td>
@@ -441,6 +509,15 @@ export function ChemicalSubstances() {
           </div>
         </div>
       </Card>
+
+      {/* 화학물질 등록/수정 폼 */}
+      <ChemicalForm
+        isOpen={showForm}
+        onClose={() => setShowForm(false)}
+        onSubmit={handleSubmit}
+        initialData={selectedSubstance}
+        mode={formMode}
+      />
     </div>
   );
 }

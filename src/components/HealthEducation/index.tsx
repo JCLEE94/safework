@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from 'react';
-import { Plus, Search, BookOpen, Clock, Users, CheckCircle } from 'lucide-react';
+import { Plus, Search, BookOpen, Clock, Users, CheckCircle, Edit, Eye } from 'lucide-react';
 import { Card, Button, Badge } from '../common';
 import { useApi } from '../../hooks/useApi';
+import { EducationForm } from './EducationForm';
 
 interface HealthEducation {
   id: number;
@@ -22,6 +23,9 @@ export function HealthEducation() {
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   const [filterStatus, setFilterStatus] = useState<string>('all');
+  const [showForm, setShowForm] = useState(false);
+  const [formMode, setFormMode] = useState<'create' | 'edit'>('create');
+  const [selectedEducation, setSelectedEducation] = useState<HealthEducation | null>(null);
   const { fetchApi } = useApi();
 
   useEffect(() => {
@@ -31,7 +35,23 @@ export function HealthEducation() {
   const loadEducations = async () => {
     try {
       setLoading(true);
-      // 임시 더미 데이터
+      
+      // Try to fetch from API first
+      try {
+        const params = new URLSearchParams();
+        if (searchTerm) params.append('search', searchTerm);
+        if (filterStatus !== 'all') params.append('status', filterStatus);
+        
+        const response = await fetchApi(`/educations?${params}`);
+        if (response?.items) {
+          setEducations(response.items);
+          return;
+        }
+      } catch (apiError) {
+        console.log('API 연결 실패, 임시 데이터 사용:', apiError);
+      }
+      
+      // Fallback to dummy data
       const dummyData = [
         {
           id: 1,
@@ -94,6 +114,59 @@ export function HealthEducation() {
     }
   };
 
+  const handleCreate = () => {
+    setFormMode('create');
+    setSelectedEducation(null);
+    setShowForm(true);
+  };
+
+  const handleEdit = (education: HealthEducation) => {
+    setFormMode('edit');
+    setSelectedEducation(education);
+    setShowForm(true);
+  };
+
+  const handleSubmit = async (data: Partial<HealthEducation>) => {
+    try {
+      if (formMode === 'create') {
+        try {
+          await fetchApi('/educations', {
+            method: 'POST',
+            body: JSON.stringify(data)
+          });
+        } catch (apiError) {
+          console.log('API 생성 실패, 로컬 데이터에 추가:', apiError);
+          // Add to local state as fallback
+          const newEducation = {
+            ...data,
+            id: Math.max(...educations.map(e => e.id), 0) + 1
+          } as HealthEducation;
+          setEducations(prev => [newEducation, ...prev]);
+        }
+      } else if (selectedEducation) {
+        try {
+          await fetchApi(`/educations/${selectedEducation.id}`, {
+            method: 'PUT',
+            body: JSON.stringify(data)
+          });
+        } catch (apiError) {
+          console.log('API 수정 실패, 로컬 데이터 수정:', apiError);
+          // Update local state as fallback
+          setEducations(prev => prev.map(e => 
+            e.id === selectedEducation.id ? { ...e, ...data } : e
+          ));
+        }
+      }
+      
+      setShowForm(false);
+      if (formMode === 'create') {
+        await loadEducations(); // Refresh the list
+      }
+    } catch (error) {
+      console.error('보건교육 저장 실패:', error);
+    }
+  };
+
   const getStatusBadge = (status: string) => {
     switch (status) {
       case 'scheduled':
@@ -138,7 +211,7 @@ export function HealthEducation() {
     <div className="p-6 space-y-6">
       <div className="flex justify-between items-center">
         <h1 className="text-2xl font-bold text-gray-800">보건교육 관리</h1>
-        <Button onClick={() => {}} className="flex items-center gap-2">
+        <Button onClick={handleCreate} className="flex items-center gap-2">
           <Plus className="w-4 h-4" />
           교육 계획 등록
         </Button>
@@ -244,18 +317,21 @@ export function HealthEducation() {
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                   상태
                 </th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  관리
+                </th>
               </tr>
             </thead>
             <tbody className="bg-white divide-y divide-gray-200">
               {loading ? (
                 <tr>
-                  <td colSpan={8} className="px-6 py-4 text-center text-gray-500">
+                  <td colSpan={9} className="px-6 py-4 text-center text-gray-500">
                     로딩 중...
                   </td>
                 </tr>
               ) : filteredEducations.length === 0 ? (
                 <tr>
-                  <td colSpan={8} className="px-6 py-4 text-center text-gray-500">
+                  <td colSpan={9} className="px-6 py-4 text-center text-gray-500">
                     보건교육 계획이 없습니다.
                   </td>
                 </tr>
@@ -297,6 +373,18 @@ export function HealthEducation() {
                     <td className="px-6 py-4 whitespace-nowrap">
                       {getStatusBadge(education.status)}
                     </td>
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      <div className="flex gap-2">
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => handleEdit(education)}
+                        >
+                          <Edit size={14} />
+                          편집
+                        </Button>
+                      </div>
+                    </td>
                   </tr>
                 ))
               )}
@@ -322,6 +410,15 @@ export function HealthEducation() {
           </div>
         </div>
       </Card>
+
+      {/* 보건교육 계획 등록/수정 폼 */}
+      <EducationForm
+        isOpen={showForm}
+        onClose={() => setShowForm(false)}
+        onSubmit={handleSubmit}
+        initialData={selectedEducation}
+        mode={formMode}
+      />
     </div>
   );
 }
