@@ -68,31 +68,54 @@ export function DocumentManagement() {
       const sampleData = getSampleDataForForm(selectedForm);
       const mergedData = { ...sampleData, ...formData };
 
+      // 타임아웃을 5초로 설정
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 5000);
+
       const response = await fetch(`/api/v1/documents/fill-pdf/${selectedForm}`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify(mergedData)
+        body: JSON.stringify(mergedData),
+        signal: controller.signal
       });
+
+      clearTimeout(timeoutId);
 
       if (response.ok) {
         const data = await response.json();
-        setPreviewUrl(data.pdf_base64);
+        if (data.pdf_base64) {
+          setPreviewUrl(`data:application/pdf;base64,${data.pdf_base64}`);
+        } else {
+          // 샘플 PDF 사용
+          setPreviewUrl(generateSamplePDF());
+        }
         setShowPreview(true);
       } else {
-        // 에러 시 샘플 Base64 PDF 표시
-        setPreviewUrl('data:application/pdf;base64,JVBERi0xLjQKJcOkw7zDtsKgPj4gDQp4cmVmDQpzdGFydHhyZWYNCjQ1Ng==');
+        console.error('PDF 생성 실패:', response.status, response.statusText);
+        // 에러 시 샘플 PDF 표시
+        setPreviewUrl(generateSamplePDF());
         setShowPreview(true);
       }
     } catch (error) {
-      console.error('PDF 생성 실패:', error);
-      // 에러 시에도 미리보기 표시
-      setPreviewUrl('data:application/pdf;base64,JVBERi0xLjQKJcOkw7zDtsKgPj4gDQp4cmVmDQpzdGFydHhyZWYNCjQ1Ng==');
+      if (error.name === 'AbortError') {
+        console.warn('PDF 생성 타임아웃 (5초 초과)');
+      } else {
+        console.error('PDF 생성 실패:', error);
+      }
+      // 에러 시에도 샘플 PDF 표시
+      setPreviewUrl(generateSamplePDF());
       setShowPreview(true);
     } finally {
       setLoading(false);
     }
+  };
+
+  const generateSamplePDF = (): string => {
+    // 간단한 샘플 PDF (실제 PDF 헤더와 최소 구조)
+    const samplePDFBase64 = 'JVBERi0xLjQKMSAwIG9iago8PAovVHlwZSAvQ2F0YWxvZwovUGFnZXMgMiAwIFIKPj4KZW5kb2JqCjIgMCBvYmoKPDwKL1R5cGUgL1BhZ2VzCi9LaWRzIFszIDAgUl0KL0NvdW50IDEKL01lZGlhQm94IFswIDAgNTk1IDg0Ml0KPj4KZW5kb2JqCjMgMCBvYmoKPDwKL1R5cGUgL1BhZ2UKL1BhcmVudCAyIDAgUgovUmVzb3VyY2VzIDw8Ci9Gb250IDQ0IDAgUgo+PgovQ29udGVudHMgNSAwIFIKPj4KZW5kb2JqCjQgMCBvYmoKPDwKL0YxIDY2IDAgUgo+PgplbmRvYmoKNSAwIG9iago8PAovTGVuZ3RoIDU4Cj4+CnN0cmVhbQpCVApxCi9GMSA0OCBUZgoxMCA3MDAgVGQKKFNhZmVXb3JrIFBybyAtIFBERiBQcmV2aWV3KSBUKE4KUVAKZW5kc3RyZWFtCmVuZG9iago2IDAgb2JqCjw8Ci9UeXBlIC9Gb250Ci9TdWJ0eXBlIC9UeXBlMQovQmFzZUZvbnQgL0hlbHZldGljYQo+PgplbmRvYmoKeHJlZgowIDcKMDAwMDAwMDAwMCA2NTUzNSBmIAowMDAwMDAwMDA5IDAwMDAwIG4gCjAwMDAwMDAwNTggMDAwMDAgbiAKMDAwMDAwMDExNSAwMDAwMCBuIAowMDAwMDAwMjQ1IDAwMDAwIG4gCjAwMDAwMDAyNzQgMDAwMDAgbiAKMDAwMDAwMDM4NCAwMDAwMCBuIAp0cmFpbGVyCjw8Ci9TaXplIDcKL1Jvb3QgMSAwIFIKPj4Kc3RhcnR4cmVmCjQ4MQolJUVPRg==';
+    return `data:application/pdf;base64,${samplePDFBase64}`;
   };
 
   const getSampleDataForForm = (formName: string): FormData => {
