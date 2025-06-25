@@ -1,0 +1,82 @@
+# SafeWork Pro - Single Container for registry.jclee.me
+# Using pre-built frontend to avoid Node.js version issues
+
+FROM ubuntu:22.04
+
+# Build arguments
+ARG BUILD_TIME
+ENV BUILD_TIME=$BUILD_TIME
+ENV TZ=Asia/Seoul
+ENV DEBIAN_FRONTEND=noninteractive
+
+# Install dependencies
+RUN apt-get update && apt-get install -y \
+    curl \
+    wget \
+    python3.11 \
+    python3-pip \
+    postgresql \
+    postgresql-contrib \
+    redis-server \
+    supervisor \
+    wkhtmltopdf \
+    fonts-nanum \
+    sudo \
+    --no-install-recommends \
+    && ln -snf /usr/share/zoneinfo/$TZ /etc/localtime \
+    && echo $TZ > /etc/timezone \
+    && rm -rf /var/lib/apt/lists/*
+
+# Set working directory
+WORKDIR /app
+
+# Install Python dependencies
+COPY requirements.txt .
+RUN pip3 install --no-cache-dir -r requirements.txt
+
+# Copy backend source
+COPY main.py ./
+COPY src/ ./src/
+COPY document/ ./document/
+
+# Copy pre-built frontend
+COPY dist/ ./dist/
+
+# Create necessary directories
+RUN mkdir -p uploads logs /var/lib/postgresql/data /var/run/postgresql /var/lib/redis /var/run/redis
+
+# Environment variables
+ENV POSTGRES_USER=admin
+ENV POSTGRES_PASSWORD=safework123
+ENV POSTGRES_DB=health_management
+ENV DATABASE_URL=postgresql://admin:safework123@localhost:5432/health_management
+ENV REDIS_URL=redis://localhost:6379/0
+ENV JWT_SECRET=safework-pro-secret-key-2024
+ENV DEBUG=false
+ENV LOG_LEVEL=INFO
+ENV PORT=3001
+
+# Configure PostgreSQL
+RUN chown -R postgres:postgres /var/lib/postgresql && \
+    chmod -R 755 /var/lib/postgresql
+
+# Configure Redis
+RUN sed -i 's/^bind 127.0.0.1 ::1/bind 127.0.0.1/' /etc/redis/redis.conf && \
+    sed -i 's/^# requirepass foobared/# requirepass/' /etc/redis/redis.conf
+
+# Copy startup script
+COPY start-single.sh /app/start-single.sh
+RUN chmod +x /app/start-single.sh
+
+# Expose port
+EXPOSE 3001
+
+# Health check
+HEALTHCHECK --interval=30s --timeout=10s --start-period=60s --retries=5 \
+    CMD curl -f http://localhost:3001/health || exit 1
+
+# Volume for persistent data
+VOLUME ["/app/uploads", "/app/logs"]
+
+# Start application
+CMD ["/app/start-single.sh"]

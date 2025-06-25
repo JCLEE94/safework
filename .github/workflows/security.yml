@@ -1,4 +1,4 @@
-name: Security Scan
+name: SafeWork Pro - Security Scan
 
 on:
   push:
@@ -40,13 +40,15 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
         
-      - name: Build Docker image
-        run: docker build -t health-scan:latest .
+      - name: Build SafeWork Pro Docker image
+        run: |
+          npm install && npm run build
+          docker build -f Dockerfile.registry -t safework-scan:latest .
         
       - name: Run Trivy on Docker image
         uses: aquasecurity/trivy-action@master
         with:
-          image-ref: 'health-scan:latest'
+          image-ref: 'safework-scan:latest'
           format: 'table'
           exit-code: '0'
           ignore-unfixed: true

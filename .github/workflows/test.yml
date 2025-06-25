@@ -1,4 +1,4 @@
-name: Test
+name: SafeWork Pro - Tests
 
 on:
   push:

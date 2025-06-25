@@ -1,4 +1,4 @@
-name: Release
+name: SafeWork Pro - Release
 
 on:
   push:
@@ -7,7 +7,7 @@ on:
 
 env:
   REGISTRY: registry.jclee.me
-  IMAGE_NAME: health
+  IMAGE_NAME: safework
 
 jobs:
   create-release:
@@ -27,8 +27,10 @@ jobs:
           echo "## What's Changed" > ${{ github.workspace }}-CHANGELOG.txt
           git log --pretty=format:"* %s (%h)" $(git describe --tags --abbrev=0 HEAD^)..HEAD >> ${{ github.workspace }}-CHANGELOG.txt
           echo "" >> ${{ github.workspace }}-CHANGELOG.txt
-          echo "## Docker Image" >> ${{ github.workspace }}-CHANGELOG.txt
-          echo "- \`docker pull qws941/health:${{ github.ref_name }}\`" >> ${{ github.workspace }}-CHANGELOG.txt
+          echo "## SafeWork Pro" >> ${{ github.workspace }}-CHANGELOG.txt
+          echo "- 🌐 Web: https://safework.jclee.me" >> ${{ github.workspace }}-CHANGELOG.txt
+          echo "- 🐳 Docker: \`docker pull ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ github.ref_name }}\`" >> ${{ github.workspace }}-CHANGELOG.txt
+          echo "- 📦 Registry: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ github.ref_name }}" >> ${{ github.workspace }}-CHANGELOG.txt
           
       - name: Create Release
         uses: softprops/action-gh-release@v2
@@ -58,20 +60,30 @@ jobs:
         id: meta
         uses: docker/metadata-action@v5
         with:
-          images: qws941/health
+          images: |
+            ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
+            qws941/safework
           tags: |
             type=semver,pattern={{version}}
             type=semver,pattern={{major}}.{{minor}}
             type=semver,pattern={{major}}
             type=sha
             
-      - name: Build and Push
+      - name: Build Frontend
+        run: |
+          npm install
+          npm run build
+            
+      - name: Build and Push SafeWork Pro
         uses: docker/build-push-action@v5
         with:
           context: .
+          file: ./Dockerfile.registry
           platforms: linux/amd64,linux/arm64
           push: true
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
-          cache-from: type=registry,ref=qws941/health:buildcache
-          cache-to: type=registry,ref=qws941/health:buildcache,mode=max
+          build-args: |
+            BUILD_TIME=$(date +'%Y-%m-%d %H:%M:%S KST')
+          cache-from: type=registry,ref=${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:buildcache
+          cache-to: type=registry,ref=${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:buildcache,mode=max

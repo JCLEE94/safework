@@ -1,0 +1,77 @@
+# SafeWork Pro - Final All-in-One Container
+# Using pre-built frontend and simplified PostgreSQL setup
+
+FROM python:3.11-slim
+
+# Build arguments
+ARG BUILD_TIME
+ENV BUILD_TIME=$BUILD_TIME
+ENV TZ=Asia/Seoul
+
+# Install system dependencies including PostgreSQL
+RUN apt-get update && apt-get install -y \
+    curl \
+    wget \
+    supervisor \
+    postgresql \
+    postgresql-contrib \
+    redis-server \
+    wkhtmltopdf \
+    fonts-nanum \
+    --no-install-recommends \
+    && ln -snf /usr/share/zoneinfo/$TZ /etc/localtime \
+    && echo $TZ > /etc/timezone \
+    && rm -rf /var/lib/apt/lists/*
+
+# Set working directory
+WORKDIR /app
+
+# Install Python dependencies
+COPY requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt
+
+# Copy backend source
+COPY src/ ./src/
+COPY main.py ./
+COPY document/ ./document/
+
+# Copy existing frontend build
+COPY dist/ ./dist/
+
+# Create necessary directories
+RUN mkdir -p uploads logs
+
+# Configure PostgreSQL - simplified approach
+ENV POSTGRES_USER=admin
+ENV POSTGRES_PASSWORD=safework123
+ENV POSTGRES_DB=health_management
+ENV DATABASE_URL=postgresql://admin:safework123@localhost:5432/health_management
+ENV REDIS_URL=redis://localhost:6379/0
+ENV JWT_SECRET=safework-pro-secret-key-2024
+ENV DEBUG=false
+ENV LOG_LEVEL=INFO
+
+# Setup PostgreSQL data directory
+RUN mkdir -p /var/lib/postgresql/data && \
+    chown -R postgres:postgres /var/lib/postgresql
+
+# Configure Redis
+RUN sed -i 's/^bind 127.0.0.1 ::1/bind 0.0.0.0/' /etc/redis/redis.conf && \
+    sed -i 's/^# requirepass foobared/requirepass ""/' /etc/redis/redis.conf
+
+# Copy startup script
+COPY start-all.sh /app/start-all.sh
+RUN chmod +x /app/start-all.sh
+
+# Expose port
+EXPOSE 3001
+
+# Health check
+HEALTHCHECK --interval=30s --timeout=10s --start-period=60s --retries=5 \
+    CMD curl -f http://localhost:3001/health || exit 1
+
+# Volume mounts
+VOLUME ["/app/uploads", "/app/logs"]
+
+# Start the application
+CMD ["/app/start-all.sh"]

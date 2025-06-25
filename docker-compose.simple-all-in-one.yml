@@ -1,0 +1,50 @@
+version: '3.8'
+
+services:
+  safework-pro-simple:
+    build:
+      context: .
+      dockerfile: Dockerfile.simple-all-in-one
+      args:
+        BUILD_TIME: "${BUILD_TIME:-$(date +'%Y-%m-%d %H:%M:%S') KST}"
+    container_name: safework-pro-simple
+    restart: unless-stopped
+    ports:
+      - "3001:3001"
+    environment:
+      - POSTGRES_USER=admin
+      - POSTGRES_PASSWORD=safework123
+      - POSTGRES_DB=health_management
+      - DATABASE_URL=postgresql://admin:safework123@localhost:5432/health_management
+      - REDIS_URL=redis://localhost:6379/0
+      - JWT_SECRET=safework-pro-secret-key-2024
+      - DEBUG=false
+      - LOG_LEVEL=INFO
+      - TZ=Asia/Seoul
+    volumes:
+      - safework_postgres_data:/var/lib/postgresql/data
+      - safework_app_uploads:/app/uploads
+      - safework_app_logs:/app/logs
+      - safework_redis_data:/var/lib/redis
+    labels:
+      - "com.centurylinklabs.watchtower.enable=true"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3001/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 60s
+
+volumes:
+  safework_postgres_data:
+    driver: local
+  safework_app_uploads:
+    driver: local
+  safework_app_logs:
+    driver: local
+  safework_redis_data:
+    driver: local
+
+networks:
+  default:
+    name: safework-network

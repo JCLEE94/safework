@@ -1,4 +1,4 @@
-name: Build and Push
+name: SafeWork Pro - Build and Push
 
 on:
   push:
@@ -8,7 +8,7 @@ on:
 
 env:
   REGISTRY: registry.jclee.me
-  IMAGE_NAME: health
+  IMAGE_NAME: safework
 
 jobs:
   build:
@@ -18,9 +18,20 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
         
-      - name: Build Docker Image
+      - name: Build Frontend
         run: |
-          docker build -t ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest -t ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ github.sha }} .
+          npm install
+          npm run build
+          
+      - name: Build SafeWork Pro Single Container
+        run: |
+          BUILD_TIME="$(date +'%Y-%m-%d %H:%M:%S KST')"
+          docker build -f Dockerfile.registry \
+            --build-arg BUILD_TIME="$BUILD_TIME" \
+            -t ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest \
+            -t ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ github.sha }} \
+            -t ${{ env.IMAGE_NAME }}:latest \
+            .
         
       - name: Login to Private Registry
         run: |
@@ -34,5 +45,36 @@ jobs:
           docker push ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest
           docker push ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ github.sha }}
 
-  # Watchtower가 자동으로 처리하므로 deploy job 제거
-  # Production 서버의 Watchtower가 registry.jclee.me를 모니터링하고 자동 배포
+      - name: Test Container Health
+        run: |
+          # 테스트용 컨테이너 실행
+          docker run -d --name safework-test -p 3002:3001 ${{ env.IMAGE_NAME }}:latest
+          
+          # 헬스체크 대기
+          sleep 30
+          
+          # 헬스체크 테스트
+          curl -f http://localhost:3002/health || exit 1
+          
+          # 테스트 컨테이너 정리
+          docker stop safework-test
+          docker rm safework-test
+
+  deploy:
+    needs: build
+    runs-on: self-hosted
+    if: github.ref == 'refs/heads/main'
+    
+    steps:
+      - name: Deploy to Production
+        run: |
+          # Watchtower가 자동으로 처리하므로 별도 배포 작업 불필요
+          echo "✅ SafeWork Pro 이미지가 registry.jclee.me/safework:latest로 푸시되었습니다"
+          echo "🔄 Watchtower가 자동으로 운영 서버에 배포합니다"
+          
+      - name: Notify Deployment
+        run: |
+          echo "🎉 SafeWork Pro 배포 완료!"
+          echo "📍 Registry: registry.jclee.me/safework:latest"
+          echo "🔗 URL: https://safework.jclee.me"
+          echo "🏥 건설업 보건관리 시스템 업데이트됨"

@@ -1,0 +1,108 @@
+# SafeWork Pro - All-in-One Container
+# PostgreSQL + Redis + Python Backend + React Frontend
+
+FROM ubuntu:22.04
+
+# Build arguments
+ARG BUILD_TIME
+ARG DATABASE_URL
+ARG REDIS_URL
+ARG JWT_SECRET
+ARG DEBUG=false
+ARG LOG_LEVEL=INFO
+
+# Environment variables
+ENV BUILD_TIME=$BUILD_TIME
+ENV TZ=Asia/Seoul
+ENV DEBIAN_FRONTEND=noninteractive
+ENV PGDATA=/var/lib/postgresql/data
+ENV POSTGRES_USER=${POSTGRES_USER:-admin}
+ENV POSTGRES_PASSWORD=${POSTGRES_PASSWORD:-password}
+ENV POSTGRES_DB=${POSTGRES_DB:-health_management}
+ENV DATABASE_URL=${DATABASE_URL:-postgresql://admin:password@localhost:5432/health_management}
+ENV REDIS_URL=${REDIS_URL:-redis://localhost:6379/0}
+ENV JWT_SECRET=${JWT_SECRET:-your-secret-key-here}
+ENV DEBUG=${DEBUG:-false}
+ENV LOG_LEVEL=${LOG_LEVEL:-INFO}
+
+# Install system dependencies
+RUN apt-get update && apt-get install -y \
+    curl \
+    wget \
+    gnupg \
+    lsb-release \
+    tzdata \
+    supervisor \
+    postgresql-14 \
+    postgresql-client-14 \
+    redis-server \
+    python3.11 \
+    python3.11-dev \
+    python3-pip \
+    nodejs \
+    npm \
+    wkhtmltopdf \
+    fonts-nanum \
+    libreoffice \
+    --no-install-recommends \
+    && ln -snf /usr/share/zoneinfo/$TZ /etc/localtime \
+    && echo $TZ > /etc/timezone \
+    && rm -rf /var/lib/apt/lists/*
+
+# Create working directory
+WORKDIR /app
+
+# Copy and build frontend
+COPY package*.json ./
+COPY index.html ./
+RUN npm install
+
+COPY src/ ./src/
+COPY vite.config.ts tsconfig.json tsconfig.node.json ./
+COPY tailwind.config.js* postcss.config.js* ./
+ENV VITE_BUILD_TIME=$BUILD_TIME
+RUN npm run build && mv dist /app/dist
+
+# Install Python dependencies
+COPY requirements.txt .
+RUN pip3 install --no-cache-dir -r requirements.txt
+
+# Copy backend source
+COPY src/ ./src/
+COPY main.py ./
+COPY document/ ./document/
+
+# Create necessary directories
+RUN mkdir -p uploads logs /var/run/postgresql /var/run/redis
+
+# Configure PostgreSQL
+RUN mkdir -p /var/lib/postgresql/data /var/run/postgresql \
+    && chown -R postgres:postgres /var/lib/postgresql /var/run/postgresql \
+    && chmod -R 755 /var/lib/postgresql
+
+# Configure Redis
+RUN mkdir -p /var/lib/redis /var/run/redis \
+    && sed -i 's/^bind 127.0.0.1 ::1/bind 0.0.0.0/' /etc/redis/redis.conf \
+    && sed -i 's/^# requirepass foobared/requirepass ""/' /etc/redis/redis.conf \
+    && sed -i 's/^dir .*$/dir \/var\/lib\/redis/' /etc/redis/redis.conf \
+    && chown -R redis:redis /var/lib/redis /var/run/redis
+
+# Copy startup script
+COPY startup-all-in-one.sh /app/start.sh
+RUN chmod +x /app/start.sh
+
+# Copy supervisor configuration
+COPY supervisor-safework.conf /etc/supervisor/conf.d/safework.conf
+
+# Expose port
+EXPOSE 3001
+
+# Health check
+HEALTHCHECK --interval=30s --timeout=10s --start-period=60s --retries=5 \
+    CMD curl -f http://localhost:3001/health || exit 1
+
+# Volume mounts
+VOLUME ["/var/lib/postgresql/data", "/app/uploads", "/app/logs"]
+
+# Start supervisor
+CMD ["/usr/bin/supervisord", "-c", "/etc/supervisor/supervisord.conf"]

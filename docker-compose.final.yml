@@ -1,0 +1,132 @@
+version: '3.8'
+
+services:
+  # SafeWork Pro - 단일 컨테이너 (PostgreSQL + Redis + FastAPI + React)
+  safework:
+    image: registry.jclee.me/safework:latest
+    container_name: safework-single
+    restart: unless-stopped
+    ports:
+      - "3001:3001"
+    environment:
+      # 데이터베이스 설정
+      POSTGRES_USER: admin
+      POSTGRES_PASSWORD: safework123
+      POSTGRES_DB: health_management
+      DATABASE_URL: postgresql://admin:safework123@localhost:5432/health_management
+      
+      # Redis 설정
+      REDIS_URL: redis://localhost:6379/0
+      
+      # 애플리케이션 설정
+      JWT_SECRET: safework-pro-secret-key-2024
+      DEBUG: "false"
+      LOG_LEVEL: INFO
+      TZ: Asia/Seoul
+      PORT: 3001
+      
+      # 빌드 시간 환경변수
+      BUILD_TIME: "${BUILD_TIME:-2025-06-26 01:00:00 KST}"
+    
+    volumes:
+      # 고정 볼륨 사용 - 바인드 마운트 제거
+      - safework_uploads:/app/uploads
+      - safework_logs:/app/logs
+      - safework_postgres_data:/var/lib/postgresql/data
+      - safework_redis_data:/var/lib/redis
+    
+    labels:
+      # Watchtower 자동 업데이트 활성화
+      - "com.centurylinklabs.watchtower.enable=true"
+      - "com.centurylinklabs.watchtower.monitor-only=false"
+      
+      # 메타데이터 라벨
+      - "org.opencontainers.image.title=SafeWork Pro"
+      - "org.opencontainers.image.description=건설업 보건관리 시스템 - 단일 컨테이너"
+      - "org.opencontainers.image.version=1.0.0"
+      - "org.opencontainers.image.vendor=SafeWork Pro Team"
+      - "org.opencontainers.image.url=https://safework.jclee.me"
+      - "org.opencontainers.image.source=https://github.com/qws941/safework"
+    
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3001/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 60s
+    
+    # 리소스 제한
+    deploy:
+      resources:
+        limits:
+          memory: 2G
+          cpus: '1.0'
+        reservations:
+          memory: 1G
+          cpus: '0.5'
+    
+    # 보안 설정
+    security_opt:
+      - no-new-privileges:true
+    
+    # 읽기 전용 루트 파일시스템 (데이터 디렉토리 제외)
+    read_only: false
+    
+    # 임시 파일시스템
+    tmpfs:
+      - /tmp:size=100M
+      - /var/tmp:size=50M
+
+# 고정 볼륨 정의 - 호스트 바인드 마운트 제거
+volumes:
+  safework_uploads:
+    driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: /opt/safework/uploads
+    labels:
+      - "backup=daily"
+      - "description=SafeWork Pro 업로드 파일"
+  
+  safework_logs:
+    driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: /opt/safework/logs
+    labels:
+      - "backup=weekly"
+      - "description=SafeWork Pro 로그 파일"
+      - "retention=30d"
+  
+  safework_postgres_data:
+    driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: /opt/safework/postgres
+    labels:
+      - "backup=daily"
+      - "description=SafeWork Pro PostgreSQL 데이터"
+      - "critical=true"
+  
+  safework_redis_data:
+    driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: /opt/safework/redis
+    labels:
+      - "backup=weekly" 
+      - "description=SafeWork Pro Redis 데이터"
+
+# 네트워크 정의 (선택사항 - 기본 브리지 네트워크 사용)
+networks:
+  default:
+    name: safework-network
+    driver: bridge
+    driver_opts:
+      com.docker.network.bridge.name: br-safework
+    labels:
+      - "description=SafeWork Pro 네트워크"
