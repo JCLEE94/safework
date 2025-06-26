@@ -1,7 +1,7 @@
 # SafeWork Pro - Advanced Health Management System
 # 건설업 보건관리 시스템 - 고도화된 엔터프라이즈 아키텍처
 
-FROM node:18-alpine AS frontend-builder
+FROM node:24-alpine AS frontend-builder
 ARG BUILD_TIME
 ENV VITE_BUILD_TIME=$BUILD_TIME
 

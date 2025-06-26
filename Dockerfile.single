@@ -4,7 +4,7 @@
 # ================================
 # Stage 1: Frontend Build
 # ================================
-FROM node:18-alpine AS frontend-builder
+FROM node:24-alpine AS frontend-builder
 ARG BUILD_TIME
 ENV VITE_BUILD_TIME=$BUILD_TIME
 
