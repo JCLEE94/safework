@@ -69,13 +69,19 @@ jobs:
             type=semver,pattern={{major}}
             type=sha
             
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+          cache: 'npm'
+          
       - name: Build Frontend
         run: |
-          npm install
+          npm ci
           npm run build
             
       - name: Build and Push SafeWork Pro
-        uses: docker/build-push-action@v5
+        uses: docker/build-push-action@v6
         with:
           context: .
           file: ./Dockerfile.registry

@@ -17,7 +17,7 @@ jobs:
         uses: actions/checkout@v4
         
       - name: Run Trivy vulnerability scanner
-        uses: aquasecurity/trivy-action@master
+        uses: aquasecurity/trivy-action@0.29.0
         with:
           scan-type: 'fs'
           scan-ref: '.'
@@ -46,7 +46,7 @@ jobs:
           docker tag registry.jclee.me/safework:latest safework-scan:latest
         
       - name: Run Trivy on Docker image
-        uses: aquasecurity/trivy-action@master
+        uses: aquasecurity/trivy-action@0.29.0
         with:
           image-ref: 'safework-scan:latest'
           format: 'table'
@@ -64,13 +64,25 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
         
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          
       - name: Python Dependency Check
         run: |
+          python -m pip install --upgrade pip
           python -m pip install safety
           safety check --json || echo "Safety check completed with warnings"
+          
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
           
       - name: npm audit
         run: |
           export NPM_CONFIG_CACHE=/tmp/.npm
           mkdir -p /tmp/.npm
+          npm install --cache /tmp/.npm
           npm audit --audit-level=high || echo "npm audit completed with warnings"
