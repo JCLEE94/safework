@@ -18,24 +18,36 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
         
-      - name: Pull and Tag SafeWork Pro Image
+      - name: Build SafeWork Pro Image
         run: |
-          # 기존 registry 이미지를 pull하고 새 태그로 푸시
-          docker pull ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest
-          docker tag ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ github.sha }}
-          docker tag ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest ${{ env.IMAGE_NAME }}:latest
+          # 빌드 시간 설정
+          BUILD_TIME=$(TZ=Asia/Seoul date +'%Y-%m-%d %H:%M:%S KST')
+          
+          # Docker 이미지 빌드
+          docker build -f Dockerfile -t ${{ env.IMAGE_NAME }}:latest \
+            --build-arg BUILD_TIME="$BUILD_TIME" \
+            .
         
       - name: Login to Private Registry
         run: |
           echo "${{ secrets.REGISTRY_PASSWORD }}" | docker login ${{ env.REGISTRY }} -u "${{ secrets.REGISTRY_USERNAME }}" --password-stdin
           
-      - name: Push to Private Registry
+      - name: Tag and Push to Registry
         run: |
+          # 레지스트리용 태그 생성
+          docker tag ${{ env.IMAGE_NAME }}:latest ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest
+          docker tag ${{ env.IMAGE_NAME }}:latest ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ github.sha }}
+          
+          # 레지스트리에 푸시
           docker push ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest
           docker push ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ github.sha }}
 
       - name: Test Container Health
         run: |
+          # 기존 테스트 컨테이너 정리
+          docker stop safework-test || true
+          docker rm safework-test || true
+          
           # 테스트용 컨테이너 실행
           docker run -d --name safework-test -p 3002:3001 ${{ env.IMAGE_NAME }}:latest
           
