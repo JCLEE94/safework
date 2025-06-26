@@ -279,7 +279,7 @@ async def list_docker_containers():
     try:
         # docker ps 명령어로 컨테이너 목록 조회
         result = subprocess.run(
-            ["/usr/local/bin/docker", "ps", "--format", "table {{.ID}}\t{{.Names}}\t{{.Status}}\t{{.Ports}}"],
+            ["docker", "ps", "--format", "table {{.ID}}\t{{.Names}}\t{{.Status}}\t{{.Ports}}"],
             capture_output=True,
             text=True,
             timeout=10
@@ -317,7 +317,7 @@ async def list_docker_containers():
 
 async def stream_logs_generator(container_name: str, lines: int, since: Optional[str]) -> AsyncGenerator[str, None]:
     """로그 스트리밍을 위한 비동기 제너레이터"""
-    cmd = ["/usr/local/bin/docker", "logs", "--follow", "--tail", str(lines), "--timestamps"]
+    cmd = ["docker", "logs", "--follow", "--tail", str(lines), "--timestamps"]
     
     if since:
         cmd.extend(["--since", since])
@@ -376,7 +376,7 @@ async def get_container_logs(
             )
         
         # 일반 로그 조회
-        cmd = ["/usr/local/bin/docker", "logs", "--tail", str(lines), "--timestamps"]
+        cmd = ["docker", "logs", "--tail", str(lines), "--timestamps"]
         
         if since:
             cmd.extend(["--since", since])
@@ -417,7 +417,7 @@ async def get_container_stats(container_name: str):
     try:
         # docker stats 명령어로 컨테이너 통계 조회 (--no-stream으로 한 번만)
         result = subprocess.run(
-            ["/usr/local/bin/docker", "stats", "--no-stream", "--format", 
+            ["docker", "stats", "--no-stream", "--format", 
              "table {{.Container}}\t{{.CPUPerc}}\t{{.MemUsage}}\t{{.MemPerc}}\t{{.NetIO}}\t{{.BlockIO}}", 
              container_name],
             capture_output=True,
@@ -462,7 +462,7 @@ async def stream_container_logs(websocket: WebSocket, container_name: str):
     try:
         # docker logs --follow 명령어로 실시간 로그 스트리밍
         process = subprocess.Popen(
-            ["/usr/local/bin/docker", "logs", "--follow", "--timestamps", "--tail", "50", container_name],
+            ["docker", "logs", "--follow", "--timestamps", "--tail", "50", container_name],
             stdout=subprocess.PIPE,
             stderr=subprocess.STDOUT,
             text=True,
