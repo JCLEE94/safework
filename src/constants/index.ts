@@ -5,7 +5,7 @@
 
 export const API_BASE_URL = import.meta.env.VITE_API_URL || window.location.origin;
 
-export const BUILD_TIME = '2025-06-25 21:45:00 KST';
+export const BUILD_TIME = '2025-06-26 07:32:00 KST';
 
 // 메뉴 정의
 export const MENU_ITEMS = [
@@ -17,6 +17,8 @@ export const MENU_ITEMS = [
   { id: 'chemicals', name: '화학물질관리', icon: 'FlaskConical', color: 'text-yellow-600' },
   { id: 'accidents', name: '산업재해', icon: 'AlertTriangle', color: 'text-orange-600' },
   { id: 'documents', name: '문서관리', icon: 'FileText', color: 'text-cyan-600' },
+  { id: 'file-management', name: '파일관리', icon: 'FolderOpen', color: 'text-amber-600' },
+  { id: 'pdf-forms', name: 'PDF 양식', icon: 'FileEdit', color: 'text-emerald-600' },
   { id: 'reports', name: '보고서', icon: 'FileText', color: 'text-gray-600' },
   { id: 'monitoring', name: '모니터링', icon: 'MonitorDot', color: 'text-pink-600' },
   { id: 'settings', name: '설정', icon: 'Settings', color: 'text-gray-600' },

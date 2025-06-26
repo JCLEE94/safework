@@ -1,0 +1,99 @@
+# SafeWork Pro - Production Build
+# 건설업 보건관리 시스템 - 운영 환경 빌드
+
+# ================================
+# Stage 1: Frontend Build
+# ================================
+FROM node:18-alpine AS frontend-builder
+ARG BUILD_TIME
+ENV VITE_BUILD_TIME=$BUILD_TIME
+
+WORKDIR /app
+
+# 패키지 의존성 설치 (캐시 최적화)
+COPY package*.json ./
+RUN npm install
+
+# 소스 코드 복사 및 빌드
+COPY index.html vite.config.ts tsconfig.json tsconfig.node.json ./
+COPY tailwind.config.js postcss.config.js ./
+COPY src/ ./src/
+
+# React 빌드 실행
+RUN npx vite build
+
+# 빌드 결과 검증
+RUN ls -la /app/dist/ && test -f /app/dist/index.html || (echo "❌ React 빌드 실패" && exit 1)
+
+# ================================
+# Stage 2: All-in-One Production
+# ================================
+FROM python:3.11-slim AS production
+
+# 빌드 인수 및 환경변수
+ARG BUILD_TIME
+ENV BUILD_TIME=$BUILD_TIME
+ENV TZ=Asia/Seoul
+ENV PYTHONUNBUFFERED=1
+ENV PYTHONDONTWRITEBYTECODE=1
+ENV PORT=3001
+
+WORKDIR /app
+
+# 시스템 의존성 설치 (최소화)
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    postgresql \
+    postgresql-client \
+    redis-server \
+    nginx \
+    curl \
+    supervisor \
+    fonts-nanum \
+    wkhtmltopdf \
+    && rm -rf /var/lib/apt/lists/* \
+    && ln -snf /usr/share/zoneinfo/$TZ /etc/localtime && echo $TZ > /etc/timezone
+
+# Python 의존성 설치
+COPY requirements.txt .
+RUN pip install --no-cache-dir --upgrade pip \
+    && pip install --no-cache-dir -r requirements.txt
+
+# 백엔드 소스 코드 복사
+COPY src/ ./src/
+COPY main.py ./
+
+# 프론트엔드 빌드 결과 복사
+COPY --from=frontend-builder /app/dist ./dist/
+
+# 설정 파일 및 문서 복사
+COPY document/ ./document/
+COPY nginx.conf /etc/nginx/nginx.conf
+COPY supervisord.conf /etc/supervisor/conf.d/supervisord.conf
+
+# 필요한 디렉토리 생성 및 PostgreSQL 사용자 설정
+RUN mkdir -p uploads logs /var/lib/postgresql/data /var/lib/redis \
+    && chmod 755 uploads logs \
+    && useradd -r -s /bin/bash -d /var/lib/postgresql postgres || true \
+    && chown -R postgres:postgres /var/lib/postgresql \
+    && chmod 700 /var/lib/postgresql/data
+
+# 데이터베이스 초기화 스크립트
+COPY init-db.sh /usr/local/bin/
+RUN chmod +x /usr/local/bin/init-db.sh
+
+# Nginx 설정
+RUN rm -f /etc/nginx/sites-enabled/default
+
+# 포트 노출
+EXPOSE 3001
+
+# 헬스체크
+HEALTHCHECK --interval=30s --timeout=10s --start-period=60s --retries=5 \
+    CMD curl -f http://localhost:3001/health || exit 1
+
+# 시작 스크립트
+COPY start.sh /usr/local/bin/
+RUN chmod +x /usr/local/bin/start.sh
+
+# 애플리케이션 시작
+CMD ["/usr/local/bin/start.sh"]

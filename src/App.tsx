@@ -11,6 +11,8 @@ import { HealthEducation } from './components/HealthEducation';
 import { ChemicalSubstances } from './components/ChemicalSubstances';
 import { AccidentReports } from './components/AccidentReports';
 import { DocumentManagement } from './components/DocumentManagement';
+import { PDFForms } from './components/PDFForms';
+import { FileManagement } from './components/FileManagement';
 import { Reports } from './components/Reports';
 import { Settings } from './components/Settings';
 
@@ -36,6 +38,10 @@ function App() {
         return <AccidentReports />;
       case 'documents':
         return <DocumentManagement />;
+      case 'file-management':
+        return <FileManagement />;
+      case 'pdf-forms':
+        return <PDFForms />;
       case 'reports':
         return <Reports />;
       case 'monitoring':
