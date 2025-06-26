@@ -12,8 +12,8 @@ services:
       TZ: Asia/Seoul
     volumes:
       - postgres_data:/var/lib/postgresql/data
-    ports:
-      - "5432:5432"
+    # ports:
+    #   - "5432:5432"  # 내부 네트워크에서만 접근
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U admin -d health_management"]
       interval: 10s
@@ -25,8 +25,8 @@ services:
     container_name: safework-redis
     restart: unless-stopped
     command: redis-server --bind 0.0.0.0 --protected-mode no
-    ports:
-      - "6379:6379"
+    # ports:
+    #   - "6379:6379"  # 내부 네트워크에서만 접근
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]
       interval: 10s
@@ -46,6 +46,7 @@ services:
       DEBUG: "false"
       LOG_LEVEL: INFO
       TZ: Asia/Seoul
+      DISABLE_AUTH: "true"
       BUILD_TIME: "${BUILD_TIME:-2025-06-26 12:00:00 KST}"
     depends_on:
       postgres:

@@ -1,101 +1,80 @@
 # SafeWork Pro - Single Container
-# All services in one container for registry.jclee.me
+# 건설업 보건관리 시스템 - 단일 컨테이너
 
-FROM ubuntu:22.04
-
-# Build arguments
+# ================================
+# Stage 1: Frontend Build
+# ================================
+FROM node:18-alpine AS frontend-builder
 ARG BUILD_TIME
-ENV BUILD_TIME=$BUILD_TIME
-ENV TZ=Asia/Seoul
-ENV DEBIAN_FRONTEND=noninteractive
+ENV VITE_BUILD_TIME=$BUILD_TIME
 
-# Install all dependencies
-RUN apt-get update && apt-get install -y \
-    curl \
-    wget \
-    git \
-    python3.11 \
-    python3-pip \
-    nodejs \
-    npm \
-    postgresql \
-    postgresql-contrib \
-    redis-server \
-    supervisor \
-    wkhtmltopdf \
-    fonts-nanum \
-    sudo \
-    --no-install-recommends \
-    && ln -snf /usr/share/zoneinfo/$TZ /etc/localtime \
-    && echo $TZ > /etc/timezone \
-    && rm -rf /var/lib/apt/lists/*
-
-# Set working directory
 WORKDIR /app
 
-# Copy package files for frontend build
+# 패키지 의존성 설치
 COPY package*.json ./
 COPY index.html ./
+RUN npm install
 
-# Install npm dependencies and build frontend
-RUN npm install && \
-    mkdir -p src && \
-    echo "Building frontend..."
-
-# Copy frontend source
+# 소스 코드 복사 및 빌드
 COPY src/ ./src/
 COPY vite.config.ts tsconfig.json tsconfig.node.json ./
 COPY tailwind.config.js* postcss.config.js* ./
 
-# Build frontend with BUILD_TIME
-ENV VITE_BUILD_TIME=$BUILD_TIME
+# React 빌드 실행
 RUN npm run build
 
-# Install Python dependencies
-COPY requirements.txt .
-RUN pip3 install --no-cache-dir -r requirements.txt
+# 빌드 결과 검증
+RUN ls -la /app/dist/ && test -f /app/dist/index.html || (echo "❌ React 빌드 실패: index.html 없음" && exit 1)
 
-# Copy backend source
-COPY main.py ./
+# ================================
+# Stage 2: Single Container
+# ================================
+FROM python:3.11-slim AS production
+
+ARG BUILD_TIME
+ENV BUILD_TIME=$BUILD_TIME
+ENV TZ=Asia/Seoul
+
+WORKDIR /app
+
+# 시스템 패키지 설치 (최소한만)
+RUN apt-get update && apt-get install -y \
+    postgresql-15 \
+    redis-server \
+    curl \
+    wget \
+    tzdata \
+    fonts-nanum \
+    --no-install-recommends \
+    && ln -snf /usr/share/zoneinfo/$TZ /etc/localtime && echo $TZ > /etc/timezone \
+    && rm -rf /var/lib/apt/lists/*
+
+# Python 의존성 설치
+COPY requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt
+
+# 백엔드 소스 코드 복사
 COPY src/ ./src/
+COPY main.py ./
 COPY document/ ./document/
 
-# Create necessary directories
-RUN mkdir -p uploads logs /var/lib/postgresql/data /var/run/postgresql /var/lib/redis /var/run/redis
+# React 빌드 파일 복사
+COPY --from=frontend-builder /app/dist ./src/static/
 
-# Environment variables
-ENV POSTGRES_USER=admin
-ENV POSTGRES_PASSWORD=safework123
-ENV POSTGRES_DB=health_management
+# 환경 변수 설정
+ENV PYTHONPATH=/app
 ENV DATABASE_URL=postgresql://admin:safework123@localhost:5432/health_management
 ENV REDIS_URL=redis://localhost:6379/0
-ENV JWT_SECRET=safework-pro-secret-key-2024
-ENV DEBUG=false
-ENV LOG_LEVEL=INFO
-ENV PORT=3001
 
-# Configure PostgreSQL
-RUN chown -R postgres:postgres /var/lib/postgresql && \
-    chmod -R 755 /var/lib/postgresql
-
-# Configure Redis
-RUN sed -i 's/^bind 127.0.0.1 ::1/bind 127.0.0.1/' /etc/redis/redis.conf && \
-    sed -i 's/^# requirepass foobared/# requirepass/' /etc/redis/redis.conf
-
-# Copy startup script and supervisor config
-COPY start-single.sh /app/start-single.sh
-COPY supervisor-single.conf /etc/supervisor/conf.d/safework-single.conf
-RUN chmod +x /app/start-single.sh
-
-# Expose port
+# 포트 노출
 EXPOSE 3001
 
-# Health check
-HEALTHCHECK --interval=30s --timeout=10s --start-period=60s --retries=5 \
+# 건강 상태 체크
+HEALTHCHECK --interval=30s --timeout=10s --start-period=40s --retries=3 \
     CMD curl -f http://localhost:3001/health || exit 1
 
-# Volume for persistent data
-VOLUME ["/app/uploads", "/app/logs"]
+# 시작 스크립트 복사 및 실행
+COPY start-single.sh /usr/local/bin/start-single.sh
+RUN chmod +x /usr/local/bin/start-single.sh
 
-# Start application
-CMD ["/app/start-single.sh"]
+CMD ["/usr/local/bin/start-single.sh"]

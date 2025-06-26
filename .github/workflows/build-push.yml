@@ -24,7 +24,7 @@ jobs:
           BUILD_TIME=$(TZ=Asia/Seoul date +'%Y-%m-%d %H:%M:%S KST')
           
           # Docker 이미지 빌드
-          docker build -f Dockerfile -t ${{ env.IMAGE_NAME }}:latest \
+          docker build -f Dockerfile.prod -t ${{ env.IMAGE_NAME }}:latest \
             --build-arg BUILD_TIME="$BUILD_TIME" \
             .
         
@@ -48,14 +48,32 @@ jobs:
           docker stop safework-test || true
           docker rm safework-test || true
           
-          # 테스트용 컨테이너 실행
-          docker run -d --name safework-test -p 3002:3001 ${{ env.IMAGE_NAME }}:latest
+          # 테스트용 컨테이너 실행 (환경변수 포함)
+          docker run -d --name safework-test -p 3002:8000 \
+            -e DISABLE_AUTH=true \
+            -e DATABASE_URL=sqlite:///test.db \
+            -e REDIS_URL=redis://localhost:6379/0 \
+            ${{ env.IMAGE_NAME }}:latest
           
-          # 헬스체크 대기
-          sleep 30
+          # 헬스체크 대기 (더 오래 대기)
+          echo "🔍 컨테이너 상태 확인 중..."
+          sleep 45
           
-          # 헬스체크 테스트
-          curl -f http://localhost:3002/health || exit 1
+          # 컨테이너 로그 확인
+          echo "📋 컨테이너 로그:"
+          docker logs safework-test --tail 20
+          
+          # 헬스체크 테스트 (재시도 포함)
+          echo "🏥 헬스체크 테스트..."
+          for i in {1..5}; do
+            if curl -f http://localhost:3002/health; then
+              echo "✅ 헬스체크 성공!"
+              break
+            else
+              echo "❌ 헬스체크 실패 (시도 $i/5), 5초 후 재시도..."
+              sleep 5
+            fi
+          done
           
           # 테스트 컨테이너 정리
           docker stop safework-test

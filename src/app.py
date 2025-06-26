@@ -187,6 +187,7 @@ def create_app() -> FastAPI:
     from .handlers.documents import router as documents_router
     from .handlers.monitoring import router as monitoring_router
     from .handlers.auth import router as auth_router
+    from .handlers.reports import router as reports_router
     
     app.include_router(workers_router, prefix="/api/v1/workers", tags=["근로자관리"])
     app.include_router(health_exams_router, tags=["건강진단"])
@@ -197,11 +198,16 @@ def create_app() -> FastAPI:
     app.include_router(documents_router, tags=["문서관리"])
     app.include_router(monitoring_router, tags=["모니터링"])
     app.include_router(auth_router, tags=["인증"])
+    app.include_router(reports_router, tags=["보고서"])
     
     # 정적 파일 서빙 (React 빌드된 파일들) - Mount after all API routes
     try:
-        app.mount("/", StaticFiles(directory="dist", html=True), name="static")
-        logger.info("정적 파일 마운트 완료: /dist -> /")
+        static_dir = os.path.join(os.path.dirname(__file__), "static")
+        if os.path.exists(static_dir):
+            app.mount("/", StaticFiles(directory=static_dir, html=True), name="static")
+            logger.info(f"정적 파일 마운트 완료: {static_dir} -> /")
+        else:
+            logger.warning(f"정적 파일 디렉토리가 없습니다: {static_dir}")
     except Exception as e:
         logger.warning(f"정적 파일 마운트 실패: {e}")
     

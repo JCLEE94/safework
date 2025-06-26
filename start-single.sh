@@ -1,36 +1,52 @@
 #!/bin/bash
 set -e
 
-echo "Starting SafeWork Pro Single Container..."
+echo "🚀 SafeWork Pro 단일 컨테이너 시작 중..."
+echo "Build Time: $BUILD_TIME"
+echo "Timezone: $TZ"
 
-# Fix PostgreSQL permissions and initialize
-echo "Fixing PostgreSQL permissions..."
+# PostgreSQL 초기화 및 시작
+echo "📊 PostgreSQL 초기화 중..."
+
+# PostgreSQL 사용자 생성 (이미 있을 수 있음)
+id -u postgres &>/dev/null || useradd -r -s /bin/bash -d /var/lib/postgresql postgres
+
+# PostgreSQL 데이터 디렉토리 권한 수정
+mkdir -p /var/lib/postgresql/data
 chown -R postgres:postgres /var/lib/postgresql
-chmod -R 755 /var/lib/postgresql
-rm -rf /var/lib/postgresql/14/main/*
-sudo -u postgres /usr/lib/postgresql/14/bin/initdb -D /var/lib/postgresql/14/main
+chmod 700 /var/lib/postgresql/data
 
-# Start PostgreSQL
-echo "Starting PostgreSQL..."
-service postgresql start
-sleep 3
+if [ ! -f /var/lib/postgresql/data/PG_VERSION ]; then
+    # postgres 사용자로 initdb 실행
+    su - postgres -c "/usr/lib/postgresql/15/bin/initdb -D /var/lib/postgresql/data --locale=C --encoding=UTF8"
+    
+    # 설정 파일 수정
+    echo "host all all 0.0.0.0/0 md5" >> /var/lib/postgresql/data/pg_hba.conf
+    echo "listen_addresses = '*'" >> /var/lib/postgresql/data/postgresql.conf
+fi
 
-# Setup database
-echo "Setting up database..."
-sudo -u postgres psql -c "SELECT 1 FROM pg_database WHERE datname = '$POSTGRES_DB'" | grep -q 1 || \
-sudo -u postgres createdb $POSTGRES_DB
+# PostgreSQL 시작
+su - postgres -c "/usr/lib/postgresql/15/bin/pg_ctl -D /var/lib/postgresql/data -l /var/lib/postgresql/logfile start"
 
-sudo -u postgres psql -c "SELECT 1 FROM pg_user WHERE usename = '$POSTGRES_USER'" | grep -q 1 || \
-sudo -u postgres psql -c "CREATE USER $POSTGRES_USER WITH PASSWORD '$POSTGRES_PASSWORD';"
+# 데이터베이스 및 사용자 생성
+echo "👤 데이터베이스 사용자 생성 중..."
+su - postgres -c "psql -c \"CREATE USER admin WITH PASSWORD 'safework123';\"" || true
+su - postgres -c "psql -c \"CREATE DATABASE health_management OWNER admin;\"" || true
+su - postgres -c "psql -c \"GRANT ALL PRIVILEGES ON DATABASE health_management TO admin;\"" || true
 
-sudo -u postgres psql -c "GRANT ALL PRIVILEGES ON DATABASE $POSTGRES_DB TO $POSTGRES_USER;"
+# Redis 시작
+echo "📊 Redis 시작 중..."
+redis-server --daemonize yes --bind 0.0.0.0 --port 6379
 
-# Start Redis
-echo "Starting Redis..."
-redis-server /etc/redis/redis.conf --daemonize yes
-sleep 2
+# 잠시 대기 (서비스 준비 시간)
+sleep 5
 
-# Start application
-echo "Starting SafeWork Pro application..."
-cd /app
-exec python3 main.py
+# FastAPI 서버 시작 (포트 3001에서 직접)
+echo "🐍 FastAPI 서버 시작 중 (포트 3001)..."
+echo "✅ 데이터베이스 초기화 완료"
+echo "🎉 SafeWork Pro 서버 시작 완료!"
+echo "🌐 접속 주소: http://localhost:3001"
+echo "📚 API 문서: http://localhost:3001/docs"
+
+# FastAPI 실행
+exec python main.py
