@@ -1,0 +1,33 @@
+version: '3.8'
+
+services:
+  watchtower:
+    image: containrrr/watchtower:latest
+    container_name: watchtower
+    restart: unless-stopped
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      - ~/.docker/config.json:/config.json:ro
+    environment:
+      # 기본 설정
+      WATCHTOWER_POLL_INTERVAL: 30
+      WATCHTOWER_CLEANUP: "true"
+      WATCHTOWER_INCLUDE_STOPPED: "false"
+      WATCHTOWER_INCLUDE_RESTARTING: "true"
+      
+      # 레지스트리 인증
+      DOCKER_CONFIG: /config.json
+      
+      # 알림 설정 (옵션)
+      WATCHTOWER_NOTIFICATIONS: shoutrrr
+      WATCHTOWER_NOTIFICATION_URL: "${NOTIFICATION_URL:-}"
+      
+      # 로깅
+      WATCHTOWER_LOG_LEVEL: info
+      
+      # 라벨 필터링 - safework 컨테이너만 감시
+      WATCHTOWER_LABEL_ENABLE: "true"
+      
+    command: --interval 30
+    labels:
+      - "com.centurylinklabs.watchtower.enable=false"  # Watchtower 자신은 업데이트하지 않음

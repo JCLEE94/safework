@@ -40,6 +40,8 @@ services:
       # Watchtower 자동 업데이트
       - "com.centurylinklabs.watchtower.enable=true"
       - "com.centurylinklabs.watchtower.monitor-only=false"
+      - "com.centurylinklabs.watchtower.stop-signal=SIGTERM"
+      - "com.centurylinklabs.watchtower.timeout=60s"
       
       # 메타데이터
       - "org.opencontainers.image.title=SafeWork Pro"
