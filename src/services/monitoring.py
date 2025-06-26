@@ -11,6 +11,7 @@ from datetime import datetime, timedelta
 from typing import Dict, List, Any, Optional
 from collections import deque, defaultdict
 import redis.asyncio as redis
+import redis.exceptions
 
 from ..config.settings import get_settings
 from ..utils.logger import logger
@@ -24,6 +25,7 @@ class MetricsCollector:
     def __init__(self, redis_client: Optional[redis.Redis] = None):
         self.redis_client = redis_client
         self.metrics_buffer = deque(maxlen=1000)  # 최근 1000개 메트릭 저장
+        self.is_running = True  # 실행 상태 플래그
         self.alert_thresholds = {
             'cpu_percent': 80.0,
             'memory_percent': 85.0,
@@ -107,6 +109,9 @@ class MetricsCollector:
     async def _store_metrics_in_redis(self, metrics: Dict[str, Any]):
         """Redis에 메트릭 저장"""
         try:
+            if not self.is_running:
+                return  # 종료 중이면 저장하지 않음
+                
             # 시계열 데이터로 저장
             key = f"metrics:{datetime.now().strftime('%Y%m%d:%H')}"
             await self.redis_client.zadd(
@@ -115,8 +120,13 @@ class MetricsCollector:
             )
             # 24시간 후 만료
             await self.redis_client.expire(key, 86400)
+        except redis.exceptions.ConnectionError:
+            # 종료 시 연결 끊김은 정상적인 동작
+            if self.is_running:
+                logger.warning("Redis 연결이 끊어졌습니다")
         except Exception as e:
-            logger.error("Redis 메트릭 저장 실패", error=e)
+            if self.is_running:
+                logger.error("Redis 메트릭 저장 실패", error=e)
     
     async def _check_thresholds(self, metrics: Dict[str, Any]):
         """임계값 체크 및 알림 생성"""

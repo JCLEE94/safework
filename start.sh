@@ -8,6 +8,9 @@ echo "Timezone: $TZ"
 # PostgreSQL 초기화 및 시작
 echo "📊 PostgreSQL 초기화 중..."
 
+# PostgreSQL 사용자 생성 (이미 있을 수 있음)
+id -u postgres &>/dev/null || useradd -r -s /bin/bash -d /var/lib/postgresql postgres
+
 # PostgreSQL 데이터 디렉토리 권한 수정
 mkdir -p /var/lib/postgresql/data
 chown -R postgres:postgres /var/lib/postgresql
