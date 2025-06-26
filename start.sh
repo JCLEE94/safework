@@ -59,6 +59,8 @@ http {
     server {
         listen 3001;
         server_name localhost;
+        root /app/dist;
+        index index.html;
         
         # React 정적 파일
         location / {
