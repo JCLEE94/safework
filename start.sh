@@ -16,9 +16,13 @@ mkdir -p /var/lib/postgresql/data
 chown -R postgres:postgres /var/lib/postgresql
 chmod 700 /var/lib/postgresql/data
 
+# PostgreSQL 바이너리 경로 찾기
+PG_BIN=$(find /usr -name pg_ctl -type f 2>/dev/null | head -1 | xargs dirname)
+echo "📁 PostgreSQL 바이너리 경로: $PG_BIN"
+
 if [ ! -f /var/lib/postgresql/data/PG_VERSION ]; then
     # postgres 사용자로 initdb 실행
-    su - postgres -c "/usr/lib/postgresql/15/bin/initdb -D /var/lib/postgresql/data --locale=C --encoding=UTF8"
+    su - postgres -c "$PG_BIN/initdb -D /var/lib/postgresql/data --locale=C --encoding=UTF8"
     
     # 설정 파일 수정
     echo "host all all 0.0.0.0/0 md5" >> /var/lib/postgresql/data/pg_hba.conf
@@ -26,7 +30,13 @@ if [ ! -f /var/lib/postgresql/data/PG_VERSION ]; then
 fi
 
 # PostgreSQL 시작
-su - postgres -c "/usr/lib/postgresql/15/bin/pg_ctl -D /var/lib/postgresql/data -l /var/lib/postgresql/logfile start"
+su - postgres -c "$PG_BIN/pg_ctl -D /var/lib/postgresql/data -l /var/lib/postgresql/logfile start" || {
+    echo "⚠️ PostgreSQL 시작 실패, 로그 확인:"
+    cat /var/lib/postgresql/logfile || true
+    echo "📁 데이터 디렉토리 상태:"
+    ls -la /var/lib/postgresql/data/ || true
+    exit 1
+}
 
 # 데이터베이스 및 사용자 생성
 echo "👤 데이터베이스 사용자 생성 중..."

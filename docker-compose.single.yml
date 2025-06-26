@@ -3,7 +3,7 @@ version: '3.8'
 services:
   app:
     image: registry.jclee.me/safework:latest
-    container_name: safework-all-in-one
+    container_name: safework
     restart: unless-stopped
     ports:
       - "3001:3001"
