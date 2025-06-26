@@ -3,10 +3,12 @@
 Monitoring API endpoints for real-time system metrics
 """
 
-from fastapi import APIRouter, WebSocket, WebSocketDisconnect, Depends, HTTPException
-from typing import List, Dict, Any
+from fastapi import APIRouter, WebSocket, WebSocketDisconnect, Depends, HTTPException, Query
+from typing import List, Dict, Any, Optional
 import json
 import asyncio
+import subprocess
+import os
 from datetime import datetime
 
 from ..services.monitoring import get_metrics_collector, MetricsCollector
@@ -264,6 +266,220 @@ async def get_monitoring_summary(
         "alerts_count": len(metrics_collector.get_alerts()),
         "updated_at": datetime.now().isoformat()
     }
+
+
+# ============================
+# 도커 컨테이너 로그 관리 엔드포인트
+# ============================
+
+@router.get("/docker/containers")
+async def list_docker_containers():
+    """실행 중인 도커 컨테이너 목록 조회"""
+    try:
+        # docker ps 명령어로 컨테이너 목록 조회
+        result = subprocess.run(
+            ["/usr/local/bin/docker", "ps", "--format", "table {{.ID}}\t{{.Names}}\t{{.Status}}\t{{.Ports}}"],
+            capture_output=True,
+            text=True,
+            timeout=10
+        )
+        
+        if result.returncode != 0:
+            raise HTTPException(status_code=500, detail=f"Docker 명령어 실행 실패: {result.stderr}")
+        
+        lines = result.stdout.strip().split('\n')
+        containers = []
+        
+        # 첫 번째 줄은 헤더이므로 건너뛰기
+        for line in lines[1:] if len(lines) > 1 else []:
+            parts = line.split('\t')
+            if len(parts) >= 4:
+                containers.append({
+                    "id": parts[0],
+                    "name": parts[1], 
+                    "status": parts[2],
+                    "ports": parts[3]
+                })
+        
+        return {
+            "total": len(containers),
+            "containers": containers,
+            "timestamp": datetime.now().isoformat()
+        }
+        
+    except subprocess.TimeoutExpired:
+        raise HTTPException(status_code=504, detail="Docker 명령어 타임아웃")
+    except Exception as e:
+        logger.error(f"컨테이너 목록 조회 실패: {e}")
+        raise HTTPException(status_code=500, detail=f"컨테이너 목록 조회 실패: {str(e)}")
+
+
+@router.get("/docker/logs/{container_name}")
+async def get_container_logs(
+    container_name: str,
+    lines: int = Query(default=100, ge=1, le=1000, description="가져올 로그 라인 수 (1-1000)"),
+    follow: bool = Query(default=False, description="실시간 로그 스트리밍 여부"),
+    since: Optional[str] = Query(default=None, description="특정 시간 이후 로그 (예: 2h, 1d)")
+):
+    """특정 컨테이너의 로그 조회"""
+    try:
+        # docker logs 명령어 구성
+        cmd = ["/usr/local/bin/docker", "logs"]
+        
+        if follow:
+            cmd.append("--follow")
+        
+        cmd.extend(["--tail", str(lines)])
+        
+        if since:
+            cmd.extend(["--since", since])
+            
+        cmd.extend(["--timestamps", container_name])
+        
+        # 실시간 로그가 아닌 경우 일반 실행
+        if not follow:
+            result = subprocess.run(
+                cmd,
+                capture_output=True,
+                text=True,
+                timeout=30
+            )
+            
+            if result.returncode != 0:
+                raise HTTPException(status_code=404, detail=f"컨테이너를 찾을 수 없거나 로그 조회 실패: {result.stderr}")
+            
+            log_lines = result.stdout.strip().split('\n') if result.stdout.strip() else []
+            
+            return {
+                "container": container_name,
+                "lines_requested": lines,
+                "lines_returned": len(log_lines),
+                "logs": log_lines,
+                "timestamp": datetime.now().isoformat(),
+                "since": since
+            }
+        else:
+            # 실시간 로그는 별도 처리 필요 (WebSocket 사용 권장)
+            raise HTTPException(status_code=400, detail="실시간 로그는 /docker/logs/stream WebSocket을 사용하세요")
+            
+    except subprocess.TimeoutExpired:
+        raise HTTPException(status_code=504, detail="로그 조회 타임아웃")
+    except Exception as e:
+        logger.error(f"컨테이너 로그 조회 실패: {e}")
+        raise HTTPException(status_code=500, detail=f"로그 조회 실패: {str(e)}")
+
+
+@router.get("/docker/stats/{container_name}")
+async def get_container_stats(container_name: str):
+    """특정 컨테이너의 리소스 사용량 통계"""
+    try:
+        # docker stats 명령어로 컨테이너 통계 조회 (--no-stream으로 한 번만)
+        result = subprocess.run(
+            ["/usr/local/bin/docker", "stats", "--no-stream", "--format", 
+             "table {{.Container}}\t{{.CPUPerc}}\t{{.MemUsage}}\t{{.MemPerc}}\t{{.NetIO}}\t{{.BlockIO}}", 
+             container_name],
+            capture_output=True,
+            text=True,
+            timeout=15
+        )
+        
+        if result.returncode != 0:
+            raise HTTPException(status_code=404, detail=f"컨테이너를 찾을 수 없음: {result.stderr}")
+        
+        lines = result.stdout.strip().split('\n')
+        if len(lines) < 2:
+            raise HTTPException(status_code=404, detail="컨테이너 통계를 가져올 수 없음")
+        
+        # 두 번째 줄이 실제 데이터
+        stats_line = lines[1].split('\t')
+        if len(stats_line) >= 6:
+            return {
+                "container": stats_line[0],
+                "cpu_percent": stats_line[1],
+                "memory_usage": stats_line[2],
+                "memory_percent": stats_line[3],
+                "network_io": stats_line[4],
+                "block_io": stats_line[5],
+                "timestamp": datetime.now().isoformat()
+            }
+        else:
+            raise HTTPException(status_code=500, detail="통계 데이터 파싱 실패")
+            
+    except subprocess.TimeoutExpired:
+        raise HTTPException(status_code=504, detail="통계 조회 타임아웃")
+    except Exception as e:
+        logger.error(f"컨테이너 통계 조회 실패: {e}")
+        raise HTTPException(status_code=500, detail=f"통계 조회 실패: {str(e)}")
+
+
+@router.websocket("/docker/logs/stream/{container_name}")
+async def stream_container_logs(websocket: WebSocket, container_name: str):
+    """실시간 컨테이너 로그 스트리밍 (WebSocket)"""
+    await websocket.accept()
+    
+    try:
+        # docker logs --follow 명령어로 실시간 로그 스트리밍
+        process = subprocess.Popen(
+            ["/usr/local/bin/docker", "logs", "--follow", "--timestamps", "--tail", "50", container_name],
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
+            text=True,
+            bufsize=1,
+            universal_newlines=True
+        )
+        
+        # 연결 성공 메시지
+        await websocket.send_json({
+            "type": "connected",
+            "container": container_name,
+            "message": f"{container_name} 컨테이너 로그 스트리밍 시작"
+        })
+        
+        # 로그 스트리밍
+        while True:
+            line = process.stdout.readline()
+            if line:
+                await websocket.send_json({
+                    "type": "log",
+                    "container": container_name,
+                    "line": line.strip(),
+                    "timestamp": datetime.now().isoformat()
+                })
+            else:
+                # 프로세스가 종료됨
+                break
+                
+            # WebSocket 연결 상태 확인
+            try:
+                await asyncio.wait_for(websocket.receive_text(), timeout=0.1)
+            except asyncio.TimeoutError:
+                # 타임아웃은 정상 (클라이언트가 메시지를 보내지 않음)
+                continue
+            except WebSocketDisconnect:
+                break
+                
+    except WebSocketDisconnect:
+        logger.info(f"로그 스트리밍 WebSocket 연결 종료: {container_name}")
+    except Exception as e:
+        logger.error(f"로그 스트리밍 에러: {e}")
+        try:
+            await websocket.send_json({
+                "type": "error",
+                "message": f"로그 스트리밍 에러: {str(e)}"
+            })
+        except:
+            pass
+    finally:
+        # 프로세스 정리
+        try:
+            if 'process' in locals():
+                process.terminate()
+                process.wait(timeout=5)
+        except:
+            try:
+                process.kill()
+            except:
+                pass
 
 
 # 주기적으로 연결된 클라이언트에 브로드캐스트
