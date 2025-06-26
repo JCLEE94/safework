@@ -41,60 +41,8 @@ redis-server --daemonize yes --bind 0.0.0.0 --port 6379
 # 잠시 대기 (서비스 준비 시간)
 sleep 5
 
-# Nginx 설정 (FastAPI와 React 프록시)
-echo "🌐 Nginx 설정 중..."
-cat > /etc/nginx/nginx.conf << 'EOF'
-events {
-    worker_connections 1024;
-}
-
-http {
-    include       /etc/nginx/mime.types;
-    default_type  application/octet-stream;
-    
-    upstream backend {
-        server 127.0.0.1:8000;
-    }
-    
-    server {
-        listen 3001;
-        server_name localhost;
-        root /app/dist;
-        index index.html;
-        
-        # React 정적 파일
-        location / {
-            try_files $uri $uri/ @backend;
-        }
-        
-        # API 요청은 FastAPI로 프록시
-        location /api/ {
-            proxy_pass http://backend;
-            proxy_set_header Host $host;
-            proxy_set_header X-Real-IP $remote_addr;
-            proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-            proxy_set_header X-Forwarded-Proto $scheme;
-        }
-        
-        # Health check
-        location /health {
-            proxy_pass http://backend;
-        }
-        
-        # Fallback to FastAPI for SPA routing
-        location @backend {
-            proxy_pass http://backend;
-            proxy_set_header Host $host;
-            proxy_set_header X-Real-IP $remote_addr;
-            proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-            proxy_set_header X-Forwarded-Proto $scheme;
-        }
-    }
-}
-EOF
-
-# Nginx 시작
-nginx
+# Nginx 제거 - FastAPI가 직접 정적 파일 서빙
+echo "🌐 Nginx 없이 FastAPI 직접 서빙 설정..."
 
 # FastAPI 애플리케이션 시작
 echo "🐍 FastAPI 서버 시작 중..."

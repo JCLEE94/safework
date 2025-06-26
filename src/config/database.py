@@ -79,3 +79,7 @@ async def get_db() -> AsyncSession:
 
 # Alias for compatibility with db_optimization
 get_async_session = get_db
+
+def get_db_engine():
+    """동기 엔진 반환 (마이그레이션용)"""
+    return engine

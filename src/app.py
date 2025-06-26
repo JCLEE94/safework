@@ -202,14 +202,24 @@ def create_app() -> FastAPI:
     
     # 정적 파일 서빙 (React 빌드된 파일들) - Mount after all API routes
     try:
-        static_dir = os.path.join(os.path.dirname(__file__), "static")
+        # Docker 환경에서는 /app/dist 디렉토리 사용
+        static_dir = "/app/dist" if os.path.exists("/app/dist") else os.path.join(os.path.dirname(__file__), "../static")
+        
         if os.path.exists(static_dir):
             app.mount("/", StaticFiles(directory=static_dir, html=True), name="static")
             logger.info(f"정적 파일 마운트 완료: {static_dir} -> /")
         else:
             logger.warning(f"정적 파일 디렉토리가 없습니다: {static_dir}")
+            # 기본 fallback 응답
+            @app.get("/")
+            async def root():
+                return {"message": "SafeWork Pro API", "status": "running", "frontend": "not available"}
     except Exception as e:
         logger.warning(f"정적 파일 마운트 실패: {e}")
+        # 기본 fallback 응답
+        @app.get("/")
+        async def root():
+            return {"message": "SafeWork Pro API", "status": "running", "error": str(e)}
     
     return app
 

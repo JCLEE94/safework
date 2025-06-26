@@ -39,14 +39,12 @@ ENV PYTHONDONTWRITEBYTECODE=1
 
 WORKDIR /app
 
-# 시스템 의존성 설치 (최소화)
+# 시스템 의존성 설치 (nginx 제거)
 RUN apt-get update && apt-get install -y --no-install-recommends \
     postgresql \
     postgresql-client \
     redis-server \
-    nginx \
     curl \
-    supervisor \
     fonts-nanum \
     wkhtmltopdf \
     && rm -rf /var/lib/apt/lists/* \
@@ -66,8 +64,6 @@ COPY --from=frontend-builder /app/dist ./dist/
 
 # 설정 파일 및 문서 복사
 COPY document/ ./document/
-COPY nginx.conf /etc/nginx/nginx.conf
-COPY supervisord.conf /etc/supervisor/conf.d/supervisord.conf
 
 # 필요한 디렉토리 생성 및 PostgreSQL 사용자 설정
 RUN mkdir -p uploads logs /var/lib/postgresql/data /var/lib/redis \
@@ -80,8 +76,7 @@ RUN mkdir -p uploads logs /var/lib/postgresql/data /var/lib/redis \
 COPY init-db.sh /usr/local/bin/
 RUN chmod +x /usr/local/bin/init-db.sh
 
-# Nginx 설정
-RUN rm -f /etc/nginx/sites-enabled/default
+# Nginx 제거됨 - 설정 불필요
 
 # 포트 노출
 EXPOSE 3001

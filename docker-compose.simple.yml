@@ -38,7 +38,7 @@ services:
     container_name: safework-app
     restart: unless-stopped
     ports:
-      - "3001:8000"
+      - "3001:3001"
     environment:
       DATABASE_URL: postgresql://admin:safework123@postgres:5432/health_management
       REDIS_URL: redis://redis:6379/0
@@ -48,7 +48,6 @@ services:
       TZ: Asia/Seoul
       DISABLE_AUTH: "true"
       BUILD_TIME: "${BUILD_TIME:-2025-06-26 12:00:00 KST}"
-      PORT: 8000
     depends_on:
       postgres:
         condition: service_healthy
