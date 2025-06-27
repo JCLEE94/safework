@@ -13,7 +13,7 @@ env:
 jobs:
   test:
     name: Run Tests
-    runs-on: [self-hosted, linux]
+    runs-on: ubuntu-latest
     
     steps:
       - uses: actions/checkout@v4
@@ -49,7 +49,7 @@ jobs:
           
   build:
     name: Build Docker Image
-    runs-on: [self-hosted, linux]
+    runs-on: ubuntu-latest
     needs: test
     
     steps:
@@ -91,7 +91,7 @@ jobs:
 
   notify:
     name: Deployment Notification
-    runs-on: [self-hosted, linux]
+    runs-on: ubuntu-latest
     needs: build
     if: github.ref == 'refs/heads/main'
     permissions:
@@ -145,7 +145,7 @@ jobs:
 
   failure-notification:
     name: Pipeline Failure Notification
-    runs-on: [self-hosted, linux]
+    runs-on: ubuntu-latest
     needs: [test, build]
     if: failure()
     
