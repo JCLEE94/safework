@@ -13,7 +13,7 @@ env:
 jobs:
   test:
     name: Run Tests
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, linux]
     
     steps:
       - uses: actions/checkout@v4
@@ -25,6 +25,8 @@ jobs:
           cache: 'npm'
           
       - name: Install frontend dependencies
+        env:
+          npm_config_cache: ${{ runner.temp }}/.npm
         run: npm ci
         
       - name: Run frontend tests
@@ -49,7 +51,7 @@ jobs:
           
   build:
     name: Build Docker Image
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, linux]
     needs: test
     
     steps:
@@ -91,7 +93,7 @@ jobs:
 
   notify:
     name: Deployment Notification
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, linux]
     needs: build
     if: github.ref == 'refs/heads/main'
     permissions:
@@ -145,7 +147,7 @@ jobs:
 
   failure-notification:
     name: Pipeline Failure Notification
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, linux]
     needs: [test, build]
     if: failure()
     
