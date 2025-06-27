@@ -13,7 +13,7 @@ env:
 jobs:
   test:
     name: Run Tests
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, linux]
     
     steps:
       - uses: actions/checkout@v4
@@ -45,11 +45,11 @@ jobs:
         env:
           PYTHONPATH: ${{ github.workspace }}
         run: |
-          pytest tests/ -v --cov=src --cov-report=xml || true
+          pytest tests/ -v --cov=src --cov-report=xml --cov-fail-under=70
           
   build:
     name: Build Docker Image
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, linux]
     needs: test
     
     steps:
@@ -91,7 +91,7 @@ jobs:
 
   notify:
     name: Deployment Notification
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, linux]
     needs: build
     if: github.ref == 'refs/heads/main'
     permissions:
@@ -121,7 +121,7 @@ jobs:
                 deployment_id: deployment.data.id,
                 state: 'success',
                 description: 'Image pushed to registry - Watchtower will deploy',
-                environment_url: 'https://safework.jclee.me'
+                environment_url: 'http://192.168.50.215:3001'
               });
               
               console.log('Deployment notification created successfully');
@@ -129,3 +129,63 @@ jobs:
               console.log('Failed to create deployment notification:', error.message);
               // Don't fail the workflow if notification fails
             }
+
+      - name: Pipeline Success Notification
+        if: success()
+        run: |
+          echo "✅ Pipeline completed successfully"
+          echo "📦 Image pushed to registry.jclee.me/safework:latest"
+          echo "🚀 Watchtower will deploy automatically"
+      
+      - name: Trigger Watchtower update via Webhook
+        if: success()
+        run: |
+          curl -X POST https://watchtower.jclee.me/v1/update \
+          -H "Authorization: Bearer MySuperSecretToken12345"
+
+  failure-notification:
+    name: Pipeline Failure Notification
+    runs-on: [self-hosted, linux]
+    needs: [test, build]
+    if: failure()
+    
+    steps:
+      - name: Identify failure point
+        run: |
+          if [ "${{ needs.test.result }}" = "failure" ]; then
+            echo "❌ Pipeline failed at TESTING stage"
+            echo "FAILURE_STAGE=test" >> $GITHUB_ENV
+            echo "FAILURE_MESSAGE=Tests failed - code quality issues detected" >> $GITHUB_ENV
+          elif [ "${{ needs.build.result }}" = "failure" ]; then
+            echo "❌ Pipeline failed at BUILD stage"
+            echo "FAILURE_STAGE=build" >> $GITHUB_ENV
+            echo "FAILURE_MESSAGE=Docker build failed - check Dockerfile and dependencies" >> $GITHUB_ENV
+          else
+            echo "❌ Pipeline failed at unknown stage"
+            echo "FAILURE_STAGE=unknown" >> $GITHUB_ENV
+            echo "FAILURE_MESSAGE=Unknown failure - check workflow logs" >> $GITHUB_ENV
+          fi
+
+      - name: Send failure notification
+        if: env.SLACK_WEBHOOK_URL
+        run: |
+          curl -X POST "${{ secrets.SLACK_WEBHOOK_URL }}" \
+            -H "Content-Type: application/json" \
+            -d '{
+              "text": "❌ SafeWork Pro Pipeline Failed",
+              "attachments": [{
+                "color": "danger",
+                "fields": [
+                  {"title": "Repository", "value": "${{ github.repository }}", "short": true},
+                  {"title": "Branch", "value": "${{ github.ref_name }}", "short": true},
+                  {"title": "Commit", "value": "${{ github.sha }}", "short": true},
+                  {"title": "Failed Stage", "value": "${{ env.FAILURE_STAGE }}", "short": true},
+                  {"title": "Message", "value": "${{ env.FAILURE_MESSAGE }}", "short": false}
+                ],
+                "actions": [{
+                  "type": "button",
+                  "text": "View Logs",
+                  "url": "${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+                }]
+              }]
+            }' || echo "Failed to send Slack notification"
