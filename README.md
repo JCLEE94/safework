@@ -40,15 +40,31 @@ SafeWork Pro는 한국 산업안전보건법에 따른 건설업 보건관리를
 
 ## 🚀 빠른 시작
 
-### Docker를 사용한 실행 (권장)
-
+### 운영 환경 (단일 컨테이너)
 ```bash
-# 개발 환경
-docker-compose -f docker-compose.dev.yml up --build
+# 1. 환경 설정
+cp config/env.production.example .env
 
-# 프로덕션 환경
+# 2. 배포 실행
 docker-compose up -d
+
+# 3. 상태 확인
+curl http://localhost:3001/health
 ```
+
+### 개발 환경 (분리된 서비스)
+```bash
+# 1. 환경 설정
+cp config/env.development.example .env
+
+# 2. 개발 환경 실행 (override 파일 자동 적용)
+ENVIRONMENT=development docker-compose up -d
+
+# 또는 기존 개발용 설정 사용
+docker-compose -f docker-compose.dev.yml up --build
+```
+
+> 📖 **자세한 배포 가이드**: [DEPLOYMENT.md](DEPLOYMENT.md) 참조
 
 애플리케이션 접속: http://localhost:3001
 
@@ -107,48 +123,72 @@ npm run build
 
 ## 📁 프로젝트 구조
 
+### 🎯 사용 중인 파일들
 ```
-health/
-├── config/                 # 프로젝트 설정
-│   ├── project.yml         # 프로젝트 메타데이터
-│   ├── workflows.yml       # CI/CD 설정
-│   └── watchtower.yml      # 자동 배포 설정
-├── src/
-│   ├── app.py              # FastAPI 애플리케이션
-│   ├── config/             # 설정 및 데이터베이스
-│   ├── models/             # SQLAlchemy 모델
-│   ├── schemas/            # Pydantic 스키마
-│   ├── handlers/           # API 엔드포인트
-│   ├── services/           # 비즈니스 로직
-│   ├── middleware/         # 미들웨어 (보안, 캐싱, 성능)
-│   └── utils/              # 유틸리티 함수
-├── docker/
-│   └── compose/            # Docker Compose 파일들
-├── scripts/                # 유틸리티 스크립트
-├── tests/                  # 테스트 코드
-├── document/               # PDF 템플릿 및 문서
-└── requirements.txt        # Python 의존성
+safework/
+├── docker-compose.yml           # 메인 설정 (환경변수로 운영/개발 구분)
+├── docker-compose.dev.yml       # 개발 환경 (분리된 서비스)
+├── docker-compose.override.yml  # 개발 환경 오버라이드 (자동 적용)
+├── deploy-single.sh            # 현재 사용 중인 배포 스크립트
+├── DEPLOYMENT.md               # 📖 배포 가이드
+├── config/
+│   ├── env.production.example  # 운영 환경 설정 예제
+│   └── env.development.example # 개발 환경 설정 예제
+├── src/                        # 애플리케이션 소스코드
+│   ├── app.py                 # FastAPI 애플리케이션
+│   ├── models/                # SQLAlchemy 모델
+│   ├── schemas/               # Pydantic 스키마
+│   ├── handlers/              # API 엔드포인트
+│   ├── services/              # 비즈니스 로직
+│   ├── middleware/            # 미들웨어 (보안, 캐싱)
+│   └── utils/                 # 유틸리티 함수
+├── tests/                      # 테스트 코드
+├── scripts/                    # 유틸리티 스크립트
+├── document/                   # PDF 템플릿 및 문서
+└── .github/workflows/          # CI/CD 파이프라인
 ```
+
+### 🗃️ 정리된 파일들 (archive/)
+```
+archive/
+├── docker-compose/            # 20개 이상의 중복 docker-compose 파일들
+├── deploy-scripts/            # 10개 이상의 사용하지 않는 배포 스크립트들
+├── documentation/             # 이전 README 파일들
+├── dockerfiles/              # 사용하지 않는 Dockerfile들
+├── configs/                  # 사용하지 않는 설정 파일들
+└── docker/                   # 전체 docker 디렉터리 (이전 구조)
+```
+
+> 📖 **자세한 사용법**: [DEPLOYMENT.md](DEPLOYMENT.md)에서 환경별 설정 방법을 확인하세요.
 
 ## 🔧 환경 설정
 
-### 환경 변수 (.env)
+### 환경별 설정 파일
 ```bash
-# Database
-DATABASE_URL=postgresql://admin:password@postgres:5432/health_management
+# 운영 환경
+cp config/env.production.example .env
 
-# Redis
-REDIS_URL=redis://redis:6379/0
+# 개발 환경
+cp config/env.development.example .env
+```
 
-# Security
-JWT_SECRET=your-secret-key-here
-JWT_ALGORITHM=HS256
-JWT_EXPIRATION_MINUTES=30
+### 주요 환경 변수
+- `ENVIRONMENT`: production/development/test
+- `DEBUG`: true/false (개발 환경에서만 true)
+- `LOG_LEVEL`: DEBUG/INFO/WARNING/ERROR
+- `DATABASE_URL`: 데이터베이스 연결 URL
+- `REDIS_URL`: Redis 연결 URL
+- `JWT_SECRET`: JWT 토큰 비밀키
 
-# Application
-DEBUG=false
-LOG_LEVEL=INFO
-TZ=Asia/Seoul
+### Docker Compose 사용법
+```bash
+# 운영 환경 (단일 컨테이너)
+docker-compose up -d
+
+# 개발 환경 (분리된 서비스)
+ENVIRONMENT=development docker-compose up -d
+# 또는
+docker-compose -f docker-compose.dev.yml up --build
 ```
 
 ## 📊 API 문서
