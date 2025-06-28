@@ -58,15 +58,15 @@ async def async_client(setup_database):
         yield client
 
 
-@pytest.fixture
+@pytest.fixture(scope="function")
 async def db_session():
     """Create test database session"""
     async with TestSessionLocal() as session:
         yield session
 
 
-@pytest.fixture
-async def test_worker(db_session: AsyncSession):
+@pytest.fixture(scope="function")  
+async def test_worker(db_session):
     """Create test worker"""
     worker = Worker(
         employee_id="TEST001",
@@ -87,8 +87,8 @@ async def test_worker(db_session: AsyncSession):
     return worker
 
 
-@pytest.fixture
-async def test_health_exam(db_session: AsyncSession, test_worker):
+@pytest.fixture(scope="function")
+async def test_health_exam(db_session, test_worker):
     """Create test health exam"""
     worker = await test_worker
     exam = HealthExam(
@@ -107,8 +107,8 @@ async def test_health_exam(db_session: AsyncSession, test_worker):
     return exam
 
 
-@pytest.fixture
-async def test_work_environment(db_session: AsyncSession):
+@pytest.fixture(scope="function")
+async def test_work_environment(db_session):
     """Create test work environment"""
     env = WorkEnvironment(
         measurement_date=datetime.now(),
@@ -128,8 +128,8 @@ async def test_work_environment(db_session: AsyncSession):
     return env
 
 
-@pytest.fixture
-async def test_health_education(db_session: AsyncSession):
+@pytest.fixture(scope="function")
+async def test_health_education(db_session):
     """Create test health education"""
     education = HealthEducation(
         education_date=datetime.now(),
@@ -146,8 +146,8 @@ async def test_health_education(db_session: AsyncSession):
     return education
 
 
-@pytest.fixture
-async def test_chemical_substance(db_session: AsyncSession):
+@pytest.fixture(scope="function")
+async def test_chemical_substance(db_session):
     """Create test chemical substance"""
     chemical = ChemicalSubstance(
         korean_name="테스트화학물질",
@@ -167,8 +167,8 @@ async def test_chemical_substance(db_session: AsyncSession):
     return chemical
 
 
-@pytest.fixture
-async def test_accident_report(db_session: AsyncSession, test_worker):
+@pytest.fixture(scope="function")
+async def test_accident_report(db_session, test_worker):
     """Create test accident report"""
     worker = await test_worker
     report = AccidentReport(
