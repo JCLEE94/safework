@@ -47,7 +47,7 @@ jobs:
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
-          pip install -r requirements.txt
+          pip install -r backend/requirements.txt
           pip install pytest pytest-cov pytest-asyncio pytest-timeout
           
       - name: Run tests
@@ -79,17 +79,20 @@ jobs:
           node-version: '18'
           
       - name: Install dependencies
+        working-directory: frontend
         run: |
           export NPM_CONFIG_CACHE=/tmp/.npm
           mkdir -p /tmp/.npm
           npm install --cache /tmp/.npm
         
       - name: Run tests
+        working-directory: frontend
         run: |
           export NPM_CONFIG_CACHE=/tmp/.npm
           npm run test
         
       - name: Build frontend
+        working-directory: frontend
         run: |
           export NPM_CONFIG_CACHE=/tmp/.npm
           npm run build
@@ -98,4 +101,4 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: frontend-build
-          path: dist/
+          path: frontend/dist/
