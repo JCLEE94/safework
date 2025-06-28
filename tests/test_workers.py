@@ -6,7 +6,6 @@ import pytest
 from httpx import AsyncClient
 from src.app import create_app
 
-@pytest.mark.asyncio
 async def test_create_worker():
     """근로자 생성 테스트"""
     app = create_app()
@@ -25,7 +24,6 @@ async def test_create_worker():
         assert data["name"] == "테스트근로자"
         assert data["employee_id"] == "TEST001"
 
-@pytest.mark.asyncio 
 async def test_get_workers():
     """근로자 목록 조회 테스트"""
     app = create_app()
@@ -37,7 +35,6 @@ async def test_get_workers():
         assert "items" in data
         assert "total" in data
 
-@pytest.mark.asyncio
 async def test_health_check():
     """헬스체크 테스트"""
     app = create_app()
@@ -48,7 +45,6 @@ async def test_health_check():
         data = response.json()
         assert data["status"] == "healthy"
 
-@pytest.mark.asyncio
 async def test_pdf_forms():
     """PDF 양식 목록 테스트"""
     app = create_app()
@@ -60,7 +56,6 @@ async def test_pdf_forms():
         assert "forms" in data
         assert len(data["forms"]) > 0
 
-@pytest.mark.asyncio
 async def test_pdf_test_endpoint():
     """PDF 테스트 엔드포인트"""
     app = create_app()

@@ -4,8 +4,7 @@ from datetime import datetime, date
 from src.models import ChemicalSubstance
 
 
-@pytest.mark.asyncio
-async def test_create_chemical_substance(async_client: AsyncClient):
+async def test_create_chemical_substance(client: AsyncClient):
     """화학물질 등록 테스트"""
     chemical_data = {
         "korean_name": "메탄올",
@@ -24,7 +23,7 @@ async def test_create_chemical_substance(async_client: AsyncClient):
         "msds_revision_date": "2024-01-01"
     }
     
-    response = await async_client.post("/api/v1/chemical-substances/", json=chemical_data)
+    response = await client.post("/api/v1/chemical-substances/", json=chemical_data)
     assert response.status_code == 200
     
     data = response.json()
@@ -33,10 +32,9 @@ async def test_create_chemical_substance(async_client: AsyncClient):
     assert data["hazard_class"] == "TOXIC"
 
 
-@pytest.mark.asyncio
-async def test_get_chemical_substance(async_client: AsyncClient, test_chemical_substance):
+async def test_get_chemical_substance(client: AsyncClient, test_chemical_substance):
     """화학물질 상세 조회 테스트"""
-    response = await async_client.get(f"/api/v1/chemical-substances/{test_chemical_substance.id}")
+    response = await client.get(f"/api/v1/chemical-substances/{test_chemical_substance.id}")
     assert response.status_code == 200
     
     data = response.json()
@@ -44,8 +42,7 @@ async def test_get_chemical_substance(async_client: AsyncClient, test_chemical_s
     assert data["korean_name"] == test_chemical_substance.korean_name
 
 
-@pytest.mark.asyncio
-async def test_update_chemical_substance(async_client: AsyncClient, test_chemical_substance):
+async def test_update_chemical_substance(client: AsyncClient, test_chemical_substance):
     """화학물질 정보 수정 테스트"""
     update_data = {
         "current_quantity": 25.0,
@@ -53,7 +50,7 @@ async def test_update_chemical_substance(async_client: AsyncClient, test_chemica
         "notes": "재고 감소로 인한 위치 변경"
     }
     
-    response = await async_client.put(f"/api/v1/chemical-substances/{test_chemical_substance.id}", json=update_data)
+    response = await client.put(f"/api/v1/chemical-substances/{test_chemical_substance.id}", json=update_data)
     assert response.status_code == 200
     
     data = response.json()
@@ -61,10 +58,9 @@ async def test_update_chemical_substance(async_client: AsyncClient, test_chemica
     assert data["storage_location"] == "화학물질 보관실 B-2"
 
 
-@pytest.mark.asyncio
-async def test_list_chemical_substances(async_client: AsyncClient, test_chemical_substance):
+async def test_list_chemical_substances(client: AsyncClient, test_chemical_substance):
     """화학물질 목록 조회 테스트"""
-    response = await async_client.get("/api/v1/chemical-substances/")
+    response = await client.get("/api/v1/chemical-substances/")
     assert response.status_code == 200
     
     data = response.json()
@@ -73,8 +69,7 @@ async def test_list_chemical_substances(async_client: AsyncClient, test_chemical
     assert data["total"] >= 1
 
 
-@pytest.mark.asyncio
-async def test_record_chemical_usage(async_client: AsyncClient, test_chemical_substance, test_worker):
+async def test_record_chemical_usage(client: AsyncClient, test_chemical_substance, test_worker):
     """화학물질 사용 기록 테스트"""
     usage_data = {
         "usage_date": datetime.now().isoformat(),
@@ -87,7 +82,7 @@ async def test_record_chemical_usage(async_client: AsyncClient, test_chemical_su
         "ppe_used": "방독면, 장갑"
     }
     
-    response = await async_client.post(f"/api/v1/chemical-substances/{test_chemical_substance.id}/usage", json=usage_data)
+    response = await client.post(f"/api/v1/chemical-substances/{test_chemical_substance.id}/usage", json=usage_data)
     assert response.status_code == 200
     
     data = response.json()
@@ -95,10 +90,9 @@ async def test_record_chemical_usage(async_client: AsyncClient, test_chemical_su
     assert "remaining_quantity" in data
 
 
-@pytest.mark.asyncio
-async def test_get_chemical_statistics(async_client: AsyncClient):
+async def test_get_chemical_statistics(client: AsyncClient):
     """화학물질 통계 조회 테스트"""
-    response = await async_client.get("/api/v1/chemical-substances/statistics")
+    response = await client.get("/api/v1/chemical-substances/statistics")
     assert response.status_code == 200
     
     data = response.json()
@@ -108,10 +102,9 @@ async def test_get_chemical_statistics(async_client: AsyncClient):
     assert "low_stock_items" in data
 
 
-@pytest.mark.asyncio
-async def test_check_inventory_status(async_client: AsyncClient):
+async def test_check_inventory_status(client: AsyncClient):
     """재고 점검 현황 테스트"""
-    response = await async_client.get("/api/v1/chemical-substances/inventory-check")
+    response = await client.get("/api/v1/chemical-substances/inventory-check")
     assert response.status_code == 200
     
     data = response.json()
@@ -120,10 +113,9 @@ async def test_check_inventory_status(async_client: AsyncClient):
     assert "expired" in data
 
 
-@pytest.mark.asyncio
-async def test_search_chemicals(async_client: AsyncClient, test_chemical_substance):
+async def test_search_chemicals(client: AsyncClient, test_chemical_substance):
     """화학물질 검색 테스트"""
-    response = await async_client.get(f"/api/v1/chemical-substances/?search={test_chemical_substance.korean_name}")
+    response = await client.get(f"/api/v1/chemical-substances/?search={test_chemical_substance.korean_name}")
     assert response.status_code == 200
     
     data = response.json()

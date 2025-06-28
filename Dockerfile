@@ -46,7 +46,8 @@ RUN pip install --no-cache-dir -r requirements.txt
 
 # 백엔드 소스 복사
 COPY src/ ./src/
-COPY main.py ./
+COPY tests/ ./tests/
+COPY main.py pytest.ini ./
 
 # 프론트엔드 빌드 복사
 COPY --from=frontend-builder /app/dist ./dist/

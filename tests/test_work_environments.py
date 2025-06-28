@@ -4,8 +4,7 @@ from datetime import datetime
 from src.models import WorkEnvironment
 
 
-@pytest.mark.asyncio
-async def test_create_work_environment(async_client: AsyncClient):
+async def test_create_work_environment(client: AsyncClient):
     """작업환경측정 기록 생성 테스트"""
     env_data = {
         "measurement_date": datetime.now().isoformat(),
@@ -20,7 +19,7 @@ async def test_create_work_environment(async_client: AsyncClient):
         "report_number": "ENV-2024-001"
     }
     
-    response = await async_client.post("/api/v1/work-environments/", json=env_data)
+    response = await client.post("/api/v1/work-environments/", json=env_data)
     assert response.status_code == 200
     
     data = response.json()
@@ -30,10 +29,9 @@ async def test_create_work_environment(async_client: AsyncClient):
     assert data["result"] == "PASS"
 
 
-@pytest.mark.asyncio
-async def test_get_work_environment(async_client: AsyncClient, test_work_environment):
+async def test_get_work_environment(client: AsyncClient, test_work_environment):
     """작업환경측정 기록 조회 테스트"""
-    response = await async_client.get(f"/api/v1/work-environments/{test_work_environment.id}")
+    response = await client.get(f"/api/v1/work-environments/{test_work_environment.id}")
     assert response.status_code == 200
     
     data = response.json()
@@ -41,8 +39,7 @@ async def test_get_work_environment(async_client: AsyncClient, test_work_environ
     assert data["location"] == test_work_environment.location
 
 
-@pytest.mark.asyncio
-async def test_update_work_environment(async_client: AsyncClient, test_work_environment):
+async def test_update_work_environment(client: AsyncClient, test_work_environment):
     """작업환경측정 기록 수정 테스트"""
     update_data = {
         "result": "FAIL",
@@ -50,7 +47,7 @@ async def test_update_work_environment(async_client: AsyncClient, test_work_envi
         "re_measurement_required": "Y"
     }
     
-    response = await async_client.put(f"/api/v1/work-environments/{test_work_environment.id}", json=update_data)
+    response = await client.put(f"/api/v1/work-environments/{test_work_environment.id}", json=update_data)
     assert response.status_code == 200
     
     data = response.json()
@@ -58,10 +55,9 @@ async def test_update_work_environment(async_client: AsyncClient, test_work_envi
     assert data["improvement_measures"] == "환기시설 보강 필요"
 
 
-@pytest.mark.asyncio
-async def test_list_work_environments(async_client: AsyncClient, test_work_environment):
+async def test_list_work_environments(client: AsyncClient, test_work_environment):
     """작업환경측정 기록 목록 조회 테스트"""
-    response = await async_client.get("/api/v1/work-environments/")
+    response = await client.get("/api/v1/work-environments/")
     assert response.status_code == 200
     
     data = response.json()
@@ -70,8 +66,7 @@ async def test_list_work_environments(async_client: AsyncClient, test_work_envir
     assert data["total"] >= 1
 
 
-@pytest.mark.asyncio
-async def test_add_worker_exposures(async_client: AsyncClient, test_work_environment, test_worker):
+async def test_add_worker_exposures(client: AsyncClient, test_work_environment, test_worker):
     """노출 근로자 추가 테스트"""
     exposure_data = [
         {
@@ -83,17 +78,16 @@ async def test_add_worker_exposures(async_client: AsyncClient, test_work_environ
         }
     ]
     
-    response = await async_client.post(f"/api/v1/work-environments/{test_work_environment.id}/exposures", json=exposure_data)
+    response = await client.post(f"/api/v1/work-environments/{test_work_environment.id}/exposures", json=exposure_data)
     assert response.status_code == 200
     
     data = response.json()
     assert data["added_count"] == 1
 
 
-@pytest.mark.asyncio
-async def test_get_environment_statistics(async_client: AsyncClient):
+async def test_get_environment_statistics(client: AsyncClient):
     """작업환경측정 통계 조회 테스트"""
-    response = await async_client.get("/api/v1/work-environments/statistics")
+    response = await client.get("/api/v1/work-environments/statistics")
     assert response.status_code == 200
     
     data = response.json()
@@ -103,10 +97,9 @@ async def test_get_environment_statistics(async_client: AsyncClient):
     assert "by_type" in data
 
 
-@pytest.mark.asyncio
-async def test_get_compliance_status(async_client: AsyncClient):
+async def test_get_compliance_status(client: AsyncClient):
     """법규 준수 현황 조회 테스트"""
-    response = await async_client.get("/api/v1/work-environments/compliance-status")
+    response = await client.get("/api/v1/work-environments/compliance-status")
     assert response.status_code == 200
     
     data = response.json()

@@ -7,7 +7,6 @@ from httpx import AsyncClient
 from src.app import create_app
 import json
 
-@pytest.mark.asyncio
 class TestHealthManagementSystem:
     """건설업 보건관리 시스템 통합 테스트"""
     

@@ -8,7 +8,6 @@ import json
 
 PRODUCTION_URL = "http://soonmin.jclee.me"
 
-@pytest.mark.asyncio
 class TestProductionServer:
     """운영서버 통합 테스트"""
     
