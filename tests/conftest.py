@@ -90,8 +90,9 @@ async def test_worker(db_session: AsyncSession):
 @pytest.fixture
 async def test_health_exam(db_session: AsyncSession, test_worker):
     """Create test health exam"""
+    worker = await test_worker
     exam = HealthExam(
-        worker_id=test_worker.id,
+        worker_id=worker.id,
         exam_date=datetime.now(),
         exam_type="GENERAL",
         exam_result="NORMAL",
@@ -169,11 +170,12 @@ async def test_chemical_substance(db_session: AsyncSession):
 @pytest.fixture
 async def test_accident_report(db_session: AsyncSession, test_worker):
     """Create test accident report"""
+    worker = await test_worker
     report = AccidentReport(
         accident_datetime=datetime.now(),
         report_datetime=datetime.now(),
         accident_location="테스트현장",
-        worker_id=test_worker.id,
+        worker_id=worker.id,
         accident_type="FALL",
         injury_type="BRUISE",
         severity="MINOR",
@@ -205,10 +207,11 @@ def sample_worker_data():
 
 
 @pytest.fixture
-def sample_health_exam_data(test_worker):
+async def sample_health_exam_data(test_worker):
     """Sample health exam data for testing"""
+    worker = await test_worker
     return {
-        "worker_id": test_worker.id,
+        "worker_id": worker.id,
         "exam_date": datetime.now().isoformat(),
         "exam_type": "GENERAL",
         "exam_agency": "서울의료원",

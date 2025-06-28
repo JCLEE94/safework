@@ -73,9 +73,10 @@ async def test_list_work_environments(async_client: AsyncClient, test_work_envir
 @pytest.mark.asyncio
 async def test_add_worker_exposures(async_client: AsyncClient, test_work_environment, test_worker):
     """노출 근로자 추가 테스트"""
+    worker = await test_worker
     exposure_data = [
         {
-            "worker_id": test_worker.id,
+            "worker_id": worker.id,
             "exposure_level": 82.5,
             "exposure_duration_hours": 8.0,
             "protection_equipment_used": "귀마개, 헬멧",

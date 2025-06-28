@@ -7,11 +7,12 @@ from src.models import AccidentReport
 @pytest.mark.asyncio
 async def test_create_accident_report(async_client: AsyncClient, test_worker):
     """산업재해 신고 테스트"""
+    worker = await test_worker
     report_data = {
         "accident_datetime": datetime.now().isoformat(),
         "report_datetime": datetime.now().isoformat(),
         "accident_location": "A동 3층 용접작업장",
-        "worker_id": test_worker.id,
+        "worker_id": worker.id,
         "accident_type": "FALL",
         "injury_type": "BRUISE",
         "severity": "MINOR",
@@ -26,7 +27,7 @@ async def test_create_accident_report(async_client: AsyncClient, test_worker):
     assert response.status_code == 200
     
     data = response.json()
-    assert data["worker_id"] == test_worker.id
+    assert data["worker_id"] == worker.id
     assert data["accident_type"] == "FALL"
     assert data["severity"] == "MINOR"
 

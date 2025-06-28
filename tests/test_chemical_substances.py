@@ -76,9 +76,10 @@ async def test_list_chemical_substances(async_client: AsyncClient, test_chemical
 @pytest.mark.asyncio
 async def test_record_chemical_usage(async_client: AsyncClient, test_chemical_substance, test_worker):
     """화학물질 사용 기록 테스트"""
+    worker = await test_worker
     usage_data = {
         "usage_date": datetime.now().isoformat(),
-        "worker_id": test_worker.id,
+        "worker_id": worker.id,
         "quantity_used": 5.0,
         "quantity_unit": "L",
         "purpose": "용접 작업",

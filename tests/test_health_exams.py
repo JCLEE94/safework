@@ -8,8 +8,9 @@ from src.models.health import ExamType, ExamResult
 @pytest.mark.asyncio
 async def test_create_health_exam(async_client: AsyncClient, test_worker):
     """건강진단 기록 생성 테스트"""
+    worker = await test_worker
     exam_data = {
-        "worker_id": test_worker.id,
+        "worker_id": worker.id,
         "exam_date": datetime.now().isoformat(),
         "exam_type": "GENERAL",
         "exam_agency": "서울의료원",
@@ -36,7 +37,7 @@ async def test_create_health_exam(async_client: AsyncClient, test_worker):
     assert response.status_code == 200
     
     data = response.json()
-    assert data["worker_id"] == test_worker.id
+    assert data["worker_id"] == worker.id
     assert data["exam_agency"] == "서울의료원"
     assert data["vital_signs"]["blood_pressure_systolic"] == 120
     assert len(data["lab_results"]) == 1
