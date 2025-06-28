@@ -10,7 +10,7 @@ from typing import Dict, List, Optional
 from fastapi import APIRouter, HTTPException, Request, BackgroundTasks
 from pydantic import BaseModel
 
-from ..services.cache_service import CacheService
+from ..services.cache import CacheService
 
 logger = logging.getLogger(__name__)
 
