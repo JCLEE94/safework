@@ -7,7 +7,7 @@ export const API_BASE_URL = import.meta.env.VITE_API_URL || window.location.orig
 
 export const BUILD_TIME = '2025-06-26 07:32:00 KST';
 
-// 메뉴 정의
+// 메뉴 정의 (통합 및 최적화)
 export const MENU_ITEMS = [
   { id: 'dashboard', name: '대시보드', icon: 'LayoutGrid', color: 'text-blue-600' },
   { id: 'workers', name: '근로자관리', icon: 'Users', color: 'text-purple-600' },
@@ -16,12 +16,10 @@ export const MENU_ITEMS = [
   { id: 'education', name: '보건교육', icon: 'BookOpen', color: 'text-indigo-600' },
   { id: 'chemicals', name: '화학물질관리', icon: 'FlaskConical', color: 'text-yellow-600' },
   { id: 'accidents', name: '산업재해', icon: 'AlertTriangle', color: 'text-orange-600' },
-  { id: 'documents', name: '문서관리', icon: 'FileText', color: 'text-cyan-600' },
-  { id: 'file-management', name: '파일관리', icon: 'FolderOpen', color: 'text-amber-600' },
-  { id: 'pdf-forms', name: 'PDF 양식', icon: 'FileEdit', color: 'text-emerald-600' },
-  { id: 'reports', name: '보고서', icon: 'FileText', color: 'text-gray-600' },
-  { id: 'monitoring', name: '모니터링', icon: 'MonitorDot', color: 'text-pink-600' },
-  { id: 'settings', name: '설정', icon: 'Settings', color: 'text-gray-600' },
+  { id: 'unified-documents', name: '통합문서관리', icon: 'FileText', color: 'text-cyan-600' },
+  { id: 'reports', name: '종합보고서', icon: 'BarChart3', color: 'text-indigo-600' },
+  { id: 'monitoring', name: '실시간모니터링', icon: 'MonitorDot', color: 'text-pink-600' },
+  { id: 'settings', name: '시스템설정', icon: 'Settings', color: 'text-gray-600' },
 ] as const;
 
 // Enum 값 정의

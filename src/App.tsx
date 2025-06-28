@@ -3,17 +3,15 @@ import React, { useState, useEffect } from 'react';
 // Components
 import { Layout } from './components/Layout';
 import { SimpleDashboard } from './components/SimpleDashboard';
-import { RealTimeMonitoring } from './components/Monitoring/RealTimeMonitoring';
+import { AdvancedMonitoring } from './components/AdvancedMonitoring';
 import { Workers } from './components/Workers';
 import { HealthExams } from './components/HealthExams';
 import { WorkEnvironments } from './components/WorkEnvironments';
 import { HealthEducation } from './components/HealthEducation';
 import { ChemicalSubstances } from './components/ChemicalSubstances';
 import { AccidentReports } from './components/AccidentReports';
-import { DocumentManagement } from './components/DocumentManagement';
-import { PDFForms } from './components/PDFForms';
-import { FileManagement } from './components/FileManagement';
-import { Reports } from './components/Reports';
+import { UnifiedDocuments } from './components/UnifiedDocuments';
+import { EnhancedReports } from './components/EnhancedReports';
 import { Settings } from './components/Settings';
 
 function App() {
@@ -36,16 +34,12 @@ function App() {
         return <ChemicalSubstances />;
       case 'accidents':
         return <AccidentReports />;
-      case 'documents':
-        return <DocumentManagement />;
-      case 'file-management':
-        return <FileManagement />;
-      case 'pdf-forms':
-        return <PDFForms />;
+      case 'unified-documents':
+        return <UnifiedDocuments />;
       case 'reports':
-        return <Reports />;
+        return <EnhancedReports />;
       case 'monitoring':
-        return <RealTimeMonitoring />;
+        return <AdvancedMonitoring />;
       case 'settings':
         return <Settings />;
       default:

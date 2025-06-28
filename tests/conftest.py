@@ -1,4 +1,5 @@
 import pytest
+import pytest_asyncio
 import asyncio
 from datetime import datetime, date
 from httpx import AsyncClient
@@ -38,7 +39,7 @@ def event_loop():
     loop.close()
 
 
-@pytest.fixture(scope="session")
+@pytest_asyncio.fixture(scope="function")
 async def setup_database():
     """Setup test database"""
     async with test_engine.begin() as conn:
@@ -48,7 +49,7 @@ async def setup_database():
         await conn.run_sync(Base.metadata.drop_all)
 
 
-@pytest.fixture
+@pytest_asyncio.fixture(scope="function")
 async def async_client(setup_database):
     """Create test client"""
     app = create_app()
@@ -58,14 +59,14 @@ async def async_client(setup_database):
         yield client
 
 
-@pytest.fixture(scope="function")
+@pytest_asyncio.fixture(scope="function")
 async def db_session():
     """Create test database session"""
     async with TestSessionLocal() as session:
         yield session
 
 
-@pytest.fixture(scope="function")  
+@pytest_asyncio.fixture(scope="function")  
 async def test_worker(db_session):
     """Create test worker"""
     worker = Worker(
@@ -87,12 +88,11 @@ async def test_worker(db_session):
     return worker
 
 
-@pytest.fixture(scope="function")
+@pytest_asyncio.fixture(scope="function")
 async def test_health_exam(db_session, test_worker):
     """Create test health exam"""
-    worker = await test_worker
     exam = HealthExam(
-        worker_id=worker.id,
+        worker_id=test_worker.id,
         exam_date=datetime.now(),
         exam_type="GENERAL",
         exam_result="NORMAL",
@@ -107,7 +107,7 @@ async def test_health_exam(db_session, test_worker):
     return exam
 
 
-@pytest.fixture(scope="function")
+@pytest_asyncio.fixture(scope="function")
 async def test_work_environment(db_session):
     """Create test work environment"""
     env = WorkEnvironment(
@@ -128,7 +128,7 @@ async def test_work_environment(db_session):
     return env
 
 
-@pytest.fixture(scope="function")
+@pytest_asyncio.fixture(scope="function")
 async def test_health_education(db_session):
     """Create test health education"""
     education = HealthEducation(
@@ -146,7 +146,7 @@ async def test_health_education(db_session):
     return education
 
 
-@pytest.fixture(scope="function")
+@pytest_asyncio.fixture(scope="function")
 async def test_chemical_substance(db_session):
     """Create test chemical substance"""
     chemical = ChemicalSubstance(
@@ -167,15 +167,14 @@ async def test_chemical_substance(db_session):
     return chemical
 
 
-@pytest.fixture(scope="function")
+@pytest_asyncio.fixture(scope="function")
 async def test_accident_report(db_session, test_worker):
     """Create test accident report"""
-    worker = await test_worker
     report = AccidentReport(
         accident_datetime=datetime.now(),
         report_datetime=datetime.now(),
         accident_location="테스트현장",
-        worker_id=worker.id,
+        worker_id=test_worker.id,
         accident_type="FALL",
         injury_type="BRUISE",
         severity="MINOR",
@@ -206,12 +205,11 @@ def sample_worker_data():
     }
 
 
-@pytest.fixture
+@pytest_asyncio.fixture
 async def sample_health_exam_data(test_worker):
     """Sample health exam data for testing"""
-    worker = await test_worker
     return {
-        "worker_id": worker.id,
+        "worker_id": test_worker.id,
         "exam_date": datetime.now().isoformat(),
         "exam_type": "GENERAL",
         "exam_agency": "서울의료원",

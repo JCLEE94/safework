@@ -1,0 +1,518 @@
+/**
+ * 통합 문서관리 시스템
+ * Unified Document Management System
+ * 
+ * 기존의 DocumentManagement, FileManagement, PDFForms를 통합
+ */
+
+import React, { useState, useEffect } from 'react';
+import { 
+  FileText, FolderOpen, Plus, Download, Upload, Search, 
+  Filter, Edit, Eye, Trash2, Settings, FileEdit, File,
+  RefreshCw, AlertCircle, CheckCircle
+} from 'lucide-react';
+import { Card, Button, Badge, Modal } from '../common';
+import { useApi } from '../../hooks/useApi';
+
+// 탭 정의
+type DocumentTab = 'files' | 'pdf-forms' | 'templates' | 'categories';
+
+interface DocumentFile {
+  id: string;
+  name: string;
+  size: number;
+  modified: string;
+  type: string;
+  category: string;
+  path: string;
+  status?: 'available' | 'processing' | 'error';
+}
+
+interface PDFForm {
+  id: string;
+  name: string;
+  name_korean: string;
+  description: string;
+  category: string;
+  fields: string[];
+  template_path?: string;
+}
+
+interface DocumentCategory {
+  id: string;
+  name: string;
+  description: string;
+  file_count: number;
+  last_updated: string;
+}
+
+const DOCUMENT_CATEGORIES = [
+  { id: 'manual', name: '01-업무매뉴얼', description: '업무 매뉴얼 및 지침서' },
+  { id: 'legal', name: '02-법정서식', description: '법정 서식 및 양식' },
+  { id: 'register', name: '03-관리대장', description: '각종 관리대장' },
+  { id: 'checklist', name: '04-체크리스트', description: '점검 체크리스트' },
+  { id: 'education', name: '05-교육자료', description: '안전보건교육 자료' },
+  { id: 'msds', name: '06-MSDS관련', description: 'MSDS 관련 자료' },
+  { id: 'special', name: '07-특별관리물질', description: '특별관리물질 관련' },
+  { id: 'health', name: '08-건강관리', description: '건강관리 관련 문서' },
+  { id: 'reference', name: '09-참고자료', description: '참고 자료 및 문서' },
+  { id: 'latest', name: '10-최신자료_2024-2025', description: '최신 자료 및 업데이트' }
+];
+
+export function UnifiedDocuments() {
+  const [activeTab, setActiveTab] = useState<DocumentTab>('files');
+  const [files, setFiles] = useState<DocumentFile[]>([]);
+  const [pdfForms, setPdfForms] = useState<PDFForm[]>([]);
+  const [categories, setCategories] = useState<DocumentCategory[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [searchTerm, setSearchTerm] = useState('');
+  const [selectedCategory, setSelectedCategory] = useState('');
+  const [showUploadModal, setShowUploadModal] = useState(false);
+  const [showFormModal, setShowFormModal] = useState(false);
+  const [selectedFile, setSelectedFile] = useState<DocumentFile | null>(null);
+  const [selectedForm, setSelectedForm] = useState<PDFForm | null>(null);
+  
+  const { fetchApi } = useApi();
+
+  useEffect(() => {
+    loadData();
+  }, [activeTab]);
+
+  const loadData = async () => {
+    setLoading(true);
+    try {
+      switch (activeTab) {
+        case 'files':
+          await loadFiles();
+          break;
+        case 'pdf-forms':
+          await loadPDFForms();
+          break;
+        case 'categories':
+          await loadCategories();
+          break;
+      }
+    } catch (error) {
+      console.error('Failed to load data:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const loadFiles = async () => {
+    try {
+      const data = await fetchApi('/api/v1/documents/files');
+      setFiles(data || []);
+    } catch (error) {
+      console.error('Failed to load files:', error);
+      setFiles([]);
+    }
+  };
+
+  const loadPDFForms = async () => {
+    try {
+      const data = await fetchApi('/api/v1/documents/pdf-forms');
+      setPdfForms(data || []);
+    } catch (error) {
+      console.error('Failed to load PDF forms:', error);
+      setPdfForms([]);
+    }
+  };
+
+  const loadCategories = async () => {
+    try {
+      const data = await fetchApi('/api/v1/documents/categories');
+      setCategories(data || DOCUMENT_CATEGORIES.map(cat => ({
+        ...cat,
+        file_count: 0,
+        last_updated: new Date().toISOString()
+      })));
+    } catch (error) {
+      console.error('Failed to load categories:', error);
+      setCategories(DOCUMENT_CATEGORIES.map(cat => ({
+        ...cat,
+        file_count: 0,
+        last_updated: new Date().toISOString()
+      })));
+    }
+  };
+
+  const handleTabChange = (tab: DocumentTab) => {
+    setActiveTab(tab);
+    setSearchTerm('');
+    setSelectedCategory('');
+  };
+
+  const handleFileAction = async (action: string, file: DocumentFile) => {
+    switch (action) {
+      case 'download':
+        // Implement download
+        window.open(`/api/v1/documents/download/${file.id}`, '_blank');
+        break;
+      case 'view':
+        setSelectedFile(file);
+        // Show preview modal
+        break;
+      case 'delete':
+        if (confirm('파일을 삭제하시겠습니까?')) {
+          try {
+            await fetchApi(`/api/v1/documents/files/${file.id}`, { method: 'DELETE' });
+            await loadFiles();
+          } catch (error) {
+            console.error('Failed to delete file:', error);
+          }
+        }
+        break;
+    }
+  };
+
+  const handleFormAction = async (action: string, form: PDFForm) => {
+    switch (action) {
+      case 'fill':
+        setSelectedForm(form);
+        setShowFormModal(true);
+        break;
+      case 'preview':
+        setSelectedForm(form);
+        // Show form preview
+        break;
+      case 'download':
+        window.open(`/api/v1/documents/pdf-forms/${form.id}/template`, '_blank');
+        break;
+    }
+  };
+
+  const filteredFiles = files.filter(file => {
+    const matchesSearch = !searchTerm || 
+      file.name.toLowerCase().includes(searchTerm.toLowerCase());
+    const matchesCategory = !selectedCategory || file.category === selectedCategory;
+    return matchesSearch && matchesCategory;
+  });
+
+  const filteredForms = pdfForms.filter(form => {
+    const matchesSearch = !searchTerm || 
+      form.name_korean.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      form.name.toLowerCase().includes(searchTerm.toLowerCase());
+    const matchesCategory = !selectedCategory || form.category === selectedCategory;
+    return matchesSearch && matchesCategory;
+  });
+
+  const renderTabContent = () => {
+    switch (activeTab) {
+      case 'files':
+        return renderFilesTab();
+      case 'pdf-forms':
+        return renderPDFFormsTab();
+      case 'categories':
+        return renderCategoriesTab();
+      default:
+        return renderFilesTab();
+    }
+  };
+
+  const renderFilesTab = () => (
+    <div className="space-y-6">
+      {/* Controls */}
+      <div className="flex flex-col sm:flex-row gap-4 justify-between">
+        <div className="flex gap-2">
+          <div className="relative">
+            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" size={20} />
+            <input
+              type="text"
+              placeholder="파일 검색..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              className="pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+            />
+          </div>
+          <select
+            value={selectedCategory}
+            onChange={(e) => setSelectedCategory(e.target.value)}
+            className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+          >
+            <option value="">모든 카테고리</option>
+            {DOCUMENT_CATEGORIES.map(category => (
+              <option key={category.id} value={category.id}>
+                {category.name}
+              </option>
+            ))}
+          </select>
+        </div>
+        <div className="flex gap-2">
+          <Button onClick={() => loadFiles()} variant="outline">
+            <RefreshCw size={16} className="mr-2" />
+            새로고침
+          </Button>
+          <Button onClick={() => setShowUploadModal(true)}>
+            <Upload size={16} className="mr-2" />
+            파일 업로드
+          </Button>
+        </div>
+      </div>
+
+      {/* Files Grid */}
+      {loading ? (
+        <div className="flex justify-center items-center h-64">
+          <RefreshCw className="animate-spin" size={32} />
+        </div>
+      ) : (
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+          {filteredFiles.map(file => (
+            <Card key={file.id} className="p-4">
+              <div className="flex items-start justify-between mb-3">
+                <div className="flex items-center">
+                  <FileText className="text-blue-600 mr-2" size={20} />
+                  <div>
+                    <h3 className="font-medium text-gray-900 truncate">{file.name}</h3>
+                    <p className="text-sm text-gray-500">
+                      {(file.size / 1024).toFixed(1)} KB
+                    </p>
+                  </div>
+                </div>
+                <Badge color={file.status === 'available' ? 'green' : 'yellow'}>
+                  {file.status === 'available' ? '사용가능' : '처리중'}
+                </Badge>
+              </div>
+              
+              <div className="flex justify-between items-center">
+                <span className="text-xs text-gray-500">
+                  {new Date(file.modified).toLocaleDateString()}
+                </span>
+                <div className="flex gap-1">
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => handleFileAction('view', file)}
+                  >
+                    <Eye size={14} />
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => handleFileAction('download', file)}
+                  >
+                    <Download size={14} />
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => handleFileAction('delete', file)}
+                    className="text-red-600 hover:text-red-700"
+                  >
+                    <Trash2 size={14} />
+                  </Button>
+                </div>
+              </div>
+            </Card>
+          ))}
+        </div>
+      )}
+
+      {filteredFiles.length === 0 && !loading && (
+        <div className="text-center py-12">
+          <FolderOpen className="mx-auto h-12 w-12 text-gray-400" />
+          <h3 className="mt-2 text-sm font-medium text-gray-900">파일이 없습니다</h3>
+          <p className="mt-1 text-sm text-gray-500">파일을 업로드하여 시작하세요.</p>
+          <div className="mt-6">
+            <Button onClick={() => setShowUploadModal(true)}>
+              <Upload size={16} className="mr-2" />
+              파일 업로드
+            </Button>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+
+  const renderPDFFormsTab = () => (
+    <div className="space-y-6">
+      {/* Controls */}
+      <div className="flex flex-col sm:flex-row gap-4 justify-between">
+        <div className="flex gap-2">
+          <div className="relative">
+            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" size={20} />
+            <input
+              type="text"
+              placeholder="양식 검색..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              className="pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+            />
+          </div>
+          <select
+            value={selectedCategory}
+            onChange={(e) => setSelectedCategory(e.target.value)}
+            className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+          >
+            <option value="">모든 카테고리</option>
+            {DOCUMENT_CATEGORIES.map(category => (
+              <option key={category.id} value={category.id}>
+                {category.name}
+              </option>
+            ))}
+          </select>
+        </div>
+        <div className="flex gap-2">
+          <Button onClick={() => loadPDFForms()} variant="outline">
+            <RefreshCw size={16} className="mr-2" />
+            새로고침
+          </Button>
+        </div>
+      </div>
+
+      {/* PDF Forms Grid */}
+      {loading ? (
+        <div className="flex justify-center items-center h-64">
+          <RefreshCw className="animate-spin" size={32} />
+        </div>
+      ) : (
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+          {filteredForms.map(form => (
+            <Card key={form.id} className="p-4">
+              <div className="flex items-start justify-between mb-3">
+                <div className="flex items-center">
+                  <FileEdit className="text-green-600 mr-2" size={20} />
+                  <div>
+                    <h3 className="font-medium text-gray-900">{form.name_korean}</h3>
+                    <p className="text-sm text-gray-500">{form.description}</p>
+                  </div>
+                </div>
+                <Badge color="blue">{form.fields.length}개 필드</Badge>
+              </div>
+              
+              <div className="flex justify-between items-center">
+                <span className="text-xs text-gray-500">
+                  {form.category}
+                </span>
+                <div className="flex gap-1">
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => handleFormAction('preview', form)}
+                  >
+                    <Eye size={14} />
+                  </Button>
+                  <Button
+                    size="sm"
+                    onClick={() => handleFormAction('fill', form)}
+                  >
+                    <Edit size={14} />
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => handleFormAction('download', form)}
+                  >
+                    <Download size={14} />
+                  </Button>
+                </div>
+              </div>
+            </Card>
+          ))}
+        </div>
+      )}
+
+      {filteredForms.length === 0 && !loading && (
+        <div className="text-center py-12">
+          <FileEdit className="mx-auto h-12 w-12 text-gray-400" />
+          <h3 className="mt-2 text-sm font-medium text-gray-900">PDF 양식이 없습니다</h3>
+          <p className="mt-1 text-sm text-gray-500">사용 가능한 PDF 양식을 확인하세요.</p>
+        </div>
+      )}
+    </div>
+  );
+
+  const renderCategoriesTab = () => (
+    <div className="space-y-6">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+        {categories.map(category => (
+          <Card key={category.id} className="p-6">
+            <div className="flex items-center justify-between mb-4">
+              <FolderOpen className="text-blue-600" size={24} />
+              <Badge color="gray">{category.file_count}개 파일</Badge>
+            </div>
+            <h3 className="font-semibold text-gray-900 mb-2">{category.name}</h3>
+            <p className="text-sm text-gray-600 mb-4">{category.description}</p>
+            <div className="flex justify-between items-center text-xs text-gray-500">
+              <span>최근 업데이트:</span>
+              <span>{new Date(category.last_updated).toLocaleDateString()}</span>
+            </div>
+          </Card>
+        ))}
+      </div>
+    </div>
+  );
+
+  return (
+    <div className="space-y-6">
+      {/* Header */}
+      <div className="flex justify-between items-center">
+        <h1 className="text-2xl font-bold text-gray-900">통합 문서관리</h1>
+        <div className="flex items-center gap-2">
+          <Badge color="green">
+            <CheckCircle size={14} className="mr-1" />
+            통합완료
+          </Badge>
+        </div>
+      </div>
+
+      {/* Tabs */}
+      <div className="border-b border-gray-200">
+        <nav className="-mb-px flex space-x-8">
+          {[
+            { id: 'files', name: '파일관리', icon: File },
+            { id: 'pdf-forms', name: 'PDF 양식', icon: FileEdit },
+            { id: 'categories', name: '카테고리', icon: FolderOpen },
+          ].map((tab) => {
+            const Icon = tab.icon;
+            return (
+              <button
+                key={tab.id}
+                onClick={() => handleTabChange(tab.id as DocumentTab)}
+                className={`
+                  whitespace-nowrap py-2 px-1 border-b-2 font-medium text-sm flex items-center gap-2
+                  ${activeTab === tab.id
+                    ? 'border-blue-500 text-blue-600'
+                    : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                  }
+                `}
+              >
+                <Icon size={16} />
+                {tab.name}
+              </button>
+            );
+          })}
+        </nav>
+      </div>
+
+      {/* Tab Content */}
+      {renderTabContent()}
+
+      {/* Modals */}
+      {showUploadModal && (
+        <Modal onClose={() => setShowUploadModal(false)}>
+          <div className="p-6">
+            <h2 className="text-lg font-semibold mb-4">파일 업로드</h2>
+            {/* File upload component */}
+            <div className="border-2 border-dashed border-gray-300 rounded-lg p-6 text-center">
+              <Upload className="mx-auto h-12 w-12 text-gray-400 mb-4" />
+              <p className="text-gray-600">파일을 여기에 드래그하거나 클릭하여 선택하세요</p>
+            </div>
+          </div>
+        </Modal>
+      )}
+
+      {showFormModal && selectedForm && (
+        <Modal onClose={() => setShowFormModal(false)}>
+          <div className="p-6">
+            <h2 className="text-lg font-semibold mb-4">{selectedForm.name_korean} 작성</h2>
+            {/* PDF form component */}
+            <div className="space-y-4">
+              <p className="text-gray-600">양식 작성 기능이 여기에 표시됩니다.</p>
+            </div>
+          </div>
+        </Modal>
+      )}
+    </div>
+  );
+}

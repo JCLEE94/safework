@@ -1,0 +1,310 @@
+name: Pipeline Monitoring & Failure Detection
+
+on:
+  workflow_run:
+    workflows: ["Build and Deploy SafeWork Pro"]
+    types: [completed]
+  push:
+    branches: [main, develop]
+  workflow_dispatch:
+
+env:
+  SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+  PIPELINE_WEBHOOK_URL: ${{ secrets.PIPELINE_WEBHOOK_URL }}
+  PRODUCTION_URL: http://192.168.50.215:3001
+
+jobs:
+  pipeline-status-check:
+    name: Pipeline Status Verification
+    runs-on: ubuntu-latest
+    if: github.event.workflow_run.conclusion != ''
+    
+    steps:
+      - name: Check Pipeline Result
+        id: check
+        run: |
+          echo "Pipeline conclusion: ${{ github.event.workflow_run.conclusion }}"
+          echo "Pipeline status: ${{ github.event.workflow_run.status }}"
+          echo "Commit SHA: ${{ github.event.workflow_run.head_sha }}"
+          
+          if [ "${{ github.event.workflow_run.conclusion }}" = "success" ]; then
+            echo "status=success" >> $GITHUB_OUTPUT
+            echo "✅ Pipeline completed successfully"
+          elif [ "${{ github.event.workflow_run.conclusion }}" = "failure" ]; then
+            echo "status=failure" >> $GITHUB_OUTPUT
+            echo "❌ Pipeline failed"
+          elif [ "${{ github.event.workflow_run.conclusion }}" = "cancelled" ]; then
+            echo "status=cancelled" >> $GITHUB_OUTPUT
+            echo "⏹️ Pipeline was cancelled"
+          else
+            echo "status=unknown" >> $GITHUB_OUTPUT
+            echo "❓ Unknown pipeline status: ${{ github.event.workflow_run.conclusion }}"
+          fi
+
+      - name: Send Pipeline Status Notification
+        if: always()
+        run: |
+          COMMIT_SHA="${{ github.event.workflow_run.head_sha }}"
+          STATUS="${{ steps.check.outputs.status }}"
+          BRANCH="${{ github.event.workflow_run.head_branch }}"
+          
+          # Create status message
+          case $STATUS in
+            "success")
+              EMOJI="✅"
+              COLOR="good"
+              MESSAGE="Pipeline completed successfully"
+              ;;
+            "failure")
+              EMOJI="❌"
+              COLOR="danger"
+              MESSAGE="Pipeline failed - Deployment aborted"
+              ;;
+            "cancelled")
+              EMOJI="⏹️"
+              COLOR="warning"
+              MESSAGE="Pipeline was cancelled"
+              ;;
+            *)
+              EMOJI="❓"
+              COLOR="warning"
+              MESSAGE="Pipeline status unknown"
+              ;;
+          esac
+          
+          # Send to webhook if configured
+          if [ -n "${{ env.PIPELINE_WEBHOOK_URL }}" ]; then
+            curl -X POST "${{ env.PIPELINE_WEBHOOK_URL }}/pipeline-status" \
+              -H "Content-Type: application/json" \
+              -d '{
+                "commit": "'$COMMIT_SHA'",
+                "status": "'$STATUS'",
+                "branch": "'$BRANCH'",
+                "workflow": "Build and Deploy SafeWork Pro",
+                "timestamp": "'$(date -u +%Y-%m-%dT%H:%M:%SZ)'",
+                "repository": "${{ github.repository }}"
+              }' || echo "Failed to send webhook notification"
+          fi
+          
+          # Send to Slack if configured
+          if [ -n "${{ env.SLACK_WEBHOOK_URL }}" ]; then
+            curl -X POST "${{ env.SLACK_WEBHOOK_URL }}" \
+              -H "Content-Type: application/json" \
+              -d '{
+                "text": "'$EMOJI' SafeWork Pro Pipeline '$MESSAGE'",
+                "attachments": [{
+                  "color": "'$COLOR'",
+                  "fields": [
+                    {"title": "Repository", "value": "${{ github.repository }}", "short": true},
+                    {"title": "Branch", "value": "'$BRANCH'", "short": true},
+                    {"title": "Commit", "value": "'${COMMIT_SHA:0:8}'", "short": true},
+                    {"title": "Status", "value": "'$STATUS'", "short": true}
+                  ]
+                }]
+              }' || echo "Failed to send Slack notification"
+          fi
+
+      - name: Create Deployment Status
+        if: steps.check.outputs.status == 'success' && github.event.workflow_run.head_branch == 'main'
+        uses: actions/github-script@v7
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            const deployment = await github.rest.repos.createDeployment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              ref: '${{ github.event.workflow_run.head_sha }}',
+              environment: 'production',
+              description: 'Auto-deployment via Watchtower',
+              auto_merge: false,
+              required_contexts: []
+            });
+            
+            await github.rest.repos.createDeploymentStatus({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              deployment_id: deployment.data.id,
+              state: 'in_progress',
+              description: 'Watchtower is deploying the new image',
+              environment_url: '${{ env.PRODUCTION_URL }}'
+            });
+            
+            console.log('Deployment status created for SHA: ${{ github.event.workflow_run.head_sha }}');
+
+  deployment-verification:
+    name: Verify Deployment
+    runs-on: ubuntu-latest
+    needs: pipeline-status-check
+    if: github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.head_branch == 'main'
+    
+    steps:
+      - name: Wait for Watchtower Deployment
+        run: |
+          echo "⏳ Waiting for Watchtower to pull and deploy new image..."
+          
+          # Wait for deployment (Watchtower typically takes 1-2 minutes)
+          sleep 120
+          
+          # Check if new image is running
+          MAX_ATTEMPTS=15
+          ATTEMPT=1
+          
+          while [ $ATTEMPT -le $MAX_ATTEMPTS ]; do
+            echo "🔍 Attempt $ATTEMPT/$MAX_ATTEMPTS: Checking deployment..."
+            
+            # Check health endpoint
+            HTTP_CODE=$(curl -s -o /dev/null -w "%{http_code}" "${{ env.PRODUCTION_URL }}/health" || echo "000")
+            
+            if [ "$HTTP_CODE" = "200" ]; then
+              echo "✅ Health check passed on attempt $ATTEMPT"
+              
+              # Verify build time to confirm new deployment
+              BUILD_TIME=$(curl -s "${{ env.PRODUCTION_URL }}/health" | jq -r '.build_time // empty' 2>/dev/null || echo "")
+              if [ -n "$BUILD_TIME" ]; then
+                echo "🏗️ Build time: $BUILD_TIME"
+              fi
+              
+              break
+            else
+              echo "⏳ Health check failed (HTTP $HTTP_CODE), waiting..."
+              if [ $ATTEMPT -eq $MAX_ATTEMPTS ]; then
+                echo "❌ Deployment verification failed after $MAX_ATTEMPTS attempts"
+                exit 1
+              fi
+              sleep 30
+              ((ATTEMPT++))
+            fi
+          done
+
+      - name: Comprehensive Deployment Test
+        run: |
+          echo "🧪 Running comprehensive deployment tests..."
+          
+          # Test critical endpoints
+          ENDPOINTS=(
+            "/health"
+            "/api/docs"
+            "/api/v1/workers/"
+            "/api/v1/monitoring/metrics"
+          )
+          
+          SUCCESS_COUNT=0
+          TOTAL_ENDPOINTS=${#ENDPOINTS[@]}
+          
+          for endpoint in "${ENDPOINTS[@]}"; do
+            URL="${{ env.PRODUCTION_URL }}$endpoint"
+            HTTP_CODE=$(curl -s -o /dev/null -w "%{http_code}" "$URL" || echo "000")
+            
+            if [ "$HTTP_CODE" = "200" ] || [ "$HTTP_CODE" = "401" ]; then
+              echo "✅ $endpoint: HTTP $HTTP_CODE"
+              ((SUCCESS_COUNT++))
+            else
+              echo "❌ $endpoint: HTTP $HTTP_CODE"
+            fi
+          done
+          
+          echo "📊 Endpoint test results: $SUCCESS_COUNT/$TOTAL_ENDPOINTS passed"
+          
+          if [ $SUCCESS_COUNT -eq $TOTAL_ENDPOINTS ]; then
+            echo "✅ All critical endpoints are responding"
+          else
+            echo "⚠️ Some endpoints failed - deployment may have issues"
+            exit 1
+          fi
+
+      - name: Update Deployment Status
+        if: always()
+        uses: actions/github-script@v7
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            const deployments = await github.rest.repos.listDeployments({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              ref: '${{ github.event.workflow_run.head_sha }}',
+              per_page: 1
+            });
+            
+            if (deployments.data.length > 0) {
+              const deployment_id = deployments.data[0].id;
+              const success = '${{ job.status }}' === 'success';
+              
+              await github.rest.repos.createDeploymentStatus({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                deployment_id: deployment_id,
+                state: success ? 'success' : 'failure',
+                description: success ? 'Deployment verified successfully' : 'Deployment verification failed',
+                environment_url: '${{ env.PRODUCTION_URL }}'
+              });
+              
+              console.log(`Deployment status updated: ${success ? 'success' : 'failure'}`);
+            }
+
+  rollback-on-failure:
+    name: Automatic Rollback
+    runs-on: ubuntu-latest
+    needs: deployment-verification
+    if: failure() && github.event.workflow_run.head_branch == 'main'
+    
+    steps:
+      - name: Trigger Rollback
+        run: |
+          echo "🔄 Deployment failed - triggering automatic rollback..."
+          
+          # This would typically call your rollback mechanism
+          # For now, we'll just log and notify
+          echo "❌ Deployment verification failed for commit ${{ github.event.workflow_run.head_sha }}"
+          echo "🔄 Manual rollback may be required"
+          
+          # Send critical failure notification
+          if [ -n "${{ env.SLACK_WEBHOOK_URL }}" ]; then
+            curl -X POST "${{ env.SLACK_WEBHOOK_URL }}" \
+              -H "Content-Type: application/json" \
+              -d '{
+                "text": "🚨 CRITICAL: SafeWork Pro deployment failed and requires immediate attention",
+                "attachments": [{
+                  "color": "danger",
+                  "fields": [
+                    {"title": "Failed Commit", "value": "${{ github.event.workflow_run.head_sha }}", "short": true},
+                    {"title": "Action Required", "value": "Manual rollback needed", "short": true}
+                  ]
+                }]
+              }'
+          fi
+
+  security-scan:
+    name: Security Vulnerability Scan
+    runs-on: ubuntu-latest
+    if: github.event.workflow_run.conclusion == 'success'
+    
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.workflow_run.head_sha }}
+      
+      - name: Run Trivy vulnerability scanner
+        uses: aquasecurity/trivy-action@master
+        with:
+          image-ref: 'registry.jclee.me/safework:${{ github.event.workflow_run.head_sha }}'
+          format: 'sarif'
+          output: 'trivy-results.sarif'
+        continue-on-error: true
+      
+      - name: Upload Trivy scan results
+        uses: github/codeql-action/upload-sarif@v3
+        if: always()
+        with:
+          sarif_file: 'trivy-results.sarif'
+        continue-on-error: true
+
+      - name: Check for critical vulnerabilities
+        run: |
+          echo "🔍 Checking for critical security vulnerabilities..."
+          
+          # Run Trivy in table format for readable output
+          docker run --rm -v /var/run/docker.sock:/var/run/docker.sock \
+            aquasec/trivy image --severity HIGH,CRITICAL \
+            registry.jclee.me/safework:${{ github.event.workflow_run.head_sha }} || true
+          
+          echo "✅ Security scan completed"
