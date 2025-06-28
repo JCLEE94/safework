@@ -1,88 +1,91 @@
 version: '3.8'
 
 services:
-  # SafeWork Pro - 단일 컨테이너 (PostgreSQL + Redis + FastAPI + React)
+  # SafeWork Pro - All-in-One 컨테이너 (PostgreSQL + Redis + FastAPI + React)
   safework:
-    image: registry.jclee.me/safework:latest
-    container_name: safework
-    restart: unless-stopped
+    image: ${DOCKER_IMAGE:-registry.jclee.me/safework:latest}
+    container_name: ${CONTAINER_NAME:-safework}
+    restart: ${RESTART_POLICY:-unless-stopped}
     ports:
-      - "3001:3001"
+      - "${HOST_PORT:-3001}:8000"
     environment:
-      # 환경 구분 (production/development/test)
+      # 환경 구분
       ENVIRONMENT: ${ENVIRONMENT:-production}
+      DEBUG: ${DEBUG:-false}
       
-      # 데이터베이스 설정
+      # 데이터베이스 설정 (All-in-One 내장)
       POSTGRES_USER: ${POSTGRES_USER:-admin}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-safework123}
       POSTGRES_DB: ${POSTGRES_DB:-health_management}
       DATABASE_URL: ${DATABASE_URL:-postgresql://admin:safework123@localhost:5432/health_management}
       
-      # Redis 설정
+      # Redis 설정 (All-in-One 내장)
       REDIS_URL: ${REDIS_URL:-redis://localhost:6379/0}
       
       # 애플리케이션 설정
       JWT_SECRET: ${JWT_SECRET:-safework-pro-secret-key-2024}
-      DEBUG: ${DEBUG:-false}
+      SECRET_KEY: ${SECRET_KEY:-safework-app-secret-2024}
       LOG_LEVEL: ${LOG_LEVEL:-INFO}
       TZ: ${TZ:-Asia/Seoul}
-      PORT: ${PORT:-3001}
+      HOST: ${APP_HOST:-0.0.0.0}
+      PORT: ${APP_PORT:-8000}
       
-      # 빌드 시간 환경변수
-      BUILD_TIME: ${BUILD_TIME:-2025-06-26 01:00:00 KST}
+      # 성능 설정
+      WORKERS: ${WORKERS:-4}
+      WORKER_CLASS: ${WORKER_CLASS:-uvicorn.workers.UvicornWorker}
+      
+      # 보안 설정
+      CORS_ORIGINS: ${CORS_ORIGINS:-*}
+      TRUSTED_HOSTS: ${TRUSTED_HOSTS:-*}
+      
+      # 파일 업로드
+      MAX_UPLOAD_SIZE: ${MAX_UPLOAD_SIZE:-100MB}
+      
+      # 메타데이터
+      BUILD_TIME: ${BUILD_TIME:-$(date '+%Y-%m-%d %H:%M:%S KST')}
+      GIT_COMMIT: ${GITHUB_SHA:-unknown}
+      VERSION: ${VERSION:-1.0.0}
     
     volumes:
-      # Docker 관리 볼륨 사용
+      # 애플리케이션 데이터 볼륨
       - safework_uploads:/app/uploads
       - safework_logs:/app/logs
-      - safework_postgres_data:/var/lib/postgresql/data
-      - safework_redis_data:/var/lib/redis
     
     labels:
-      # Watchtower 자동 업데이트 활성화
-      - "com.centurylinklabs.watchtower.enable=true"
-      - "com.centurylinklabs.watchtower.monitor-only=false"
-      
-      # 메타데이터 라벨
-      - "org.opencontainers.image.title=SafeWork Pro"
-      - "org.opencontainers.image.description=건설업 보건관리 시스템 - 단일 컨테이너"
-      - "org.opencontainers.image.version=1.0.0"
-      - "org.opencontainers.image.vendor=SafeWork Pro Team"
-      - "org.opencontainers.image.url=https://safework.jclee.me"
-      - "org.opencontainers.image.source=https://github.com/JCLEE94/safework"
+      # Watchtower 자동 업데이트 (운영환경만)
+      - "com.centurylinklabs.watchtower.enable=${WATCHTOWER_ENABLE:-true}"
     
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:3001/health"]
-      interval: 30s
-      timeout: 10s
-      retries: 5
-      start_period: 60s
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: ${HEALTH_CHECK_INTERVAL:-30s}
+      timeout: ${HEALTH_CHECK_TIMEOUT:-10s}
+      retries: ${HEALTH_CHECK_RETRIES:-5}
+      start_period: ${HEALTH_CHECK_START_PERIOD:-120s}
     
-    # 보안 설정
+    # 보안 설정 (운영환경만)
     security_opt:
       - no-new-privileges:true
+    cap_drop:
+      - ALL
+    cap_add:
+      - CHOWN
+      - SETGID
+      - SETUID
+      - DAC_OVERRIDE
     
-    # 읽기 전용 루트 파일시스템 (데이터 디렉토리 제외)
-    read_only: false
-    
-    # 임시 파일시스템
+    # 임시 파일시스템 최적화
     tmpfs:
-      - /tmp:size=100M
-      - /var/tmp:size=50M
+      - /tmp:size=${TMP_SIZE:-500M},mode=1777
+      - /var/tmp:size=${VAR_TMP_SIZE:-200M},mode=1777
 
-# Docker 관리 볼륨 사용 (단순화)
+# Docker 관리 볼륨
 volumes:
   safework_uploads:
+    name: safework_uploads
   safework_logs:
-  safework_postgres_data:
-  safework_redis_data:
+    name: safework_logs
 
 # 네트워크 정의
 networks:
   default:
     name: safework-network
-    driver: bridge
-    driver_opts:
-      com.docker.network.bridge.name: br-safework
-    labels:
-      - "description=SafeWork Pro 네트워크"

@@ -123,29 +123,26 @@ npm run build
 
 ## 📁 프로젝트 구조
 
-### 🎯 사용 중인 파일들
+### 🎯 정리된 프로젝트 구조
 ```
 safework/
-├── docker-compose.yml           # 메인 설정 (환경변수로 운영/개발 구분)
-├── docker-compose.dev.yml       # 개발 환경 (분리된 서비스)
-├── docker-compose.override.yml  # 개발 환경 오버라이드 (자동 적용)
-├── deploy-single.sh            # 현재 사용 중인 배포 스크립트
-├── DEPLOYMENT.md               # 📖 배포 가이드
-├── config/
-│   ├── env.production.example  # 운영 환경 설정 예제
-│   └── env.development.example # 개발 환경 설정 예제
-├── src/                        # 애플리케이션 소스코드
-│   ├── app.py                 # FastAPI 애플리케이션
-│   ├── models/                # SQLAlchemy 모델
-│   ├── schemas/               # Pydantic 스키마
-│   ├── handlers/              # API 엔드포인트
-│   ├── services/              # 비즈니스 로직
-│   ├── middleware/            # 미들웨어 (보안, 캐싱)
-│   └── utils/                 # 유틸리티 함수
-├── tests/                      # 테스트 코드
-├── scripts/                    # 유틸리티 스크립트
-├── document/                   # PDF 템플릿 및 문서
-└── .github/workflows/          # CI/CD 파이프라인
+├── 🐳 docker-compose.yml        # 통합 Docker Compose 설정
+├── 📄 .env                      # 환경별 설정 파일
+├── 
+├── 📂 src/                      # 소스 코드 (FastAPI + React)
+├── 📂 frontend/                 # 프론트엔드 빌드 설정
+├── 📂 backend/                  # 백엔드 설정 파일
+├── 📂 database/                 # 데이터베이스 스크립트
+├── 📂 deployment/               # 배포 관련 파일
+├── 📂 tools/                    # 유틸리티 도구
+├── 📂 scripts/                  # 자동화 스크립트
+├── 📂 tests/                    # 테스트 코드
+├── 
+├── 📂 config/                   # 환경 설정
+├── 📂 docs/                     # 문서
+├── 📂 document/                 # 법정 서식 및 매뉴얼
+├── 📂 archive/                  # 이전 파일 보관
+└── 📂 logs/                     # 로그 파일
 ```
 
 ### 🗃️ 정리된 파일들 (archive/)
