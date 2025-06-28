@@ -1,7 +1,7 @@
 # SafeWork Pro - Single Container for registry.jclee.me
 # Using pre-built frontend to avoid Node.js version issues
 
-FROM ubuntu:22.04
+FROM ubuntu:24.04
 
 # Build arguments
 ARG BUILD_TIME
