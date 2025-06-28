@@ -11,12 +11,12 @@ ENV VITE_BUILD_TIME=$BUILD_TIME
 WORKDIR /app
 
 # 패키지 의존성 설치 (캐시 최적화)
-COPY package*.json ./
+COPY frontend/package*.json ./
 RUN npm install
 
 # 소스 코드 복사 및 빌드
-COPY index.html vite.config.ts tsconfig.json tsconfig.node.json ./
-COPY tailwind.config.js postcss.config.js ./
+COPY frontend/index.html frontend/vite.config.ts frontend/tsconfig.json frontend/tsconfig.node.json ./
+COPY frontend/tailwind.config.js frontend/postcss.config.js ./
 COPY src/ ./src/
 
 # React 빌드 실행
@@ -58,13 +58,13 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     && ln -snf /usr/share/zoneinfo/$TZ /etc/localtime && echo $TZ > /etc/timezone
 
 # Python 의존성 설치
-COPY requirements.txt .
+COPY backend/requirements.txt .
 RUN pip install --no-cache-dir --upgrade pip \
     && pip install --no-cache-dir -r requirements.txt
 
 # 백엔드 소스 코드 복사
 COPY src/ ./src/
-COPY main.py ./
+COPY backend/main.py ./
 
 # 프론트엔드 빌드 결과 복사
 COPY --from=frontend-builder /app/dist ./dist/
@@ -80,7 +80,7 @@ RUN mkdir -p uploads logs /var/lib/postgresql/data /var/lib/redis \
     && chmod 700 /var/lib/postgresql/data
 
 # 데이터베이스 초기화 스크립트
-COPY init-db.sh /usr/local/bin/
+COPY database/init-db.sh /usr/local/bin/
 RUN chmod +x /usr/local/bin/init-db.sh
 
 # Nginx 제거됨 - 설정 불필요
@@ -93,7 +93,7 @@ HEALTHCHECK --interval=30s --timeout=10s --start-period=60s --retries=5 \
     CMD curl -f http://localhost:3001/health || exit 1
 
 # 시작 스크립트
-COPY start.sh /usr/local/bin/
+COPY deployment/start.sh /usr/local/bin/
 RUN chmod +x /usr/local/bin/start.sh
 
 # 애플리케이션 시작
