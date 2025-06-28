@@ -60,14 +60,14 @@ async def async_client(setup_database):
 
 
 @pytest_asyncio.fixture(scope="function")
-async def db_session():
+async def async_session(setup_database):
     """Create test database session"""
     async with TestSessionLocal() as session:
         yield session
 
 
 @pytest_asyncio.fixture(scope="function")  
-async def test_worker(db_session):
+async def test_worker(async_session):
     """Create test worker"""
     worker = Worker(
         employee_id="TEST001",
@@ -82,14 +82,14 @@ async def test_worker(db_session):
         department="건설팀",
         is_special_exam_target=False
     )
-    db_session.add(worker)
-    await db_session.commit()
-    await db_session.refresh(worker)
+    async_session.add(worker)
+    await async_session.commit()
+    await async_session.refresh(worker)
     return worker
 
 
 @pytest_asyncio.fixture(scope="function")
-async def test_health_exam(db_session, test_worker):
+async def test_health_exam(async_session, test_worker):
     """Create test health exam"""
     exam = HealthExam(
         worker_id=test_worker.id,
@@ -101,14 +101,14 @@ async def test_health_exam(db_session, test_worker):
         overall_opinion="정상",
         work_fitness="업무가능"
     )
-    db_session.add(exam)
-    await db_session.commit()
-    await db_session.refresh(exam)
+    async_session.add(exam)
+    await async_session.commit()
+    await async_session.refresh(exam)
     return exam
 
 
 @pytest_asyncio.fixture(scope="function")
-async def test_work_environment(db_session):
+async def test_work_environment(async_session):
     """Create test work environment"""
     env = WorkEnvironment(
         measurement_date=datetime.now(),
@@ -122,14 +122,14 @@ async def test_work_environment(db_session):
         result="PASS",
         report_number="TEST-001"
     )
-    db_session.add(env)
-    await db_session.commit()
-    await db_session.refresh(env)
+    async_session.add(env)
+    await async_session.commit()
+    await async_session.refresh(env)
     return env
 
 
 @pytest_asyncio.fixture(scope="function")
-async def test_health_education(db_session):
+async def test_health_education(async_session):
     """Create test health education"""
     education = HealthEducation(
         education_date=datetime.now(),
@@ -140,14 +140,14 @@ async def test_health_education(db_session):
         instructor_name="이강사",
         required_by_law="Y"
     )
-    db_session.add(education)
-    await db_session.commit()
-    await db_session.refresh(education)
+    async_session.add(education)
+    await async_session.commit()
+    await async_session.refresh(education)
     return education
 
 
 @pytest_asyncio.fixture(scope="function")
-async def test_chemical_substance(db_session):
+async def test_chemical_substance(async_session):
     """Create test chemical substance"""
     chemical = ChemicalSubstance(
         korean_name="테스트화학물질",
@@ -161,14 +161,14 @@ async def test_chemical_substance(db_session):
         storage_location="테스트보관실",
         manufacturer="테스트제조사"
     )
-    db_session.add(chemical)
-    await db_session.commit()
-    await db_session.refresh(chemical)
+    async_session.add(chemical)
+    await async_session.commit()
+    await async_session.refresh(chemical)
     return chemical
 
 
 @pytest_asyncio.fixture(scope="function")
-async def test_accident_report(db_session, test_worker):
+async def test_accident_report(async_session, test_worker):
     """Create test accident report"""
     report = AccidentReport(
         accident_datetime=datetime.now(),
@@ -181,9 +181,9 @@ async def test_accident_report(db_session, test_worker):
         accident_description="테스트 사고",
         investigation_status="REPORTED"
     )
-    db_session.add(report)
-    await db_session.commit()
-    await db_session.refresh(report)
+    async_session.add(report)
+    await async_session.commit()
+    await async_session.refresh(report)
     return report
 
 
