@@ -32,7 +32,7 @@ def test_root_endpoint(client):
     
     data = response.json()
     assert "message" in data
-    assert "보건관리 시스템" in data["message"]
+    assert "SafeWork Pro" in data["message"]
 
 def test_dashboard_endpoint(client):
     """대시보드 데이터 엔드포인트 테스트"""
