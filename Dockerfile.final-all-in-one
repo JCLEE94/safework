@@ -1,7 +1,7 @@
 # SafeWork Pro - Final All-in-One Container
 # Using pre-built frontend and simplified PostgreSQL setup
 
-FROM python:3.11-slim
+FROM python:3.13-slim
 
 # Build arguments
 ARG BUILD_TIME

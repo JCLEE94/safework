@@ -29,7 +29,7 @@ RUN ls -la /app/dist/ && test -f /app/dist/index.html || (echo "❌ React 빌드
 # ================================
 # Stage 2: Single Container
 # ================================
-FROM python:3.11-slim AS production
+FROM python:3.13-slim AS production
 
 ARG BUILD_TIME
 ENV BUILD_TIME=$BUILD_TIME

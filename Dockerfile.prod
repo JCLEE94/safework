@@ -28,7 +28,7 @@ RUN ls -la /app/dist/ && test -f /app/dist/index.html || (echo "❌ React 빌드
 # ================================
 # Stage 2: All-in-One Production
 # ================================
-FROM python:3.11-slim AS production
+FROM python:3.13-slim AS production
 
 # 빌드 인수 및 환경변수
 ARG BUILD_TIME

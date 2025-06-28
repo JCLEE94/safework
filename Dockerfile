@@ -19,7 +19,7 @@ RUN npm run build
 RUN ls -la /app/dist/ && test -f /app/dist/index.html || (echo "❌ React 빌드 실패: index.html 없음" && exit 1)
 
 # Python backend
-FROM python:3.11-slim AS backend
+FROM python:3.13-slim AS backend
 
 ARG BUILD_TIME
 ENV BUILD_TIME=$BUILD_TIME

@@ -1,7 +1,7 @@
 # SafeWork Pro - Simple All-in-One Container
 # Using existing built frontend files to avoid Node.js version issues
 
-FROM python:3.11-slim
+FROM python:3.13-slim
 
 # Build arguments
 ARG BUILD_TIME
