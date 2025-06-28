@@ -13,7 +13,7 @@ from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 
 from ..config.database import get_db
-from ..services.cache_service import CacheService
+from ..services.cache import CacheService
 from ..utils.notifications import send_compliance_alert
 
 logger = logging.getLogger(__name__)
