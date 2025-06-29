@@ -9,12 +9,10 @@ from sqlalchemy.orm import Session
 from sqlalchemy import func
 
 from src.config.database import get_db
-from src.models.worker import Worker
-from src.models.health_exam import HealthExam
-from src.models.work_environment import WorkEnvironment
-from src.models.education import Education
-from src.models.accident import Accident
-from src.models.chemical_substance import ChemicalSubstance
+from src.models import (
+    Worker, HealthExam, WorkEnvironment, 
+    HealthEducation, AccidentReport, ChemicalSubstance
+)
 
 router = APIRouter(prefix="/api/v1", tags=["Dashboard"])
 
@@ -57,15 +55,15 @@ async def get_dashboard_data(db: Session = Depends(get_db)):
     ).first()
     
     # 교육 통계
-    total_education = db.query(Education).count()
-    completed_education = db.query(Education).filter(
-        Education.completion_status == True
+    total_education = db.query(HealthEducation).count()
+    completed_education = db.query(HealthEducation).filter(
+        HealthEducation.completion_status == True
     ).count()
     completion_rate = (completed_education / total_education * 100) if total_education > 0 else 0
     
     # 사고 통계
-    accidents_this_month = db.query(Accident).filter(
-        Accident.accident_date >= thirty_days_ago
+    accidents_this_month = db.query(AccidentReport).filter(
+        AccidentReport.accident_date >= thirty_days_ago
     ).count()
     
     # 화학물질 통계
