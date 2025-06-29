@@ -1,0 +1,83 @@
+name: Docker Build and Deploy
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+env:
+  REGISTRY: registry.jclee.me
+  IMAGE_NAME: safework
+
+jobs:
+  build-and-deploy:
+    name: Build and Deploy with Docker
+    runs-on: [self-hosted, linux]
+    container:
+      image: docker:24-cli
+      options: --privileged -v /var/run/docker.sock:/var/run/docker.sock
+    
+    steps:
+      - name: Setup environment
+        run: |
+          apk add --no-cache git curl
+          
+      - name: Clone repository
+        run: |
+          # Private repository clone with token
+          git clone --depth 1 https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }}.git /workspace
+          cd /workspace
+          git checkout ${{ github.ref_name }}
+          
+      - name: Log in to Docker Registry
+        run: |
+          echo "${{ secrets.REGISTRY_PASSWORD }}" | docker login ${{ env.REGISTRY }} -u "${{ secrets.REGISTRY_USERNAME }}" --password-stdin
+          
+      - name: Build Docker image
+        working-directory: /workspace
+        run: |
+          # Extract metadata
+          BRANCH=$(echo ${{ github.ref_name }} | sed 's/\//-/g')
+          SHA_SHORT=$(git rev-parse --short HEAD)
+          BUILD_TIME=$(date -u +%Y-%m-%dT%H:%M:%SZ)
+          
+          # Build with multiple tags
+          docker build -f deployment/Dockerfile.prod \
+            --build-arg BUILD_TIME="$BUILD_TIME" \
+            -t ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest \
+            -t ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${BRANCH}-${SHA_SHORT} \
+            .
+            
+      - name: Push Docker images
+        working-directory: /workspace
+        run: |
+          # Push all tags
+          docker push ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest
+          
+          BRANCH=$(echo ${{ github.ref_name }} | sed 's/\//-/g')
+          SHA_SHORT=$(git rev-parse --short HEAD)
+          docker push ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${BRANCH}-${SHA_SHORT}
+          
+      - name: Trigger Watchtower
+        if: success()
+        run: |
+          echo "✅ Docker images pushed successfully"
+          echo "🚀 Triggering Watchtower deployment..."
+          curl -X POST https://watchtower.jclee.me/v1/update \
+            -H "Authorization: Bearer MySuperSecretToken12345" || true
+          echo "✅ Deployment triggered"
+          
+      - name: Create deployment record
+        if: success() && github.ref == 'refs/heads/main'
+        run: |
+          # GitHub API를 사용한 배포 기록
+          curl -X POST \
+            -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" \
+            -H "Accept: application/vnd.github.v3+json" \
+            https://api.github.com/repos/${{ github.repository }}/deployments \
+            -d '{
+              "ref": "${{ github.ref }}",
+              "environment": "production",
+              "description": "Deployed via Docker workflow",
+              "auto_merge": false
+            }' || true

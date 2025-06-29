@@ -22,7 +22,7 @@ jobs:
           
       - name: Clone repository
         run: |
-          git clone https://github.com/JCLEE94/safework.git /workspace
+          git clone --depth 1 https://${{ secrets.GITHUB_TOKEN }}@github.com/JCLEE94/safework.git /workspace
           cd /workspace
           git checkout main
       
