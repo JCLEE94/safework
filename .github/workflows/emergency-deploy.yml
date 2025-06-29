@@ -1,0 +1,69 @@
+name: Emergency Deploy
+
+on:
+  workflow_dispatch:
+
+env:
+  REGISTRY: registry.jclee.me
+  IMAGE_NAME: safework
+
+jobs:
+  deploy:
+    name: Emergency Build and Deploy
+    runs-on: [self-hosted, linux]
+    steps:
+      # 작업 디렉토리 권한 수정
+      - name: Fix workspace permissions
+        run: |
+          echo "🔧 작업 디렉토리 권한 수정 중..."
+          sudo chown -R $USER:$USER ${{ github.workspace }} || true
+          sudo chmod -R 755 ${{ github.workspace }} || true
+          
+      # Git으로 직접 클론
+      - name: Clone repository
+        run: |
+          echo "📦 저장소 클론 중..."
+          rm -rf ${{ github.workspace }}/* || true
+          git clone https://github.com/${{ github.repository }}.git ${{ github.workspace }}
+          cd ${{ github.workspace }}
+          git checkout main
+          
+      # Docker 로그인
+      - name: Log in to Docker Registry
+        run: |
+          echo "🔐 Docker 레지스트리 로그인 중..."
+          echo "${{ secrets.REGISTRY_PASSWORD }}" | docker login ${{ env.REGISTRY }} -u "${{ secrets.REGISTRY_USERNAME }}" --password-stdin
+          
+      # Docker 이미지 빌드
+      - name: Build Docker image
+        run: |
+          echo "🔨 Docker 이미지 빌드 중..."
+          cd ${{ github.workspace }}
+          DOCKER_BUILDKIT=0 docker build \
+            -f deployment/Dockerfile.prod \
+            -t ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest \
+            -t ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ github.sha }} \
+            --build-arg BUILD_TIME="$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
+            .
+            
+      # Docker 이미지 푸시
+      - name: Push Docker image
+        run: |
+          echo "📤 Docker 이미지 푸시 중..."
+          docker push ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest
+          docker push ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ github.sha }}
+          
+      # Watchtower 트리거
+      - name: Trigger Watchtower
+        run: |
+          echo "🚀 Watchtower 배포 트리거..."
+          curl -X POST https://watchtower.jclee.me/v1/update \
+            -H "Authorization: Bearer ${{ secrets.WATCHTOWER_TOKEN }}" \
+            || echo "Watchtower 트리거 실패 (무시하고 계속)"
+            
+      # 배포 성공 메시지
+      - name: Deployment complete
+        run: |
+          echo "✅ 배포 완료!"
+          echo "🏷️ 이미지: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest"
+          echo "🔖 태그: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ github.sha }}"
