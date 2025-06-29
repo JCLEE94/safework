@@ -11,18 +11,19 @@ jobs:
   deploy:
     name: Direct Build and Deploy
     runs-on: [self-hosted, linux]
+    container:
+      image: docker:24-cli
+      options: --user root -v /var/run/docker.sock:/var/run/docker.sock
     
     steps:
-      - name: Clean workspace forcefully
+      - name: Setup environment
         run: |
-          echo "Forcefully cleaning workspace..."
-          sudo rm -rf ${{ github.workspace }}
-          mkdir -p ${{ github.workspace }}
+          apk add --no-cache git curl
           
       - name: Clone repository
         run: |
-          git clone https://github.com/JCLEE94/safework.git ${{ github.workspace }}
-          cd ${{ github.workspace }}
+          git clone https://github.com/JCLEE94/safework.git /workspace
+          cd /workspace
           git checkout main
       
       - name: Log in to Docker Registry
@@ -30,6 +31,7 @@ jobs:
           echo "${{ secrets.REGISTRY_PASSWORD }}" | docker login ${{ env.REGISTRY }} -u "${{ secrets.REGISTRY_USERNAME }}" --password-stdin
           
       - name: Build and push Docker image
+        working-directory: /workspace
         run: |
           docker build -f deployment/Dockerfile.prod \
             --build-arg BUILD_TIME="$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
@@ -47,8 +49,3 @@ jobs:
           curl -X POST https://watchtower.jclee.me/v1/update \
             -H "Authorization: Bearer MySuperSecretToken12345" || true
           echo "✅ Deployment triggered"
-          
-      - name: Clean up
-        if: always()
-        run: |
-          sudo rm -rf ${{ github.workspace }}/*
