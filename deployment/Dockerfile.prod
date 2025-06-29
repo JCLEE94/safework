@@ -72,9 +72,11 @@ COPY --from=frontend-builder /app/dist ./dist/
 # 설정 파일 및 문서 복사
 COPY document/ ./document/
 
-# 필요한 디렉토리 생성
-RUN mkdir -p uploads logs /var/lib/redis \
-    && chmod 755 uploads logs
+# 필요한 디렉토리 생성 및 권한 설정
+RUN mkdir -p uploads logs /var/lib/redis /var/run/postgresql /var/log/postgresql \
+    && chmod 755 uploads logs \
+    && chown postgres:postgres /var/run/postgresql /var/log/postgresql \
+    && chmod 2775 /var/run/postgresql
 
 # 데이터베이스 초기화 스크립트
 COPY database/init-db.sh /usr/local/bin/
