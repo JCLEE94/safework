@@ -46,11 +46,11 @@ jobs:
           
       - name: Install dependencies
         run: |
-          # pip 재설치 (self-hosted runner 문제 해결)
-          python -m ensurepip --upgrade || true
-          python -m pip install --upgrade --force-reinstall pip setuptools wheel
-          python -m pip install -r backend/requirements.txt
-          python -m pip install pytest pytest-cov pytest-asyncio pytest-timeout
+          # Self-hosted runner pip 문제 해결
+          export PATH=$HOME/.local/bin:$PATH
+          python -m pip install --user --upgrade pip setuptools wheel
+          python -m pip install --user -r backend/requirements.txt
+          python -m pip install --user pytest pytest-cov pytest-asyncio pytest-timeout
           
       - name: Run tests
         env:
@@ -58,9 +58,11 @@ jobs:
           REDIS_URL: redis://localhost:16379/0
           JWT_SECRET: test-secret-key
           PYTHONPATH: ${{ github.workspace }}
+          PATH: ${{ env.HOME }}/.local/bin:${{ env.PATH }}
         timeout-minutes: 10
         run: |
-          pytest tests/ -v --cov=src --cov-report=html --cov-report=term --timeout=300 -x
+          export PATH=$HOME/.local/bin:$PATH
+          python -m pytest tests/ -v --cov=src --cov-report=html --cov-report=term --timeout=300 -x
           
       - name: Upload coverage
         uses: actions/upload-artifact@v4
