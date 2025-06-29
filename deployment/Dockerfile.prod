@@ -72,12 +72,9 @@ COPY --from=frontend-builder /app/dist ./dist/
 # 설정 파일 및 문서 복사
 COPY document/ ./document/
 
-# 필요한 디렉토리 생성 및 PostgreSQL 사용자 설정
-RUN mkdir -p uploads logs /var/lib/postgresql/data /var/lib/redis \
-    && chmod 755 uploads logs \
-    && useradd -r -s /bin/bash -d /var/lib/postgresql postgres || true \
-    && chown -R postgres:postgres /var/lib/postgresql \
-    && chmod 700 /var/lib/postgresql/data
+# 필요한 디렉토리 생성
+RUN mkdir -p uploads logs /var/lib/redis \
+    && chmod 755 uploads logs
 
 # 데이터베이스 초기화 스크립트
 COPY database/init-db.sh /usr/local/bin/
@@ -93,8 +90,8 @@ HEALTHCHECK --interval=30s --timeout=10s --start-period=60s --retries=5 \
     CMD curl -f http://localhost:3001/health || exit 1
 
 # 시작 스크립트
-COPY deployment/start.sh /usr/local/bin/
-RUN chmod +x /usr/local/bin/start.sh
+COPY deployment/start.sh deployment/start-simple.sh /usr/local/bin/
+RUN chmod +x /usr/local/bin/start.sh /usr/local/bin/start-simple.sh
 
-# 애플리케이션 시작
-CMD ["/usr/local/bin/start.sh"]
+# 애플리케이션 시작 (간단한 버전 사용)
+CMD ["/usr/local/bin/start-simple.sh"]
