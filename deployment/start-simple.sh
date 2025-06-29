@@ -9,17 +9,28 @@ echo "Timezone: $TZ"
 echo "📊 Redis 시작 중..."
 redis-server --daemonize yes --bind 127.0.0.1 --port 6379
 
-# PostgreSQL 디렉토리 생성 (권한 에러 무시)
-mkdir -p /var/run/postgresql || true
-chown postgres:postgres /var/run/postgresql || true
+# PostgreSQL 시작 준비
+echo "📊 PostgreSQL 시작 준비 중..."
 
-# PostgreSQL 서비스 시작 (시스템 서비스로)
+# PostgreSQL 데이터 디렉토리 확인 및 초기화
+if [ ! -d "/var/lib/postgresql/15/main" ]; then
+    echo "⚠️ PostgreSQL 데이터 디렉토리가 없습니다. 초기화 중..."
+    mkdir -p /var/lib/postgresql/15/main
+    chown -R postgres:postgres /var/lib/postgresql
+    su - postgres -c "/usr/lib/postgresql/15/bin/initdb -D /var/lib/postgresql/15/main"
+fi
+
+# PostgreSQL 설정 파일 수정 (listen_addresses)
+if [ -f "/var/lib/postgresql/15/main/postgresql.conf" ]; then
+    su - postgres -c "sed -i \"s/#listen_addresses = 'localhost'/listen_addresses = '*'/g\" /var/lib/postgresql/15/main/postgresql.conf"
+fi
+
+# PostgreSQL 직접 시작 (시스템 서비스 사용하지 않음)
 echo "📊 PostgreSQL 시작 중..."
-service postgresql start || {
-    echo "⚠️ PostgreSQL 서비스 시작 실패, 대체 방법 시도..."
-    # PostgreSQL 직접 시작
-    su - postgres -c "/usr/lib/postgresql/15/bin/pg_ctl start -D /var/lib/postgresql/15/main -l /var/log/postgresql/postgresql-15-main.log" || true
-}
+su - postgres -c "/usr/lib/postgresql/15/bin/pg_ctl start -D /var/lib/postgresql/15/main -l /var/log/postgresql/postgresql.log -o '-p 5432'" &
+
+# PostgreSQL 시작 대기
+sleep 5
 
 # PostgreSQL이 준비될 때까지 대기
 echo "⏳ PostgreSQL 준비 대기 중..."

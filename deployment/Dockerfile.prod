@@ -73,10 +73,10 @@ COPY --from=frontend-builder /app/dist ./dist/
 COPY document/ ./document/
 
 # 필요한 디렉토리 생성 및 권한 설정
-RUN mkdir -p uploads logs /var/lib/redis /var/run/postgresql /var/log/postgresql \
+RUN mkdir -p uploads logs /var/lib/redis /var/lib/postgresql /var/log/postgresql \
     && chmod 755 uploads logs \
-    && chown postgres:postgres /var/run/postgresql /var/log/postgresql \
-    && chmod 2775 /var/run/postgresql
+    && chown -R postgres:postgres /var/lib/postgresql /var/log/postgresql \
+    && chmod -R 750 /var/lib/postgresql /var/log/postgresql
 
 # 데이터베이스 초기화 스크립트
 COPY database/init-db.sh /usr/local/bin/
@@ -92,8 +92,8 @@ HEALTHCHECK --interval=30s --timeout=10s --start-period=60s --retries=5 \
     CMD curl -f http://localhost:3001/health || exit 1
 
 # 시작 스크립트
-COPY deployment/start.sh deployment/start-simple.sh /usr/local/bin/
-RUN chmod +x /usr/local/bin/start.sh /usr/local/bin/start-simple.sh
+COPY deployment/start.sh deployment/start-simple.sh deployment/start-minimal.sh deployment/start-fixed.sh /usr/local/bin/
+RUN chmod +x /usr/local/bin/start.sh /usr/local/bin/start-simple.sh /usr/local/bin/start-minimal.sh /usr/local/bin/start-fixed.sh
 
-# 애플리케이션 시작 (간단한 버전 사용)
-CMD ["/usr/local/bin/start-simple.sh"]
+# 애플리케이션 시작 (최소 버전 사용)
+CMD ["/usr/local/bin/start-minimal.sh"]
