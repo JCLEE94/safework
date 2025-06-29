@@ -17,16 +17,13 @@ jobs:
   deploy:
     name: Build and Deploy
     runs-on: [self-hosted, linux]
-    container:
-      image: docker:24-cli
-      options: --user root
     
     steps:
       - uses: actions/checkout@v4
       
-      - name: Setup Docker socket
+      - name: Setup environment
         run: |
-          apk add --no-cache curl
+          echo "Setting up environment..."
           
       - name: Log in to Docker Registry
         run: |
