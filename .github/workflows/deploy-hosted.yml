@@ -1,13 +1,7 @@
-name: Quick Deploy to Production
+name: Deploy with GitHub Hosted Runner
 
 on:
   workflow_dispatch:
-  push:
-    branches: [main]
-    paths-ignore:
-      - '**.md'
-      - '.github/workflows/test.yml'
-      - '.github/workflows/security.yml'
 
 env:
   REGISTRY: registry.jclee.me
@@ -16,18 +10,11 @@ env:
 jobs:
   deploy:
     name: Build and Deploy
-    runs-on: [self-hosted, linux]
-    container:
-      image: docker:24-cli
-      options: --user root
+    runs-on: ubuntu-latest
     
     steps:
       - uses: actions/checkout@v4
       
-      - name: Setup Docker socket
-        run: |
-          apk add --no-cache curl
-          
       - name: Log in to Docker Registry
         run: |
           echo "${{ secrets.REGISTRY_PASSWORD }}" | docker login ${{ env.REGISTRY }} -u "${{ secrets.REGISTRY_USERNAME }}" --password-stdin

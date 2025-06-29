@@ -19,6 +19,11 @@ jobs:
       options: --user root
     
     steps:
+      - name: Clean workspace
+        run: |
+          echo "Cleaning workspace..."
+          sudo rm -rf ${{ github.workspace }}/* ${{ github.workspace }}/.* 2>/dev/null || true
+          
       - uses: actions/checkout@v4
         with:
           clean: false
@@ -56,6 +61,11 @@ jobs:
     needs: test
     
     steps:
+      - name: Clean workspace
+        run: |
+          echo "Cleaning workspace..."
+          sudo rm -rf ${{ github.workspace }}/* ${{ github.workspace }}/.* 2>/dev/null || true
+          
       - uses: actions/checkout@v4
         with:
           clean: false
