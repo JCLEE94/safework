@@ -18,17 +18,19 @@ PG_BIN=$(find /usr -name pg_ctl -type f 2>/dev/null | head -1 | xargs dirname)
 echo "📁 PostgreSQL 바이너리 경로: $PG_BIN"
 
 if [ ! -f $PGDATA/PG_VERSION ]; then
-    # initdb 실행 (root로 실행)
-    $PG_BIN/initdb -D $PGDATA --locale=C --encoding=UTF8 --auth-local=trust --auth-host=md5
+    # postgres 사용자로 전환하여 initdb 실행
+    chown -R postgres:postgres $PGDATA
+    su - postgres -c "$PG_BIN/initdb -D $PGDATA --locale=C --encoding=UTF8 --auth-local=trust --auth-host=md5"
     
     # 설정 파일 수정
     echo "host all all 0.0.0.0/0 md5" >> $PGDATA/pg_hba.conf
     echo "listen_addresses = '*'" >> $PGDATA/postgresql.conf
     echo "port = 5432" >> $PGDATA/postgresql.conf
+    chown postgres:postgres $PGDATA/*.conf
 fi
 
 # PostgreSQL 시작 (백그라운드)
-$PG_BIN/pg_ctl -D $PGDATA -l /app/postgresql.log start || {
+su - postgres -c "$PG_BIN/pg_ctl -D $PGDATA -l /app/postgresql.log start" || {
     echo "⚠️ PostgreSQL 시작 실패, 로그 확인:"
     cat /app/postgresql.log || true
     echo "📁 데이터 디렉토리 상태:"
@@ -38,10 +40,12 @@ $PG_BIN/pg_ctl -D $PGDATA -l /app/postgresql.log start || {
 
 # 데이터베이스 및 사용자 생성
 echo "👤 데이터베이스 사용자 생성 중..."
+# PostgreSQL이 완전히 시작될 때까지 대기
+sleep 5
 export PGPASSWORD=postgres
-$PG_BIN/psql -U postgres -h localhost -c "CREATE USER admin WITH PASSWORD 'safework123';" || true
-$PG_BIN/psql -U postgres -h localhost -c "CREATE DATABASE health_management OWNER admin;" || true
-$PG_BIN/psql -U postgres -h localhost -c "GRANT ALL PRIVILEGES ON DATABASE health_management TO admin;" || true
+su - postgres -c "$PG_BIN/psql -h localhost -c \"CREATE USER admin WITH PASSWORD 'safework123';\"" || true
+su - postgres -c "$PG_BIN/psql -h localhost -c \"CREATE DATABASE health_management OWNER admin;\"" || true
+su - postgres -c "$PG_BIN/psql -h localhost -c \"GRANT ALL PRIVILEGES ON DATABASE health_management TO admin;\"" || true
 
 # Redis 시작
 echo "📊 Redis 시작 중..."
