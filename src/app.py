@@ -190,6 +190,7 @@ def create_app() -> FastAPI:
     from .handlers.reports import router as reports_router
     from .handlers.pipeline import router as pipeline_router
     from .handlers.compliance import router as compliance_router
+    from .handlers.dashboard import router as dashboard_router
     
     app.include_router(workers_router, prefix="/api/v1/workers", tags=["근로자관리"])
     app.include_router(health_exams_router, tags=["건강진단"])
@@ -203,6 +204,7 @@ def create_app() -> FastAPI:
     app.include_router(reports_router, tags=["보고서"])
     app.include_router(pipeline_router, tags=["파이프라인"])
     app.include_router(compliance_router, tags=["법령준수"])
+    app.include_router(dashboard_router, tags=["대시보드"])
     
     # 정적 파일 서빙 (React 빌드된 파일들) - Mount after all API routes
     try:
