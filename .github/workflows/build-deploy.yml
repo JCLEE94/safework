@@ -42,20 +42,20 @@ jobs:
           
       - name: Install backend dependencies
         run: |
-          # Self-hosted runner pip 문제 해결
-          export PATH=$HOME/.local/bin:$PATH
-          python -m pip install --user --upgrade pip setuptools wheel
-          python -m pip install --user -r backend/requirements.txt
-          python -m pip install --user pytest pytest-cov pytest-timeout
+          # Self-hosted runner pip 문제 해결 - venv 사용
+          python -m venv venv
+          source venv/bin/activate
+          python -m pip install --upgrade pip setuptools wheel
+          pip install -r backend/requirements.txt
+          pip install pytest pytest-cov pytest-timeout
           
       - name: Run backend tests
         env:
           PYTHONPATH: ${{ github.workspace }}
-          PATH: ${{ env.HOME }}/.local/bin:${{ env.PATH }}
         timeout-minutes: 10
         run: |
-          export PATH=$HOME/.local/bin:$PATH
-          python -m pytest tests/ -v --cov=src --cov-report=xml --cov-fail-under=70 --timeout=300 -x
+          source venv/bin/activate
+          pytest tests/ -v --cov=src --cov-report=xml --cov-fail-under=70 --timeout=300 -x
           
   build:
     name: Build Docker Image

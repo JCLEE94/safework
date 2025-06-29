@@ -71,10 +71,11 @@ jobs:
           
       - name: Python Dependency Check
         run: |
-          # Self-hosted runner pip 문제 해결
-          export PATH=$HOME/.local/bin:$PATH
-          python -m pip install --user --upgrade pip setuptools wheel
-          python -m pip install --user safety
+          # Self-hosted runner pip 문제 해결 - venv 사용
+          python -m venv venv
+          source venv/bin/activate
+          python -m pip install --upgrade pip setuptools wheel
+          pip install safety
           mkdir -p $HOME/.safety || true
           safety check --json || echo "Safety check completed with warnings"
           
