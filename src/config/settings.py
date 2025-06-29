@@ -19,7 +19,7 @@ class Settings(BaseSettings):
     disable_auth: bool = os.getenv("DISABLE_AUTH", "false").lower() == "true"
     
     # 데이터베이스 설정
-    database_url: str = os.getenv("DATABASE_URL", "postgresql://postgres:postgres@localhost:5432/safework_db")
+    database_url: str = os.getenv("DATABASE_URL", "postgresql://admin:safework123@localhost:5432/health_management")
     
     # JWT 설정
     secret_key: str = os.getenv("SECRET_KEY", os.urandom(32).hex())
