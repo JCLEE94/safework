@@ -71,7 +71,9 @@ jobs:
           
       - name: Python Dependency Check
         run: |
-          python -m pip install --upgrade pip setuptools wheel
+          # pip 재설치 (self-hosted runner 문제 해결)
+          python -m ensurepip --upgrade || true
+          python -m pip install --upgrade --force-reinstall pip setuptools wheel
           python -m pip install safety
           mkdir -p $HOME/.safety || true
           safety check --json || echo "Safety check completed with warnings"
