@@ -89,11 +89,17 @@ jobs:
             
       - name: Build and push Docker image
         run: |
+          # Build with multiple tags
+          TAG_ARGS=""
+          for tag in $(echo "${{ steps.meta.outputs.tags }}" | tr ',' ' '); do
+            TAG_ARGS="$TAG_ARGS -t $tag"
+          done
+          
           docker build -f deployment/Dockerfile.prod \
             --build-arg BUILD_TIME="${{ github.event.head_commit.timestamp }}" \
             --cache-from ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:buildcache \
             -t ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:buildcache \
-            -t ${{ steps.meta.outputs.tags }} \
+            $TAG_ARGS \
             .
           
           # Push all tags
