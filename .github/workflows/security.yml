@@ -10,7 +10,7 @@ on:
 
 jobs:
   security-scan:
-    runs-on: self-hosted
+    runs-on: [self-hosted, linux]
     
     steps:
       - name: Checkout code
@@ -33,7 +33,7 @@ jobs:
         continue-on-error: true
           
   docker-scan:
-    runs-on: self-hosted
+    runs-on: [self-hosted, linux]
     needs: security-scan
     
     steps:
@@ -58,23 +58,18 @@ jobs:
         continue-on-error: true
           
   dependency-check:
-    runs-on: self-hosted
+    runs-on: [self-hosted, linux]
+    container:
+      image: python:3.11-slim
+      options: --user root
     
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
-        
-      - name: Set up Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: '3.11'
           
       - name: Python Dependency Check
         run: |
-          # Self-hosted runner pip 문제 해결 - venv 사용
-          python -m venv venv
-          source venv/bin/activate
-          python -m pip install --upgrade pip setuptools wheel
+          python -m pip install --upgrade pip
           pip install safety
           mkdir -p $HOME/.safety || true
           safety check --json || echo "Safety check completed with warnings"

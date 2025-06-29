@@ -1,0 +1,55 @@
+name: Quick Deploy to Production
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths-ignore:
+      - '**.md'
+      - '.github/workflows/test.yml'
+      - '.github/workflows/security.yml'
+
+env:
+  REGISTRY: registry.jclee.me
+  IMAGE_NAME: safework
+
+jobs:
+  deploy:
+    name: Build and Deploy
+    runs-on: [self-hosted, linux]
+    
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+        
+      - name: Log in to Docker Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ secrets.REGISTRY_USERNAME }}
+          password: ${{ secrets.REGISTRY_PASSWORD }}
+          
+      - name: Build and push Docker image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: ./deployment/Dockerfile.prod
+          push: true
+          tags: |
+            ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest
+            ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ github.sha }}
+          cache-from: type=registry,ref=${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:buildcache
+          cache-to: type=registry,ref=${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:buildcache,mode=max
+          build-args: |
+            BUILD_TIME=${{ github.event.head_commit.timestamp }}
+      
+      - name: Trigger Watchtower update
+        if: success()
+        run: |
+          echo "✅ Docker image pushed to registry"
+          echo "🚀 Triggering Watchtower update..."
+          curl -X POST https://watchtower.jclee.me/v1/update \
+            -H "Authorization: Bearer MySuperSecretToken12345" || true
+          echo "✅ Deployment triggered"
