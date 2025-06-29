@@ -8,41 +8,40 @@ echo "Timezone: $TZ"
 # PostgreSQL 초기화 및 시작
 echo "📊 PostgreSQL 초기화 중..."
 
-# PostgreSQL 사용자 생성 (이미 있을 수 있음)
-id -u postgres &>/dev/null || useradd -r -s /bin/bash -d /var/lib/postgresql postgres
-
-# PostgreSQL 데이터 디렉토리 권한 수정
-mkdir -p /var/lib/postgresql/data
-chown -R postgres:postgres /var/lib/postgresql
-chmod 700 /var/lib/postgresql/data
+# PostgreSQL 데이터를 /app/pgdata에 저장 (권한 문제 회피)
+export PGDATA=/app/pgdata
+export PGUSER=postgres
+mkdir -p $PGDATA || true
 
 # PostgreSQL 바이너리 경로 찾기
 PG_BIN=$(find /usr -name pg_ctl -type f 2>/dev/null | head -1 | xargs dirname)
 echo "📁 PostgreSQL 바이너리 경로: $PG_BIN"
 
-if [ ! -f /var/lib/postgresql/data/PG_VERSION ]; then
-    # postgres 사용자로 initdb 실행
-    su - postgres -c "$PG_BIN/initdb -D /var/lib/postgresql/data --locale=C --encoding=UTF8"
+if [ ! -f $PGDATA/PG_VERSION ]; then
+    # initdb 실행 (root로 실행)
+    $PG_BIN/initdb -D $PGDATA --locale=C --encoding=UTF8 --auth-local=trust --auth-host=md5
     
     # 설정 파일 수정
-    echo "host all all 0.0.0.0/0 md5" >> /var/lib/postgresql/data/pg_hba.conf
-    echo "listen_addresses = '*'" >> /var/lib/postgresql/data/postgresql.conf
+    echo "host all all 0.0.0.0/0 md5" >> $PGDATA/pg_hba.conf
+    echo "listen_addresses = '*'" >> $PGDATA/postgresql.conf
+    echo "port = 5432" >> $PGDATA/postgresql.conf
 fi
 
-# PostgreSQL 시작
-su - postgres -c "$PG_BIN/pg_ctl -D /var/lib/postgresql/data -l /var/lib/postgresql/logfile start" || {
+# PostgreSQL 시작 (백그라운드)
+$PG_BIN/pg_ctl -D $PGDATA -l /app/postgresql.log start || {
     echo "⚠️ PostgreSQL 시작 실패, 로그 확인:"
-    cat /var/lib/postgresql/logfile || true
+    cat /app/postgresql.log || true
     echo "📁 데이터 디렉토리 상태:"
-    ls -la /var/lib/postgresql/data/ || true
+    ls -la $PGDATA/ || true
     exit 1
 }
 
 # 데이터베이스 및 사용자 생성
 echo "👤 데이터베이스 사용자 생성 중..."
-su - postgres -c "psql -c \"CREATE USER admin WITH PASSWORD 'safework123';\"" || true
-su - postgres -c "psql -c \"CREATE DATABASE health_management OWNER admin;\"" || true
-su - postgres -c "psql -c \"GRANT ALL PRIVILEGES ON DATABASE health_management TO admin;\"" || true
+export PGPASSWORD=postgres
+$PG_BIN/psql -U postgres -h localhost -c "CREATE USER admin WITH PASSWORD 'safework123';" || true
+$PG_BIN/psql -U postgres -h localhost -c "CREATE DATABASE health_management OWNER admin;" || true
+$PG_BIN/psql -U postgres -h localhost -c "GRANT ALL PRIVILEGES ON DATABASE health_management TO admin;" || true
 
 # Redis 시작
 echo "📊 Redis 시작 중..."
@@ -53,6 +52,10 @@ sleep 5
 
 # Nginx 제거 - FastAPI가 직접 정적 파일 서빙
 echo "🌐 Nginx 없이 FastAPI 직접 서빙 설정..."
+
+# 환경 변수 설정 (All-in-One)
+export DATABASE_URL="postgresql+asyncpg://admin:safework123@localhost:5432/health_management"
+export REDIS_URL="redis://localhost:6379/0"
 
 # FastAPI 애플리케이션 시작
 echo "🐍 FastAPI 서버 시작 중..."
