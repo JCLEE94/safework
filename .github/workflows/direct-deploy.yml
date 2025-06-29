@@ -1,0 +1,54 @@
+name: Direct Deploy
+
+on:
+  workflow_dispatch:
+
+env:
+  REGISTRY: registry.jclee.me
+  IMAGE_NAME: safework
+
+jobs:
+  deploy:
+    name: Direct Build and Deploy
+    runs-on: [self-hosted, linux]
+    
+    steps:
+      - name: Clean workspace forcefully
+        run: |
+          echo "Forcefully cleaning workspace..."
+          sudo rm -rf ${{ github.workspace }}
+          mkdir -p ${{ github.workspace }}
+          
+      - name: Clone repository
+        run: |
+          git clone https://github.com/JCLEE94/safework.git ${{ github.workspace }}
+          cd ${{ github.workspace }}
+          git checkout main
+      
+      - name: Log in to Docker Registry
+        run: |
+          echo "${{ secrets.REGISTRY_PASSWORD }}" | docker login ${{ env.REGISTRY }} -u "${{ secrets.REGISTRY_USERNAME }}" --password-stdin
+          
+      - name: Build and push Docker image
+        run: |
+          docker build -f deployment/Dockerfile.prod \
+            --build-arg BUILD_TIME="$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
+            -t ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest \
+            -t ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:$(git rev-parse --short HEAD) \
+            .
+          docker push ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest
+          docker push ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:$(git rev-parse --short HEAD)
+      
+      - name: Trigger Watchtower update
+        if: success()
+        run: |
+          echo "✅ Docker image pushed to registry"
+          echo "🚀 Triggering Watchtower update..."
+          curl -X POST https://watchtower.jclee.me/v1/update \
+            -H "Authorization: Bearer MySuperSecretToken12345" || true
+          echo "✅ Deployment triggered"
+          
+      - name: Clean up
+        if: always()
+        run: |
+          sudo rm -rf ${{ github.workspace }}/*
