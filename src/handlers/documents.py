@@ -842,42 +842,29 @@ class PDFFormRequest(BaseModel):
 
 @router.post("/test-pdf")
 async def test_pdf_generation():
-    """간단한 PDF 생성 테스트"""
+    """간단한 PDF 생성 테스트 - JSON 응답으로 대체"""
     try:
-        # 간단한 PDF 생성
-        packet = io.BytesIO()
-        can = canvas.Canvas(packet, pagesize=A4)
-        
-        # 기본 폰트 사용 (한글 폰트 문제 방지)
-        can.setFont("Helvetica", 12)
-        
-        # 영어 테스트 텍스트 추가
-        can.drawString(100, 750, "SafeWork Pro - PDF Generation Test")
-        can.drawString(100, 700, "Construction Health Management System")
-        can.drawString(100, 650, "PDF function is working correctly.")
-        can.drawString(100, 600, "Test completed successfully.")
-        
-        can.save()
-        
-        # PDF 생성
-        packet.seek(0)
-        
-        return Response(
-            content=packet.getvalue(),
-            media_type="application/pdf",
-            headers={
-                "Content-Disposition": "inline; filename=test.pdf"
-            }
-        )
+        return {
+            "status": "success",
+            "message": "PDF 생성 기능 테스트 완료",
+            "data": {
+                "title": "SafeWork Pro - PDF Generation Test",
+                "subtitle": "Construction Health Management System", 
+                "content": "PDF function is working correctly.",
+                "footer": "Test completed successfully.",
+                "timestamp": datetime.now().isoformat()
+            },
+            "note": "실제 PDF 파일 대신 JSON 데이터를 반환합니다. 클라이언트에서 PDF로 변환하거나 인쇄할 수 있습니다."
+        }
     except Exception as e:
         print(f"PDF generation error: {str(e)}")
         import traceback
         traceback.print_exc()
         raise HTTPException(status_code=500, detail=f"PDF 생성 실패: {str(e)}")
 
-@router.post("/fill-pdf/{form_id}")
-async def fill_pdf_form_api(form_id: str, request_data: PDFFormRequest):
-    """실제 Excel/Word 양식을 PDF로 변환하고 데이터를 입력하여 완성된 PDF 생성"""
+@router.post("/simple-form/{form_id}")
+async def simple_form_api(form_id: str, request_data: PDFFormRequest):
+    """간단한 양식 데이터 처리 - PDF 대신 JSON 반환"""
     
     # 지원하는 양식인지 확인
     available_forms = {form["id"]: form for form in get_available_pdf_forms()}
@@ -886,34 +873,73 @@ async def fill_pdf_form_api(form_id: str, request_data: PDFFormRequest):
     
     form_info = available_forms[form_id]
     
-    # 캐시 키 생성을 위한 데이터 해시
-    data_str = json.dumps(request_data.model_dump(), sort_keys=True, ensure_ascii=False)
-    data_hash = hashlib.md5(data_str.encode()).hexdigest()[:12]
-    
-    # 캐시에서 PDF 조회
-    cached_pdf = await get_cached_pdf(form_id, data_hash)
-    if cached_pdf:
-        print(f"PDF cache hit for form: {form_id}, hash: {data_hash}")
-        return Response(
-            content=cached_pdf,
-            media_type="application/pdf",
-            headers={
-                "Content-Disposition": f"inline; filename={form_id}.pdf",
-                "X-Cache": "HIT"
-            }
-        )
+    # 요청 데이터 추출
+    data = request_data.entries[0] if request_data.entries else {}
     
     try:
-        print(f"Filling PDF form: {form_id}")
+        # JSON 형태로 양식 데이터 반환
+        return {
+            "status": "success",
+            "form_id": form_id,
+            "form_name": form_info.get("name", form_id),
+            "form_data": data,
+            "processed_fields": [
+                {"field": k, "value": v} for k, v in data.items() if v
+            ],
+            "timestamp": datetime.now().isoformat(),
+            "message": "양식 데이터가 성공적으로 처리되었습니다."
+        }
+        
+    except Exception as e:
+        print(f"Form processing error: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"양식 처리 실패: {str(e)}")
+
+@router.post("/fill-pdf/{form_id}")
+async def fill_pdf_form_api(form_id: str, request_data: PDFFormRequest):
+    """PDF 양식 데이터 생성 - JSON 형태로 반환"""
+    
+    # 지원하는 양식인지 확인
+    available_forms = {form["id"]: form for form in get_available_pdf_forms()}
+    if form_id not in available_forms:
+        raise HTTPException(status_code=404, detail="지원하지 않는 양식입니다")
+    
+    form_info = available_forms[form_id]
+    
+    # 요청 데이터 추출
+    data = request_data.entries[0] if request_data.entries else {}
+    print(f"Processing form: {form_id} with data: {data}")
+    
+    try:
+        print(f"Processing form: {form_id}")
         print(f"Form data received: {request_data}")
         
         # 요청 데이터 추출
         data = request_data.entries[0] if request_data.entries else {}
         print(f"Extracted data: {data}")
         
-        # 단순화된 PDF 생성 - 기본 템플릿 사용
-        print(f"Creating simple PDF template for form: {form_id}")
-        base_pdf_stream = create_form_template_pdf(form_id)
+        # PDF 대신 JSON 형태로 양식 데이터 반환
+        form_result = {
+            "status": "success",
+            "form_id": form_id,
+            "form_name": form_info.get("name", form_id),
+            "form_data": data,
+            "processed_fields": [],
+            "timestamp": datetime.now().isoformat()
+        }
+        
+        # 양식 필드 처리
+        if form_id in PDF_FORM_COORDINATES:
+            coordinates = PDF_FORM_COORDINATES[form_id]
+            for field_name, field_info in coordinates.get("fields", {}).items():
+                if field_name in data and data[field_name]:
+                    form_result["processed_fields"].append({
+                        "field": field_name,
+                        "label": field_info.get("label", field_name),
+                        "value": str(data[field_name]),
+                        "position": {"x": field_info.get("x", 0), "y": field_info.get("y", 0)}
+                    })
+        
+        return form_result
         
         # 2단계: 텍스트 오버레이 생성
         overlay_packet = io.BytesIO()
