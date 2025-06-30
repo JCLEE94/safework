@@ -245,15 +245,22 @@ def setup_korean_font(canvas_obj):
         
         for font_path in font_paths:
             if os.path.exists(font_path):
-                pdfmetrics.registerFont(TTFont("NanumGothic", font_path))
-                canvas_obj.setFont("NanumGothic", 10)
-                return "NanumGothic"
+                try:
+                    pdfmetrics.registerFont(TTFont("NanumGothic", font_path))
+                    canvas_obj.setFont("NanumGothic", 10)
+                    print(f"Korean font loaded successfully: {font_path}")
+                    return "NanumGothic"
+                except Exception as font_error:
+                    print(f"Failed to load font {font_path}: {font_error}")
+                    continue
         
         # 폰트가 없으면 기본 폰트 사용
         print("Warning: Korean font not found, using default font")
+        canvas_obj.setFont("Helvetica", 10)
         return "Helvetica"
     except Exception as e:
         print(f"Font setup error: {str(e)}")
+        canvas_obj.setFont("Helvetica", 10)
         return "Helvetica"
 
 
@@ -841,14 +848,14 @@ async def test_pdf_generation():
         packet = io.BytesIO()
         can = canvas.Canvas(packet, pagesize=A4)
         
-        # 한글 폰트 설정
-        font_name = setup_korean_font(can)
-        can.setFont(font_name, 12)
+        # 기본 폰트 사용 (한글 폰트 문제 방지)
+        can.setFont("Helvetica", 12)
         
-        # 테스트 텍스트 추가
-        can.drawString(100, 750, "SafeWork Pro - PDF 생성 테스트")
-        can.drawString(100, 700, "건설업 보건관리 시스템")
-        can.drawString(100, 650, "PDF 기능이 정상 작동합니다.")
+        # 영어 테스트 텍스트 추가
+        can.drawString(100, 750, "SafeWork Pro - PDF Generation Test")
+        can.drawString(100, 700, "Construction Health Management System")
+        can.drawString(100, 650, "PDF function is working correctly.")
+        can.drawString(100, 600, "Test completed successfully.")
         
         can.save()
         
@@ -864,6 +871,8 @@ async def test_pdf_generation():
         )
     except Exception as e:
         print(f"PDF generation error: {str(e)}")
+        import traceback
+        traceback.print_exc()
         raise HTTPException(status_code=500, detail=f"PDF 생성 실패: {str(e)}")
 
 @router.post("/fill-pdf/{form_id}")
