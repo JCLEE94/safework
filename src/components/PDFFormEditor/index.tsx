@@ -210,17 +210,21 @@ export function PDFFormEditor({ form, onClose, onSave }: PDFFormEditorProps) {
         }),
       });
 
-      if (response.blob) {
-        // PDF 다운로드
-        const blob = new Blob([response.blob], { type: 'application/pdf' });
+      if (response.status === 'success') {
+        // JSON 응답을 텍스트 파일로 다운로드 (임시)
+        const jsonString = JSON.stringify(response, null, 2);
+        const blob = new Blob([jsonString], { type: 'application/json' });
         const url = window.URL.createObjectURL(blob);
         const a = document.createElement('a');
         a.href = url;
-        a.download = `${form.name_korean}_${new Date().toISOString().split('T')[0]}.pdf`;
+        a.download = `${form.name_korean}_${new Date().toISOString().split('T')[0]}.json`;
         document.body.appendChild(a);
         a.click();
         window.URL.revokeObjectURL(url);
         document.body.removeChild(a);
+        
+        alert(`양식이 성공적으로 처리되었습니다.
+처리된 필드: ${response.processed_fields.length}개`);
       }
 
       onSave?.(formData);
