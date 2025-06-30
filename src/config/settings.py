@@ -34,13 +34,13 @@ class Settings(BaseSettings):
     database_host: str = Field(default="localhost", env="DATABASE_HOST")
     database_port: int = Field(default=5432, env="DATABASE_PORT")
     database_user: str = Field(default="admin", env="POSTGRES_USER")
-    database_password: str = Field(env="POSTGRES_PASSWORD")
+    database_password: str = Field(default="safework123", env="POSTGRES_PASSWORD")
     database_name: str = Field(default="health_management", env="POSTGRES_DB")
-    database_url: str = Field(env="DATABASE_URL")
+    database_url: str = Field(default="", env="DATABASE_URL")
     
     # JWT 설정 - 보안 강화
-    secret_key: str = Field(env="SECRET_KEY")
-    jwt_secret: str = Field(env="JWT_SECRET") 
+    secret_key: str = Field(default="safework-app-secret-2024", env="SECRET_KEY")
+    jwt_secret: str = Field(default="safework-pro-secret-key-2024", env="JWT_SECRET") 
     algorithm: str = Field(default="HS256", env="JWT_ALGORITHM")
     access_token_expire_minutes: int = Field(default=1440, env="TOKEN_EXPIRE_MINUTES")
     
@@ -48,7 +48,7 @@ class Settings(BaseSettings):
     redis_host: str = Field(default="localhost", env="REDIS_HOST")
     redis_port: int = Field(default=6379, env="REDIS_PORT")
     redis_password: str = Field(default="", env="REDIS_PASSWORD")
-    redis_url: str = Field(env="REDIS_URL")
+    redis_url: str = Field(default="redis://localhost:6379/0", env="REDIS_URL")
     
     # 성능 설정 - Magic numbers 제거
     rate_limit: int = Field(default=100, env="RATE_LIMIT")
@@ -70,21 +70,21 @@ class Settings(BaseSettings):
     smtp_password: str = Field(default="", env="SMTP_PASSWORD")
     
     # 외부 API 설정
-    kosha_api_url: str = Field(env="KOSHA_API_URL")
-    moel_api_url: str = Field(env="MOEL_API_URL")
+    kosha_api_url: str = Field(default="https://www.kosha.or.kr/api", env="KOSHA_API_URL")
+    moel_api_url: str = Field(default="https://www.moel.go.kr/api", env="MOEL_API_URL")
     
     # 프로덕션 환경 설정
-    production_url: str = Field(env="PRODUCTION_URL")
-    remote_host: str = Field(env="REMOTE_HOST")
+    production_url: str = Field(default="http://192.168.50.215:3001", env="PRODUCTION_URL")
+    remote_host: str = Field(default="192.168.50.215", env="REMOTE_HOST")
     remote_port: int = Field(default=1111, env="REMOTE_PORT")
     remote_user: str = Field(default="docker", env="REMOTE_USER")
     
     # Docker 설정
-    docker_registry: str = Field(env="DOCKER_REGISTRY")
+    docker_registry: str = Field(default="registry.jclee.me", env="DOCKER_REGISTRY")
     
     # Watchtower 설정
-    watchtower_url: str = Field(env="WATCHTOWER_URL")
-    watchtower_token: str = Field(env="WATCHTOWER_TOKEN")
+    watchtower_url: str = Field(default="https://watchtower.jclee.me", env="WATCHTOWER_URL")
+    watchtower_token: str = Field(default="MySuperSecretToken12345", env="WATCHTOWER_TOKEN")
     
     # 모니터링 설정
     sentry_dsn: str = Field(default="", env="SENTRY_DSN")
