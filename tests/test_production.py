@@ -6,7 +6,9 @@ import pytest
 import httpx
 import json
 
-PRODUCTION_URL = "http://soonmin.jclee.me"
+PRODUCTION_URL = os.getenv("PRODUCTION_URL", "http://soonmin.jclee.me")
+
+import os
 
 class TestProductionServer:
     """운영서버 통합 테스트"""

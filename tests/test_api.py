@@ -1,11 +1,13 @@
 #!/usr/bin/env python3
+import os
 import urllib.parse
 import requests
 
 def test_pdf_api():
     # URL 인코딩
     form_id = urllib.parse.quote('MSDS_관리대장', safe='')
-    url = f'http://soonmin.jclee.me/api/v1/documents/fill-pdf/{form_id}'
+    base_url = os.getenv('PRODUCTION_URL', 'http://soonmin.jclee.me')
+    url = f'{base_url}/api/v1/documents/fill-pdf/{form_id}'
     print(f'URL: {url}')
 
     # 테스트 데이터

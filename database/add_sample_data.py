@@ -8,7 +8,9 @@ import requests
 import json
 from datetime import datetime, timedelta
 
-API_BASE = "http://192.168.50.215:3001/api/v1"
+API_BASE = os.getenv("PRODUCTION_URL", "http://192.168.50.215:3001") + "/api/v1"
+
+import os
 
 def add_sample_workers():
     """근로자 샘플 데이터 추가"""
@@ -284,7 +286,8 @@ def main():
         add_sample_accident_reports()
         
         print("\n✅ 모든 샘플 데이터 추가 완료!")
-        print(f"🌐 대시보드 확인: http://192.168.50.215:3001")
+        production_url = os.getenv("PRODUCTION_URL", "http://192.168.50.215:3001")
+        print(f"🌐 대시보드 확인: {production_url}")
 
 if __name__ == "__main__":
     main()
