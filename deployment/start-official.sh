@@ -32,6 +32,7 @@ if [ ! -s "$PGDATA/PG_VERSION" ]; then
     # 환경 변수를 postgres 사용자에게 전달하여 initdb 실행
     runuser -u postgres -- bash -c "
         export PGDATA='$PGDATA'
+        export PATH=/usr/lib/postgresql/*/bin:\$PATH
         initdb --encoding=UTF8 --locale=C.UTF-8 --auth-local=trust --auth-host=md5
     "
     
@@ -57,13 +58,14 @@ fi
 echo "🔥 PostgreSQL 서버 시작..."
 runuser -u postgres -- bash -c "
     export PGDATA='$PGDATA'
+    export PATH=/usr/lib/postgresql/*/bin:\$PATH
     pg_ctl start -w -t 60 -l /tmp/postgresql.log
 "
 
 # PostgreSQL 준비 확인
 echo "⏳ PostgreSQL 연결 대기 중..."
 for i in {1..30}; do
-    if runuser -u postgres -- pg_isready -h localhost -p 5432; then
+    if runuser -u postgres -- bash -c "export PATH=/usr/lib/postgresql/*/bin:\$PATH; pg_isready -h localhost -p 5432"; then
         echo "✅ PostgreSQL 준비 완료"
         break
     fi
@@ -73,14 +75,14 @@ done
 
 # 사용자 및 데이터베이스 생성
 echo "👤 사용자 및 데이터베이스 설정..."
-runuser -u postgres -- psql -c "DROP USER IF EXISTS admin;" || true
-runuser -u postgres -- psql -c "CREATE USER admin WITH SUPERUSER PASSWORD 'safework123';" || true
-runuser -u postgres -- psql -c "DROP DATABASE IF EXISTS health_management;" || true
-runuser -u postgres -- psql -c "CREATE DATABASE health_management OWNER admin;" || true
+runuser -u postgres -- bash -c "export PATH=/usr/lib/postgresql/*/bin:\$PATH; psql -c \"DROP USER IF EXISTS admin;\"" || true
+runuser -u postgres -- bash -c "export PATH=/usr/lib/postgresql/*/bin:\$PATH; psql -c \"CREATE USER admin WITH SUPERUSER PASSWORD 'safework123';\"" || true
+runuser -u postgres -- bash -c "export PATH=/usr/lib/postgresql/*/bin:\$PATH; psql -c \"DROP DATABASE IF EXISTS health_management;\"" || true
+runuser -u postgres -- bash -c "export PATH=/usr/lib/postgresql/*/bin:\$PATH; psql -c \"CREATE DATABASE health_management OWNER admin;\"" || true
 
 # 연결 테스트
 echo "🧪 데이터베이스 연결 테스트..."
-if runuser -u postgres -- psql -h localhost -U admin -d health_management -c "SELECT 1;" >/dev/null 2>&1; then
+if runuser -u postgres -- bash -c "export PATH=/usr/lib/postgresql/*/bin:\$PATH; psql -h localhost -U admin -d health_management -c 'SELECT 1;'" >/dev/null 2>&1; then
     echo "✅ 데이터베이스 연결 성공"
 else
     echo "❌ 데이터베이스 연결 실패"
