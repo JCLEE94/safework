@@ -805,28 +805,32 @@ async def get_pdf_forms():
             "name": "유소견자 관리대장",
             "name_korean": "유소견자 관리대장",
             "description": "근로자 건강검진 유소견자 관리 양식",
-            "category": "관리대장"
+            "category": "register",  # Changed from "관리대장" to "register"
+            "fields": ["company_name", "department", "year", "worker_name", "employee_id", "position", "exam_date", "exam_agency", "exam_result", "opinion", "manager_signature", "creation_date"]
         },
         {
             "id": "MSDS_관리대장",
             "name": "MSDS 관리대장", 
             "name_korean": "MSDS 관리대장",
             "description": "화학물질 안전보건자료 관리 양식",
-            "category": "관리대장"
+            "category": "register",  # Changed from "관리대장" to "register"
+            "fields": ["company_name", "department", "manager", "chemical_name", "manufacturer", "cas_number", "usage", "quantity", "storage_location", "hazard_class", "msds_date", "msds_version", "update_date", "safety_measures"]
         },
         {
             "id": "건강관리_상담방문_일지",
             "name": "건강관리 상담방문 일지",
             "name_korean": "건강관리 상담방문 일지", 
             "description": "근로자 건강관리 상담 방문 기록 양식",
-            "category": "건강관리"
+            "category": "health",  # Changed from "건강관리" to "health"
+            "fields": ["visit_date", "site_name", "counselor", "work_type", "worker_count", "counseling_topic", "health_issues", "work_environment", "improvement_suggestions"]
         },
         {
             "id": "특별관리물질_취급일지",
             "name": "특별관리물질 취급일지",
             "name_korean": "특별관리물질 취급일지",
             "description": "특별관리물질 취급 작업 기록 양식", 
-            "category": "특별관리물질"
+            "category": "special",  # Changed from "특별관리물질" to "special"
+            "fields": ["company_name", "substance_name", "cas_number", "work_date", "worker_name", "work_description", "exposure_time", "protection_equipment", "safety_measures"]
         }
     ]
     return {
