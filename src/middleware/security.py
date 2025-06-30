@@ -263,6 +263,7 @@ class ContentSecurityPolicyMiddleware(BaseHTTPMiddleware):
         self.policy = policy or {
             "default-src": "'self'",
             "script-src": "'self' 'unsafe-inline' 'unsafe-eval'",
+            "script-src-elem": "'self' 'unsafe-inline'",
             "style-src": "'self' 'unsafe-inline'",
             "img-src": "'self' data: https:",
             "font-src": "'self'",
@@ -271,8 +272,7 @@ class ContentSecurityPolicyMiddleware(BaseHTTPMiddleware):
             "object-src": "'none'",
             "frame-ancestors": "'none'",
             "base-uri": "'self'",
-            "form-action": "'self'",
-            "upgrade-insecure-requests": ""
+            "form-action": "'self'"
         }
         
     async def dispatch(self, request: Request, call_next):
