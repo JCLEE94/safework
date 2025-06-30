@@ -112,7 +112,8 @@ export function UnifiedDocuments() {
   const loadPDFForms = async () => {
     try {
       const data = await fetchApi('/api/v1/documents/pdf-forms');
-      setPdfForms(data || []);
+      // API returns { forms: [...] } structure
+      setPdfForms(data?.forms || []);
     } catch (error) {
       console.error('Failed to load PDF forms:', error);
       setPdfForms([]);
