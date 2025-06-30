@@ -13,6 +13,7 @@ import {
 } from 'lucide-react';
 import { Card, Button, Badge, Modal } from '../common';
 import { useApi } from '../../hooks/useApi';
+import { PDFFormEditor } from '../PDFFormEditor';
 
 // 탭 정의
 type DocumentTab = 'files' | 'pdf-forms' | 'templates' | 'categories';
@@ -175,10 +176,27 @@ export function UnifiedDocuments() {
         break;
       case 'preview':
         setSelectedForm(form);
-        // Show form preview
+        // Show form preview modal or navigate to preview page
         break;
       case 'download':
-        window.open(`/api/v1/documents/pdf-forms/${form.id}/template`, '_blank');
+        // Download original template
+        try {
+          const response = await fetch(`/api/v1/documents/pdf-forms/${form.id}/template`);
+          if (response.ok) {
+            const blob = await response.blob();
+            const url = window.URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `${form.name_korean}_template.pdf`;
+            document.body.appendChild(a);
+            a.click();
+            window.URL.revokeObjectURL(url);
+            document.body.removeChild(a);
+          }
+        } catch (error) {
+          console.error('Template download failed:', error);
+          alert('템플릿 다운로드에 실패했습니다.');
+        }
         break;
     }
   };
@@ -548,15 +566,18 @@ export function UnifiedDocuments() {
       )}
 
       {showFormModal && selectedForm && (
-        <Modal onClose={() => setShowFormModal(false)}>
-          <div className="p-6">
-            <h2 className="text-lg font-semibold mb-4">{selectedForm.name_korean} 작성</h2>
-            {/* PDF form component */}
-            <div className="space-y-4">
-              <p className="text-gray-600">양식 작성 기능이 여기에 표시됩니다.</p>
-            </div>
-          </div>
-        </Modal>
+        <PDFFormEditor 
+          form={selectedForm}
+          onClose={() => {
+            setShowFormModal(false);
+            setSelectedForm(null);
+          }}
+          onSave={(data) => {
+            console.log('Form saved:', data);
+            setShowFormModal(false);
+            setSelectedForm(null);
+          }}
+        />
       )}
     </div>
   );
