@@ -1,14 +1,19 @@
 #!/bin/bash
 set -e
 
+# 환경변수 파일 로드
+if [ -f ".env" ]; then
+    source .env
+fi
+
 echo "🚀 SafeWork Pro 단일 컨테이너 배포 시작..."
 
-# 원격 서버 정보
-REMOTE_HOST="192.168.50.215"
-REMOTE_PORT="1111"
-REMOTE_USER="docker"
-DOCKER_REGISTRY="registry.jclee.me"
-APP_NAME="safework"
+# 원격 서버 정보 - 환경변수 우선
+REMOTE_HOST="${REMOTE_HOST:-192.168.50.215}"
+REMOTE_PORT="${REMOTE_PORT:-1111}"
+REMOTE_USER="${REMOTE_USER:-docker}"
+DOCKER_REGISTRY="${DOCKER_REGISTRY:-registry.jclee.me}"
+APP_NAME="${APP_NAME:-safework}"
 
 # 빌드 시간 설정
 export BUILD_TIME=$(TZ=Asia/Seoul date "+%Y-%m-%d %H:%M:%S KST")

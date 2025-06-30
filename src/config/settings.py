@@ -4,51 +4,110 @@ Application settings and configuration
 """
 
 from pydantic_settings import BaseSettings
+from pydantic import Field
 from functools import lru_cache
 import os
+import secrets
 
 class Settings(BaseSettings):
-    """애플리케이션 설정 클래스"""
+    """애플리케이션 설정 클래스 - 하드코딩 값 제거됨"""
     
     # 애플리케이션 기본 설정
-    app_name: str = os.getenv("APP_NAME", "SafeWork Pro")
-    app_version: str = os.getenv("APP_VERSION", "1.0.1")
-    debug: bool = os.getenv("DEBUG", "false").lower() == "true"
+    app_name: str = Field(default="SafeWork Pro", env="APP_NAME")
+    app_version: str = Field(default="1.0.1", env="APP_VERSION")
+    debug: bool = Field(default=False, env="DEBUG")
+    
+    # 서버 설정
+    host: str = Field(default="0.0.0.0", env="HOST")
+    port: int = Field(default=8000, env="PORT")
+    
+    # 디렉토리 설정
+    static_files_dir: str = Field(default="/app/dist", env="STATIC_FILES_DIR")
+    uploads_dir: str = Field(default="/app/uploads", env="UPLOADS_DIR")
+    logs_dir: str = Field(default="/app/logs", env="LOGS_DIR")
+    document_dir: str = Field(default="/app/document", env="DOCUMENT_DIR")
     
     # 개발 환경 설정
-    disable_auth: bool = os.getenv("DISABLE_AUTH", "false").lower() == "true"
+    disable_auth: bool = Field(default=False, env="DISABLE_AUTH")
     
-    # 데이터베이스 설정
-    database_url: str = os.getenv("DATABASE_URL", "postgresql://admin:safework123@localhost:5432/health_management")
+    # 데이터베이스 설정 - 하드코딩 제거
+    database_host: str = Field(default="localhost", env="DATABASE_HOST")
+    database_port: int = Field(default=5432, env="DATABASE_PORT")
+    database_user: str = Field(default="admin", env="POSTGRES_USER")
+    database_password: str = Field(env="POSTGRES_PASSWORD")
+    database_name: str = Field(default="health_management", env="POSTGRES_DB")
+    database_url: str = Field(env="DATABASE_URL")
     
-    # JWT 설정
-    secret_key: str = os.getenv("SECRET_KEY", os.urandom(32).hex())
-    jwt_secret: str = os.getenv("JWT_SECRET", os.urandom(32).hex())
-    algorithm: str = os.getenv("JWT_ALGORITHM", "HS256")
-    access_token_expire_minutes: int = int(os.getenv("ACCESS_TOKEN_EXPIRE_MINUTES", "1440"))
+    # JWT 설정 - 보안 강화
+    secret_key: str = Field(env="SECRET_KEY")
+    jwt_secret: str = Field(env="JWT_SECRET") 
+    algorithm: str = Field(default="HS256", env="JWT_ALGORITHM")
+    access_token_expire_minutes: int = Field(default=1440, env="TOKEN_EXPIRE_MINUTES")
     
     # Redis 설정
-    redis_url: str = os.getenv("REDIS_URL", "redis://localhost:6379/0")
-    redis_password: str = os.getenv("REDIS_PASSWORD", "")
+    redis_host: str = Field(default="localhost", env="REDIS_HOST")
+    redis_port: int = Field(default=6379, env="REDIS_PORT")
+    redis_password: str = Field(default="", env="REDIS_PASSWORD")
+    redis_url: str = Field(env="REDIS_URL")
+    
+    # 성능 설정 - Magic numbers 제거
+    rate_limit: int = Field(default=100, env="RATE_LIMIT")
+    rate_limit_window: int = Field(default=60, env="RATE_LIMIT_WINDOW")
+    db_pool_size: int = Field(default=20, env="DB_POOL_SIZE")
+    max_batch_size: int = Field(default=100, env="MAX_BATCH_SIZE")
+    slow_query_threshold: float = Field(default=1.0, env="SLOW_QUERY_THRESHOLD")
+    cache_expire_seconds: int = Field(default=86400, env="CACHE_EXPIRE_SECONDS")
     
     # 파일 업로드 설정
-    upload_dir: str = os.getenv("UPLOAD_DIR", "uploads")
-    max_file_size: int = int(os.getenv("MAX_FILE_SIZE", str(10 * 1024 * 1024)))  # 10MB
-    allowed_extensions: list = os.getenv("ALLOWED_EXTENSIONS", ".pdf,.doc,.docx,.xls,.xlsx,.jpg,.png,.gif").split(",")
+    upload_dir: str = Field(default="uploads", env="UPLOAD_DIR")
+    max_file_size: int = Field(default=10485760, env="MAX_FILE_SIZE")  # 10MB
+    allowed_extensions: str = Field(default=".pdf,.doc,.docx,.xls,.xlsx,.jpg,.png,.gif", env="ALLOWED_EXTENSIONS")
     
     # 이메일 설정
-    smtp_host: str = os.getenv("SMTP_HOST", "localhost")
-    smtp_port: int = int(os.getenv("SMTP_PORT", "587"))
-    smtp_username: str = os.getenv("SMTP_USERNAME", "")
-    smtp_password: str = os.getenv("SMTP_PASSWORD", "")
+    smtp_host: str = Field(default="localhost", env="SMTP_HOST")
+    smtp_port: int = Field(default=587, env="SMTP_PORT")
+    smtp_username: str = Field(default="", env="SMTP_USERNAME")
+    smtp_password: str = Field(default="", env="SMTP_PASSWORD")
     
     # 외부 API 설정
-    kosha_api_url: str = os.getenv("KOSHA_API_URL", "https://www.kosha.or.kr/api")
-    moel_api_url: str = os.getenv("MOEL_API_URL", "https://www.moel.go.kr/api")
+    kosha_api_url: str = Field(env="KOSHA_API_URL")
+    moel_api_url: str = Field(env="MOEL_API_URL")
+    
+    # 프로덕션 환경 설정
+    production_url: str = Field(env="PRODUCTION_URL")
+    remote_host: str = Field(env="REMOTE_HOST")
+    remote_port: int = Field(default=1111, env="REMOTE_PORT")
+    remote_user: str = Field(default="docker", env="REMOTE_USER")
+    
+    # Docker 설정
+    docker_registry: str = Field(env="DOCKER_REGISTRY")
+    
+    # Watchtower 설정
+    watchtower_url: str = Field(env="WATCHTOWER_URL")
+    watchtower_token: str = Field(env="WATCHTOWER_TOKEN")
     
     # 모니터링 설정
-    sentry_dsn: str = os.getenv("SENTRY_DSN", "")
-    log_level: str = os.getenv("LOG_LEVEL", "INFO")
+    sentry_dsn: str = Field(default="", env="SENTRY_DSN")
+    log_level: str = Field(default="INFO", env="LOG_LEVEL")
+    
+    @property
+    def allowed_extensions_list(self) -> list:
+        """허용된 확장자 리스트 반환"""
+        return self.allowed_extensions.split(",")
+    
+    def generate_database_url(self) -> str:
+        """데이터베이스 URL 동적 생성"""
+        if self.database_url:
+            return self.database_url
+        return f"postgresql://{self.database_user}:{self.database_password}@{self.database_host}:{self.database_port}/{self.database_name}"
+    
+    def generate_redis_url(self) -> str:
+        """Redis URL 동적 생성"""
+        if self.redis_url:
+            return self.redis_url
+        if self.redis_password:
+            return f"redis://:{self.redis_password}@{self.redis_host}:{self.redis_port}/0"
+        return f"redis://{self.redis_host}:{self.redis_port}/0"
     
     class Config:
         env_file = ".env"

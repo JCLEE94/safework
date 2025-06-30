@@ -7,7 +7,7 @@ services:
     container_name: ${CONTAINER_NAME:-safework}
     restart: ${RESTART_POLICY:-unless-stopped}
     ports:
-      - "${HOST_PORT:-3001}:8000"
+      - "${HOST_PORT:-3001}:${APP_PORT:-8000}"
     environment:
       # 환경 구분
       ENVIRONMENT: ${ENVIRONMENT:-production}
@@ -15,16 +15,16 @@ services:
       
       # 데이터베이스 설정 (All-in-One 내장)
       POSTGRES_USER: ${POSTGRES_USER:-admin}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-safework123}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
       POSTGRES_DB: ${POSTGRES_DB:-health_management}
-      DATABASE_URL: ${DATABASE_URL:-postgresql://admin:safework123@localhost:5432/health_management}
+      DATABASE_URL: ${DATABASE_URL}
       
       # Redis 설정 (All-in-One 내장)
       REDIS_URL: ${REDIS_URL:-redis://localhost:6379/0}
       
       # 애플리케이션 설정
-      JWT_SECRET: ${JWT_SECRET:-safework-pro-secret-key-2024}
-      SECRET_KEY: ${SECRET_KEY:-safework-app-secret-2024}
+      JWT_SECRET: ${JWT_SECRET}
+      SECRET_KEY: ${SECRET_KEY}
       LOG_LEVEL: ${LOG_LEVEL:-INFO}
       TZ: ${TZ:-Asia/Seoul}
       HOST: ${APP_HOST:-0.0.0.0}

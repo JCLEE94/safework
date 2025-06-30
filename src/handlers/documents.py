@@ -39,10 +39,12 @@ from ..config.pdf_forms import (
 
 router = APIRouter(prefix="/api/v1/documents", tags=["documents"])
 
-# Base directory for documents
-import os
+# Base directory for documents - 설정에서 가져오기
+from ..config.settings import get_settings
+settings = get_settings()
+
 current_dir = Path(__file__).parent.parent.parent  # Go up to project root
-DOCUMENT_BASE_DIR = current_dir / "document" if (current_dir / "document").exists() else Path("/app/document")
+DOCUMENT_BASE_DIR = Path(settings.document_dir) if settings.document_dir else current_dir / "document"
 TEMPLATES_DIR = current_dir / "src" / "templates" if (current_dir / "src" / "templates").exists() else Path("/app/src/templates")
 
 print(f"Document base directory: {DOCUMENT_BASE_DIR}")

@@ -94,11 +94,13 @@ async def lifespan(app: FastAPI):
 
 def create_app() -> FastAPI:
     """FastAPI 애플리케이션 팩토리"""
+    from .config.settings import get_settings
+    settings = get_settings()
     
     app = FastAPI(
-        title="건설업 보건관리 시스템",
+        title=settings.app_name,
         description="SafeWork Pro - Construction Health Management System",
-        version="1.0.0",
+        version=settings.app_version,
         lifespan=lifespan,
         docs_url="/api/docs",
         redoc_url="/api/redoc",
@@ -111,12 +113,12 @@ def create_app() -> FastAPI:
     
     logger.info("에러 핸들러 등록 완료")
     
-    # 미들웨어 등록 (순서 중요)
+    # 미들웨어 등록 (순서 중요) - 설정값 사용
     # 1. Security headers (first)
     app.add_middleware(SecurityHeadersMiddleware)
     
     # 2. Rate limiting and DDoS protection
-    app.add_middleware(RateLimitMiddleware, rate_limit=100, window_seconds=60)
+    app.add_middleware(RateLimitMiddleware, rate_limit=settings.rate_limit, window_seconds=settings.rate_limit_window)
     app.add_middleware(IPWhitelistMiddleware, enabled=False)  # Disabled by default
     
     # 3. Security protection
@@ -137,9 +139,9 @@ def create_app() -> FastAPI:
     
     # 6. Performance optimization
     app.add_middleware(CompressionMiddleware)
-    app.add_middleware(ConnectionPoolMiddleware, pool_size=20, max_overflow=10)
-    app.add_middleware(QueryOptimizationMiddleware, slow_query_threshold=1.0)
-    app.add_middleware(BatchingMiddleware, batch_window_ms=50, max_batch_size=100)
+    app.add_middleware(ConnectionPoolMiddleware, pool_size=settings.db_pool_size, max_overflow=10)
+    app.add_middleware(QueryOptimizationMiddleware, slow_query_threshold=settings.slow_query_threshold)
+    app.add_middleware(BatchingMiddleware, batch_window_ms=50, max_batch_size=settings.max_batch_size)
     app.add_middleware(PaginationOptimizationMiddleware, default_page_size=50, max_page_size=200)
     
     # 7. Caching
@@ -208,8 +210,8 @@ def create_app() -> FastAPI:
     
     # 정적 파일 서빙 (React 빌드된 파일들) - Mount after all API routes
     try:
-        # Docker 환경에서는 /app/dist 디렉토리 사용
-        static_dir = "/app/dist" if os.path.exists("/app/dist") else os.path.join(os.path.dirname(__file__), "../static")
+        # 설정에서 정적 파일 디렉토리 가져오기
+        static_dir = settings.static_files_dir if os.path.exists(settings.static_files_dir) else os.path.join(os.path.dirname(__file__), "../static")
         
         if os.path.exists(static_dir):
             app.mount("/", StaticFiles(directory=static_dir, html=True), name="static")
@@ -219,13 +221,13 @@ def create_app() -> FastAPI:
             # 기본 fallback 응답
             @app.get("/")
             async def root():
-                return {"message": "SafeWork Pro API", "status": "running", "frontend": "not available"}
+                return {"message": settings.app_name + " API", "status": "running", "frontend": "not available"}
     except Exception as e:
         logger.warning(f"정적 파일 마운트 실패: {e}")
         # 기본 fallback 응답
         @app.get("/")
         async def root():
-            return {"message": "SafeWork Pro API", "status": "running", "error": str(e)}
+            return {"message": settings.app_name + " API", "status": "running", "error": str(e)}
     
     return app
 
