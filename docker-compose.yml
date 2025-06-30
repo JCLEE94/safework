@@ -3,64 +3,65 @@ version: '3.8'
 services:
   # SafeWork Pro - All-in-One 컨테이너 (PostgreSQL + Redis + FastAPI + React)
   safework:
-    image: ${DOCKER_IMAGE:-registry.jclee.me/safework:latest}
-    container_name: ${CONTAINER_NAME:-safework}
-    restart: ${RESTART_POLICY:-unless-stopped}
+    image: registry.jclee.me/safework:latest
+    container_name: safework
+    restart: unless-stopped
     ports:
-      - "${HOST_PORT:-3001}:${APP_PORT:-8000}"
+      - "3001:8000"
     environment:
       # 환경 구분
-      ENVIRONMENT: ${ENVIRONMENT:-production}
-      DEBUG: ${DEBUG:-false}
+      ENVIRONMENT: production
+      DEBUG: false
       
       # 데이터베이스 설정 (All-in-One 내장)
-      POSTGRES_USER: ${POSTGRES_USER:-admin}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
-      POSTGRES_DB: ${POSTGRES_DB:-health_management}
-      DATABASE_URL: ${DATABASE_URL}
+      POSTGRES_USER: admin
+      POSTGRES_PASSWORD: safework123
+      POSTGRES_DB: health_management
+      DATABASE_URL: postgresql://admin:safework123@localhost:5432/health_management
       
       # Redis 설정 (All-in-One 내장)
-      REDIS_URL: ${REDIS_URL:-redis://localhost:6379/0}
+      REDIS_URL: redis://localhost:6379/0
       
       # 애플리케이션 설정
-      JWT_SECRET: ${JWT_SECRET}
-      SECRET_KEY: ${SECRET_KEY}
-      LOG_LEVEL: ${LOG_LEVEL:-INFO}
-      TZ: ${TZ:-Asia/Seoul}
-      HOST: ${APP_HOST:-0.0.0.0}
-      PORT: ${APP_PORT:-8000}
+      JWT_SECRET: safework-pro-secret-key-2024
+      SECRET_KEY: safework-app-secret-2024
+      LOG_LEVEL: INFO
+      TZ: Asia/Seoul
+      HOST: 0.0.0.0
+      PORT: 8000
       
       # 성능 설정
-      WORKERS: ${WORKERS:-4}
-      WORKER_CLASS: ${WORKER_CLASS:-uvicorn.workers.UvicornWorker}
+      WORKERS: 4
+      WORKER_CLASS: uvicorn.workers.UvicornWorker
       
       # 보안 설정
-      CORS_ORIGINS: ${CORS_ORIGINS:-*}
-      TRUSTED_HOSTS: ${TRUSTED_HOSTS:-*}
+      CORS_ORIGINS: "*"
+      TRUSTED_HOSTS: "*"
       
       # 파일 업로드
-      MAX_UPLOAD_SIZE: ${MAX_UPLOAD_SIZE:-100MB}
+      MAX_UPLOAD_SIZE: 100MB
       
       # 메타데이터
-      BUILD_TIME: ${BUILD_TIME:-$(date '+%Y-%m-%d %H:%M:%S KST')}
-      GIT_COMMIT: ${GITHUB_SHA:-unknown}
-      VERSION: ${VERSION:-1.0.0}
+      BUILD_TIME: "2025-06-30 07:00:00 KST"
+      GIT_COMMIT: latest
+      VERSION: 1.0.0
     
     volumes:
-      # 애플리케이션 데이터 볼륨
-      - safework_uploads:/app/uploads
-      - safework_logs:/app/logs
+      # 애플리케이션 데이터 볼륨 (상대경로 방식)
+      - ./uploads:/app/uploads
+      - ./logs:/app/logs
+      - ./instance:/app/instance
     
     labels:
-      # Watchtower 자동 업데이트 (운영환경만)
-      - "com.centurylinklabs.watchtower.enable=${WATCHTOWER_ENABLE:-true}"
+      # Watchtower 자동 업데이트
+      - "com.centurylinklabs.watchtower.enable=true"
     
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
-      interval: ${HEALTH_CHECK_INTERVAL:-30s}
-      timeout: ${HEALTH_CHECK_TIMEOUT:-10s}
-      retries: ${HEALTH_CHECK_RETRIES:-5}
-      start_period: ${HEALTH_CHECK_START_PERIOD:-120s}
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 120s
     
     # 보안 설정 (운영환경만)
     security_opt:
@@ -75,15 +76,8 @@ services:
     
     # 임시 파일시스템 최적화
     tmpfs:
-      - /tmp:size=${TMP_SIZE:-500M},mode=1777
-      - /var/tmp:size=${VAR_TMP_SIZE:-200M},mode=1777
-
-# Docker 관리 볼륨
-volumes:
-  safework_uploads:
-    name: safework_uploads
-  safework_logs:
-    name: safework_logs
+      - /tmp:size=500M,mode=1777
+      - /var/tmp:size=200M,mode=1777
 
 # 네트워크 정의
 networks:
