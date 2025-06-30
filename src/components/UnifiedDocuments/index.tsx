@@ -257,42 +257,57 @@ export function UnifiedDocuments() {
           <RefreshCw className="animate-spin" size={32} />
         </div>
       ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+        <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-6">
           {filteredFiles.map(file => (
-            <Card key={file.id} className="p-4">
-              <div className="flex items-start justify-between mb-3">
-                <div className="flex items-center">
-                  <FileText className="text-blue-600 mr-2" size={20} />
-                  <div>
-                    <h3 className="font-medium text-gray-900 truncate">{file.name}</h3>
-                    <p className="text-sm text-gray-500">
-                      {(file.size / 1024).toFixed(1)} KB
-                    </p>
+            <Card key={file.id} className="p-6 hover:shadow-lg transition-shadow">
+              <div className="space-y-4">
+                {/* Header */}
+                <div className="flex items-start justify-between">
+                  <div className="flex items-center min-w-0 flex-1">
+                    <FileText className="text-blue-600 mr-3 flex-shrink-0" size={24} />
+                    <div className="min-w-0">
+                      <h3 className="font-semibold text-gray-900 text-lg truncate">{file.name}</h3>
+                      <p className="text-sm text-gray-600 mt-1">
+                        {(file.size / 1024).toFixed(1)} KB
+                      </p>
+                    </div>
                   </div>
+                  <Badge color={file.status === 'available' ? 'green' : 'yellow'} className="ml-2 flex-shrink-0">
+                    {file.status === 'available' ? '사용가능' : '처리중'}
+                  </Badge>
                 </div>
-                <Badge color={file.status === 'available' ? 'green' : 'yellow'}>
-                  {file.status === 'available' ? '사용가능' : '처리중'}
-                </Badge>
-              </div>
-              
-              <div className="flex justify-between items-center">
-                <span className="text-xs text-gray-500">
-                  {new Date(file.modified).toLocaleDateString()}
-                </span>
-                <div className="flex gap-1">
+                
+                {/* Category and Date */}
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center">
+                    <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-800">
+                      {DOCUMENT_CATEGORIES.find(cat => cat.id === file.category)?.name || file.category || '기타'}
+                    </span>
+                  </div>
+                  <span className="text-xs text-gray-500">
+                    {new Date(file.modified).toLocaleDateString()}
+                  </span>
+                </div>
+                
+                {/* Actions */}
+                <div className="flex gap-2 pt-2 border-t border-gray-100">
                   <Button
                     size="sm"
                     variant="outline"
                     onClick={() => handleFileAction('view', file)}
+                    className="flex-1"
                   >
-                    <Eye size={14} />
+                    <Eye size={16} className="mr-1" />
+                    보기
                   </Button>
                   <Button
                     size="sm"
                     variant="outline"
                     onClick={() => handleFileAction('download', file)}
+                    className="flex-1"
                   >
-                    <Download size={14} />
+                    <Download size={16} className="mr-1" />
+                    다운로드
                   </Button>
                   <Button
                     size="sm"
@@ -300,7 +315,7 @@ export function UnifiedDocuments() {
                     onClick={() => handleFileAction('delete', file)}
                     className="text-red-600 hover:text-red-700"
                   >
-                    <Trash2 size={14} />
+                    <Trash2 size={16} />
                   </Button>
                 </div>
               </div>
@@ -367,44 +382,58 @@ export function UnifiedDocuments() {
           <RefreshCw className="animate-spin" size={32} />
         </div>
       ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+        <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-6">
           {filteredForms.map(form => (
-            <Card key={form.id} className="p-4">
-              <div className="flex items-start justify-between mb-3">
-                <div className="flex items-center">
-                  <FileEdit className="text-green-600 mr-2" size={20} />
-                  <div>
-                    <h3 className="font-medium text-gray-900">{form.name_korean}</h3>
-                    <p className="text-sm text-gray-500">{form.description}</p>
+            <Card key={form.id} className="p-6 hover:shadow-lg transition-shadow">
+              <div className="space-y-4">
+                {/* Header */}
+                <div className="flex items-start justify-between">
+                  <div className="flex items-center min-w-0 flex-1">
+                    <FileEdit className="text-green-600 mr-3 flex-shrink-0" size={24} />
+                    <div className="min-w-0">
+                      <h3 className="font-semibold text-gray-900 text-lg truncate">{form.name_korean}</h3>
+                      <p className="text-sm text-gray-600 mt-1 line-clamp-2">{form.description}</p>
+                    </div>
+                  </div>
+                  <Badge color="blue" className="ml-2 flex-shrink-0">
+                    {form.fields?.length || 0}개 필드
+                  </Badge>
+                </div>
+                
+                {/* Category */}
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center">
+                    <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-800">
+                      {DOCUMENT_CATEGORIES.find(cat => cat.id === form.category)?.name || form.category}
+                    </span>
                   </div>
                 </div>
-                <Badge color="blue">{form.fields.length}개 필드</Badge>
-              </div>
-              
-              <div className="flex justify-between items-center">
-                <span className="text-xs text-gray-500">
-                  {form.category}
-                </span>
-                <div className="flex gap-1">
+                
+                {/* Actions */}
+                <div className="flex gap-2 pt-2 border-t border-gray-100">
                   <Button
                     size="sm"
                     variant="outline"
                     onClick={() => handleFormAction('preview', form)}
+                    className="flex-1"
                   >
-                    <Eye size={14} />
+                    <Eye size={16} className="mr-1" />
+                    미리보기
                   </Button>
                   <Button
                     size="sm"
                     onClick={() => handleFormAction('fill', form)}
+                    className="flex-1"
                   >
-                    <Edit size={14} />
+                    <Edit size={16} className="mr-1" />
+                    편집
                   </Button>
                   <Button
                     size="sm"
                     variant="outline"
                     onClick={() => handleFormAction('download', form)}
                   >
-                    <Download size={14} />
+                    <Download size={16} />
                   </Button>
                 </div>
               </div>
@@ -425,18 +454,33 @@ export function UnifiedDocuments() {
 
   const renderCategoriesTab = () => (
     <div className="space-y-6">
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+      <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-6">
         {categories.map(category => (
-          <Card key={category.id} className="p-6">
-            <div className="flex items-center justify-between mb-4">
-              <FolderOpen className="text-blue-600" size={24} />
-              <Badge color="gray">{category.file_count}개 파일</Badge>
-            </div>
-            <h3 className="font-semibold text-gray-900 mb-2">{category.name}</h3>
-            <p className="text-sm text-gray-600 mb-4">{category.description}</p>
-            <div className="flex justify-between items-center text-xs text-gray-500">
-              <span>최근 업데이트:</span>
-              <span>{new Date(category.last_updated).toLocaleDateString()}</span>
+          <Card key={category.id} className="p-6 hover:shadow-lg transition-shadow cursor-pointer">
+            <div className="space-y-4">
+              {/* Header */}
+              <div className="flex items-center justify-between">
+                <div className="flex items-center">
+                  <FolderOpen className="text-blue-600 mr-3" size={28} />
+                  <div>
+                    <h3 className="font-semibold text-gray-900 text-lg">{category.name}</h3>
+                  </div>
+                </div>
+                <Badge color="gray" className="flex-shrink-0">
+                  {category.file_count}개 파일
+                </Badge>
+              </div>
+              
+              {/* Description */}
+              <p className="text-sm text-gray-600 leading-relaxed">{category.description}</p>
+              
+              {/* Footer */}
+              <div className="flex justify-between items-center pt-2 border-t border-gray-100">
+                <span className="text-xs text-gray-500">최근 업데이트</span>
+                <span className="text-xs text-gray-600 font-medium">
+                  {new Date(category.last_updated).toLocaleDateString()}
+                </span>
+              </div>
             </div>
           </Card>
         ))}
