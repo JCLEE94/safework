@@ -32,7 +32,7 @@ if [ ! -s "$PGDATA/PG_VERSION" ]; then
     # 환경 변수를 postgres 사용자에게 전달하여 initdb 실행
     runuser -u postgres -- bash -c "
         export PGDATA='$PGDATA'
-        export PATH=/usr/lib/postgresql/*/bin:\$PATH
+        export PATH=/usr/lib/postgresql/15/bin:\$PATH
         initdb --encoding=UTF8 --locale=C.UTF-8 --auth-local=trust --auth-host=md5
     "
     
