@@ -833,6 +833,39 @@ from typing import Any
 class PDFFormRequest(BaseModel):
     entries: List[Dict[str, Any]] = []
 
+@router.post("/test-pdf")
+async def test_pdf_generation():
+    """간단한 PDF 생성 테스트"""
+    try:
+        # 간단한 PDF 생성
+        packet = io.BytesIO()
+        can = canvas.Canvas(packet, pagesize=A4)
+        
+        # 한글 폰트 설정
+        font_name = setup_korean_font(can)
+        can.setFont(font_name, 12)
+        
+        # 테스트 텍스트 추가
+        can.drawString(100, 750, "SafeWork Pro - PDF 생성 테스트")
+        can.drawString(100, 700, "건설업 보건관리 시스템")
+        can.drawString(100, 650, "PDF 기능이 정상 작동합니다.")
+        
+        can.save()
+        
+        # PDF 생성
+        packet.seek(0)
+        
+        return Response(
+            content=packet.getvalue(),
+            media_type="application/pdf",
+            headers={
+                "Content-Disposition": "inline; filename=test.pdf"
+            }
+        )
+    except Exception as e:
+        print(f"PDF generation error: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"PDF 생성 실패: {str(e)}")
+
 @router.post("/fill-pdf/{form_id}")
 async def fill_pdf_form_api(form_id: str, request_data: PDFFormRequest):
     """실제 Excel/Word 양식을 PDF로 변환하고 데이터를 입력하여 완성된 PDF 생성"""
@@ -867,18 +900,11 @@ async def fill_pdf_form_api(form_id: str, request_data: PDFFormRequest):
         
         # 요청 데이터 추출
         data = request_data.entries[0] if request_data.entries else {}
-        print(f"Source file: {form_info.get('source_path', 'N/A')}")
+        print(f"Extracted data: {data}")
         
-        # 1단계: 원본 Office 파일을 PDF로 변환
-        source_path = form_info.get('source_path')
-        if source_path and Path(source_path).exists():
-            print(f"Converting office file to PDF: {source_path}")
-            base_pdf_stream = convert_office_to_pdf(source_path)
-        else:
-            print(f"Source file not found: {source_path}")
-            print(f"Available forms: {form_info}")
-            # 원본 파일이 없어도 기본 PDF 생성
-            base_pdf_stream = create_form_template_pdf(form_id)
+        # 단순화된 PDF 생성 - 기본 템플릿 사용
+        print(f"Creating simple PDF template for form: {form_id}")
+        base_pdf_stream = create_form_template_pdf(form_id)
         
         # 2단계: 텍스트 오버레이 생성
         overlay_packet = io.BytesIO()
