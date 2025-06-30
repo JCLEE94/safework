@@ -1513,3 +1513,145 @@ def apply_text_edits(pdf_stream: io.BytesIO, text_edits: Dict, form_id: str) -> 
     except Exception as e:
         print(f"Error applying text edits: {str(e)}")
         raise
+
+
+# 웹 기반 양식 관리 API 추가
+class FormField(BaseModel):
+    id: str
+    name: str
+    label: str
+    type: str
+    value: str = ""
+    required: bool = False
+    placeholder: Optional[str] = None
+    options: Optional[List[str]] = None
+
+class FormData(BaseModel):
+    id: str
+    name: str
+    title: str
+    description: str = ""
+    category: str = ""
+    fields: List[FormField]
+    metadata: Dict[str, Any] = {}
+
+# 임시 메모리 저장소 (실제로는 데이터베이스 사용)
+CUSTOM_FORMS_STORAGE = {}
+
+@router.post("/forms")
+async def create_form(form_data: FormData):
+    """새 양식 생성"""
+    try:
+        form_id = form_data.id or f"form_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
+        
+        # Add metadata
+        form_dict = form_data.dict()
+        form_dict["id"] = form_id
+        form_dict["metadata"] = {
+            "created": datetime.now().isoformat(),
+            "modified": datetime.now().isoformat(),
+            "version": "1.0"
+        }
+        
+        CUSTOM_FORMS_STORAGE[form_id] = form_dict
+        
+        return {
+            "status": "success",
+            "message": "양식이 성공적으로 생성되었습니다.",
+            "form_id": form_id,
+            "data": form_dict
+        }
+    except Exception as e:
+        print(f"Form creation error: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"양식 생성 실패: {str(e)}")
+
+@router.get("/forms/{form_id}")
+async def get_form(form_id: str):
+    """양식 조회"""
+    if form_id not in CUSTOM_FORMS_STORAGE:
+        raise HTTPException(status_code=404, detail="양식을 찾을 수 없습니다.")
+    
+    return {
+        "status": "success",
+        "data": CUSTOM_FORMS_STORAGE[form_id]
+    }
+
+@router.put("/forms/{form_id}")
+async def update_form(form_id: str, form_data: FormData):
+    """양식 수정"""
+    if form_id not in CUSTOM_FORMS_STORAGE:
+        raise HTTPException(status_code=404, detail="양식을 찾을 수 없습니다.")
+    
+    try:
+        form_dict = form_data.dict()
+        form_dict["id"] = form_id
+        form_dict["metadata"] = {
+            **CUSTOM_FORMS_STORAGE[form_id].get("metadata", {}),
+            "modified": datetime.now().isoformat()
+        }
+        
+        CUSTOM_FORMS_STORAGE[form_id] = form_dict
+        
+        return {
+            "status": "success",
+            "message": "양식이 성공적으로 수정되었습니다.",
+            "data": form_dict
+        }
+    except Exception as e:
+        print(f"Form update error: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"양식 수정 실패: {str(e)}")
+
+@router.delete("/forms/{form_id}")
+async def delete_form(form_id: str):
+    """양식 삭제"""
+    if form_id not in CUSTOM_FORMS_STORAGE:
+        raise HTTPException(status_code=404, detail="양식을 찾을 수 없습니다.")
+    
+    try:
+        del CUSTOM_FORMS_STORAGE[form_id]
+        return {
+            "status": "success",
+            "message": "양식이 성공적으로 삭제되었습니다."
+        }
+    except Exception as e:
+        print(f"Form deletion error: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"양식 삭제 실패: {str(e)}")
+
+@router.get("/forms")
+async def list_forms():
+    """모든 양식 목록 조회"""
+    try:
+        forms = list(CUSTOM_FORMS_STORAGE.values())
+        return {
+            "status": "success",
+            "data": forms,
+            "count": len(forms)
+        }
+    except Exception as e:
+        print(f"Form listing error: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"양식 목록 조회 실패: {str(e)}")
+
+@router.post("/forms/{form_id}/submit")
+async def submit_form(form_id: str, form_data: Dict[str, Any]):
+    """양식 데이터 제출"""
+    if form_id not in CUSTOM_FORMS_STORAGE:
+        raise HTTPException(status_code=404, detail="양식을 찾을 수 없습니다.")
+    
+    try:
+        # 제출된 데이터 저장 (실제로는 데이터베이스에 저장)
+        submission = {
+            "id": f"submission_{datetime.now().strftime('%Y%m%d_%H%M%S')}",
+            "form_id": form_id,
+            "data": form_data,
+            "submitted_at": datetime.now().isoformat()
+        }
+        
+        return {
+            "status": "success",
+            "message": "양식이 성공적으로 제출되었습니다.",
+            "submission_id": submission["id"],
+            "data": submission
+        }
+    except Exception as e:
+        print(f"Form submission error: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"양식 제출 실패: {str(e)}")

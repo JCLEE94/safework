@@ -13,6 +13,7 @@ import {
 } from 'lucide-react';
 import { Card, Button, Badge, Modal } from '../common';
 import { useApi } from '../../hooks/useApi';
+import FormEditor from '../FormEditor';
 
 // 탭 정의
 type DocumentTab = 'files' | 'pdf-forms' | 'templates' | 'categories';
@@ -69,6 +70,8 @@ export function UnifiedDocuments() {
   const [selectedCategory, setSelectedCategory] = useState('');
   const [showUploadModal, setShowUploadModal] = useState(false);
   const [showFormModal, setShowFormModal] = useState(false);
+  const [showFormEditor, setShowFormEditor] = useState(false);
+  const [editingFormId, setEditingFormId] = useState<string | null>(null);
   const [selectedFile, setSelectedFile] = useState<DocumentFile | null>(null);
   const [selectedForm, setSelectedForm] = useState<PDFForm | null>(null);
   
@@ -173,6 +176,10 @@ export function UnifiedDocuments() {
         setSelectedForm(form);
         setShowFormModal(true);
         break;
+      case 'edit':
+        setEditingFormId(form.id);
+        setShowFormEditor(true);
+        break;
       case 'preview':
         setSelectedForm(form);
         // Show form preview
@@ -180,6 +187,36 @@ export function UnifiedDocuments() {
       case 'download':
         window.open(`/api/v1/documents/pdf-forms/${form.id}/template`, '_blank');
         break;
+    }
+  };
+
+  const handleCreateNewForm = () => {
+    setEditingFormId(null);
+    setShowFormEditor(true);
+  };
+
+  const handleSaveForm = async (formData: any) => {
+    try {
+      if (editingFormId) {
+        // Update existing form
+        await fetchApi(`/api/v1/documents/forms/${editingFormId}`, {
+          method: 'PUT',
+          body: JSON.stringify(formData)
+        });
+      } else {
+        // Create new form
+        await fetchApi('/api/v1/documents/forms', {
+          method: 'POST',
+          body: JSON.stringify(formData)
+        });
+      }
+      
+      setShowFormEditor(false);
+      setEditingFormId(null);
+      await loadPDFForms(); // Reload forms
+    } catch (error) {
+      console.error('Failed to save form:', error);
+      alert('양식 저장에 실패했습니다.');
     }
   };
 
@@ -358,6 +395,10 @@ export function UnifiedDocuments() {
             <RefreshCw size={16} className="mr-2" />
             새로고침
           </Button>
+          <Button onClick={handleCreateNewForm}>
+            <Plus size={16} className="mr-2" />
+            새 양식 만들기
+          </Button>
         </div>
       </div>
 
@@ -395,7 +436,8 @@ export function UnifiedDocuments() {
                   </Button>
                   <Button
                     size="sm"
-                    onClick={() => handleFormAction('fill', form)}
+                    onClick={() => handleFormAction('edit', form)}
+                    title="양식 편집"
                   >
                     <Edit size={14} />
                   </Button>
@@ -513,6 +555,18 @@ export function UnifiedDocuments() {
             </div>
           </div>
         </Modal>
+      )}
+
+      {/* Form Editor Modal */}
+      {showFormEditor && (
+        <FormEditor
+          formId={editingFormId}
+          onClose={() => {
+            setShowFormEditor(false);
+            setEditingFormId(null);
+          }}
+          onSave={handleSaveForm}
+        />
       )}
     </div>
   );
