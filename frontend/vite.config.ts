@@ -24,6 +24,17 @@ export default defineConfig({
     outDir: 'dist',
     rollupOptions: {
       input: path.resolve(__dirname, 'index.html'),
+      onwarn(warning, defaultHandler) {
+        if (warning.code !== 'UNRESOLVED_IMPORT') {
+          defaultHandler(warning);
+        }
+      },
     },
+    commonjsOptions: {
+      include: [/lucide-react/, /node_modules/],
+    },
+  },
+  optimizeDeps: {
+    include: ['lucide-react'],
   },
 })
