@@ -17,7 +17,7 @@ RUN npm install
 # 소스 코드 복사 및 빌드
 COPY frontend/index.html frontend/vite.config.ts frontend/tsconfig.json frontend/tsconfig.node.json ./
 COPY frontend/tailwind.config.js frontend/postcss.config.js ./
-COPY src/ ./src/
+COPY frontend/src/ ./src/
 
 # React 빌드 실행
 RUN npx vite build
