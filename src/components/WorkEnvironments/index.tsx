@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { Plus, Search, TrendingUp, AlertTriangle, Activity } from 'lucide-react';
-import { Card, Button, Badge } from '../common';
+import { Plus, Search, TrendingUp, AlertTriangle, Activity, X } from 'lucide-react';
+import { Card, Button, Badge, Modal } from '../common';
 import { useApi } from '../../hooks/useApi';
 
 interface WorkEnvironment {
@@ -19,6 +19,16 @@ export function WorkEnvironments() {
   const [measurements, setMeasurements] = useState<WorkEnvironment[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
+  const [showForm, setShowForm] = useState(false);
+  const [formData, setFormData] = useState({
+    location: '',
+    measurement_type: 'noise',
+    measurement_date: new Date().toISOString().split('T')[0],
+    measured_value: '',
+    standard_value: '',
+    unit: 'dB',
+    notes: ''
+  });
   const { fetchApi } = useApi();
 
   useEffect(() => {
@@ -28,7 +38,11 @@ export function WorkEnvironments() {
   const loadMeasurements = async () => {
     try {
       setLoading(true);
-      // 임시 더미 데이터
+      const data = await fetchApi('/work-environments');
+      setMeasurements(data);
+    } catch (error) {
+      console.error('작업환경측정 목록 조회 실패:', error);
+      // API 실패 시 더미 데이터로 폴백
       const dummyData = [
         {
           id: 1,
@@ -65,8 +79,6 @@ export function WorkEnvironments() {
         }
       ];
       setMeasurements(dummyData);
-    } catch (error) {
-      console.error('작업환경측정 목록 조회 실패:', error);
     } finally {
       setLoading(false);
     }
@@ -85,6 +97,71 @@ export function WorkEnvironments() {
     }
   };
 
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    try {
+      const measuredValue = parseFloat(formData.measured_value);
+      const standardValue = parseFloat(formData.standard_value);
+      
+      // 상태 계산
+      let status: 'normal' | 'warning' | 'danger' = 'normal';
+      if (measuredValue > standardValue * 1.2) {
+        status = 'danger';
+      } else if (measuredValue > standardValue * 0.9) {
+        status = 'warning';
+      }
+      
+      const newMeasurement = {
+        ...formData,
+        measured_value: measuredValue,
+        standard_value: standardValue,
+        status
+      };
+      
+      await fetchApi('/work-environments', {
+        method: 'POST',
+        body: JSON.stringify(newMeasurement)
+      });
+      
+      setShowForm(false);
+      setFormData({
+        location: '',
+        measurement_type: 'noise',
+        measurement_date: new Date().toISOString().split('T')[0],
+        measured_value: '',
+        standard_value: '',
+        unit: 'dB',
+        notes: ''
+      });
+      loadMeasurements();
+    } catch (error) {
+      console.error('측정 결과 등록 실패:', error);
+      alert('측정 결과 등록에 실패했습니다.');
+    }
+  };
+
+  const getMeasurementTypeOptions = () => [
+    { value: 'noise', label: '소음', unit: 'dB', standard: '90' },
+    { value: 'dust', label: '분진', unit: 'mg/m³', standard: '10' },
+    { value: 'chemical', label: '화학물질', unit: 'ppm', standard: '50' },
+    { value: 'temperature', label: '온도', unit: '°C', standard: '28' },
+    { value: 'humidity', label: '습도', unit: '%', standard: '60' },
+    { value: 'illumination', label: '조도', unit: 'lux', standard: '300' },
+    { value: 'vibration', label: '진동', unit: 'm/s²', standard: '5' }
+  ];
+
+  const handleMeasurementTypeChange = (type: string) => {
+    const selected = getMeasurementTypeOptions().find(opt => opt.value === type);
+    if (selected) {
+      setFormData({
+        ...formData,
+        measurement_type: type,
+        unit: selected.unit,
+        standard_value: selected.standard
+      });
+    }
+  };
+
   const filteredMeasurements = measurements.filter(measurement =>
     measurement.location.toLowerCase().includes(searchTerm.toLowerCase()) ||
     measurement.measurement_type.toLowerCase().includes(searchTerm.toLowerCase())
@@ -98,7 +175,7 @@ export function WorkEnvironments() {
     <div className="p-6 space-y-6">
       <div className="flex justify-between items-center">
         <h1 className="text-2xl font-bold text-gray-800">작업환경측정 관리</h1>
-        <Button onClick={() => {}} className="flex items-center gap-2">
+        <Button onClick={() => setShowForm(true)} className="flex items-center gap-2">
           <Plus className="w-4 h-4" />
           측정 결과 등록
         </Button>
@@ -238,6 +315,115 @@ export function WorkEnvironments() {
           </table>
         </div>
       </Card>
+
+      {/* 측정 결과 등록 모달 */}
+      <Modal isOpen={showForm} onClose={() => setShowForm(false)}>
+        <form onSubmit={handleSubmit} className="space-y-4">
+          <div className="flex justify-between items-center mb-4">
+            <h3 className="text-lg font-semibold">측정 결과 등록</h3>
+            <button
+              type="button"
+              onClick={() => setShowForm(false)}
+              className="text-gray-400 hover:text-gray-600"
+            >
+              <X className="w-5 h-5" />
+            </button>
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              작업장소
+            </label>
+            <input
+              type="text"
+              required
+              value={formData.location}
+              onChange={(e) => setFormData({ ...formData, location: e.target.value })}
+              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+            />
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              측정항목
+            </label>
+            <select
+              value={formData.measurement_type}
+              onChange={(e) => handleMeasurementTypeChange(e.target.value)}
+              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+            >
+              {getMeasurementTypeOptions().map(option => (
+                <option key={option.value} value={option.value}>
+                  {option.label}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              측정일자
+            </label>
+            <input
+              type="date"
+              required
+              value={formData.measurement_date}
+              onChange={(e) => setFormData({ ...formData, measurement_date: e.target.value })}
+              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+            />
+          </div>
+
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                측정값 ({formData.unit})
+              </label>
+              <input
+                type="number"
+                step="0.01"
+                required
+                value={formData.measured_value}
+                onChange={(e) => setFormData({ ...formData, measured_value: e.target.value })}
+                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                기준값 ({formData.unit})
+              </label>
+              <input
+                type="number"
+                step="0.01"
+                required
+                value={formData.standard_value}
+                onChange={(e) => setFormData({ ...formData, standard_value: e.target.value })}
+                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+              />
+            </div>
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              비고
+            </label>
+            <textarea
+              value={formData.notes}
+              onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
+              rows={3}
+              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+            />
+          </div>
+
+          <div className="flex justify-end gap-2 pt-4">
+            <Button type="button" variant="outline" onClick={() => setShowForm(false)}>
+              취소
+            </Button>
+            <Button type="submit">
+              등록
+            </Button>
+          </div>
+        </form>
+      </Modal>
     </div>
   );
 }

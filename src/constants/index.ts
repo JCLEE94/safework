@@ -17,6 +17,7 @@ export const MENU_ITEMS = [
   { id: 'chemicals', name: '화학물질관리', icon: 'FlaskConical', color: 'text-yellow-600' },
   { id: 'accidents', name: '산업재해', icon: 'AlertTriangle', color: 'text-orange-600' },
   { id: 'unified-documents', name: '통합문서관리', icon: 'FileText', color: 'text-cyan-600' },
+  { id: 'pdf-editor', name: 'PDF 편집기', icon: 'Edit3', color: 'text-emerald-600' },
   { id: 'reports', name: '종합보고서', icon: 'BarChart3', color: 'text-indigo-600' },
   { id: 'monitoring', name: '실시간모니터링', icon: 'MonitorDot', color: 'text-pink-600' },
   { id: 'settings', name: '시스템설정', icon: 'Settings', color: 'text-gray-600' },

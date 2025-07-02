@@ -280,8 +280,135 @@ DEPLOY_USER
 DEPLOY_HOST
 ```
 
+## Important Patterns & Conventions
+
+### API Handler Pattern
+All handlers follow a consistent pattern with dependency injection:
+```python
+from fastapi import APIRouter, Depends, HTTPException
+from sqlalchemy.ext.asyncio import AsyncSession
+from src.models.database import get_db
+from src.schemas import worker as schemas
+from src.models import worker as models
+
+router = APIRouter(prefix="/api/v1/workers", tags=["workers"])
+
+@router.get("/", response_model=List[schemas.WorkerResponse])
+async def get_workers(
+    skip: int = 0,
+    limit: int = 100,
+    db: AsyncSession = Depends(get_db)
+):
+    # Implementation
+```
+
+### Frontend API Integration Pattern
+Frontend uses consistent API client pattern:
+```typescript
+const API_BASE = '/api/v1';
+
+export const workersApi = {
+  getAll: () => fetch(`${API_BASE}/workers/`).then(res => res.json()),
+  create: (data) => fetch(`${API_BASE}/workers/`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(data)
+  })
+};
+```
+
+### Docker Development Commands
+```bash
+# Quick container commands
+docker exec -it safework bash              # Shell access
+docker exec safework python -c "..."        # Run Python commands
+docker logs safework -f                     # Follow logs
+docker-compose ps                           # Check service status
+docker-compose exec db psql -U admin -d health_management  # DB access
+```
+
+### Async Testing Pattern
+All async tests must use pytest_asyncio:
+```python
+import pytest
+import pytest_asyncio
+from sqlalchemy.ext.asyncio import AsyncSession
+
+@pytest_asyncio.fixture
+async def test_worker(async_session: AsyncSession):
+    worker = Worker(name="Test", ...)
+    async_session.add(worker)
+    await async_session.commit()
+    await async_session.refresh(worker)
+    return worker
+
+# Usage in tests - no await needed
+async def test_worker_creation(test_worker):
+    assert test_worker.name == "Test"
+```
+
+### Korean Industry Enums
+The system uses Korean occupational safety classifications:
+```python
+# src/models/enums.py
+class IndustryType(str, Enum):
+    CONSTRUCTION = "건설업"
+    MANUFACTURING = "제조업"
+    SERVICE = "서비스업"
+    
+class HealthExamType(str, Enum):
+    GENERAL = "일반건강진단"
+    SPECIAL = "특수건강진단"
+    PLACEMENT = "배치전건강진단"
+```
+
+### Redis Caching Pattern
+Cache service is injected via dependency:
+```python
+from src.services.cache import CacheService
+
+@router.get("/{worker_id}")
+async def get_worker(
+    worker_id: int,
+    cache: CacheService = Depends(get_cache_service)
+):
+    cache_key = f"worker:{worker_id}"
+    cached = await cache.get(cache_key)
+    if cached:
+        return cached
+    # Fetch from DB and cache
+```
+
+### PDF Generation Pattern
+PDF forms use predefined coordinates:
+```python
+# src/handlers/documents.py
+PDF_FORM_COORDINATES = {
+    "health_checkup_report": {
+        "fields": {
+            "name": (100, 700),
+            "date": (300, 700),
+            # ...
+        }
+    }
+}
+```
+
+### Environment-Specific Configuration
+```bash
+# Development
+ENVIRONMENT=development docker-compose up
+
+# Production
+docker-compose up -d  # Uses default production config
+
+# Testing (CI/CD)
+DATABASE_URL=postgresql://admin:password@localhost:15432/health_management
+REDIS_URL=redis://localhost:16379/0
+```
+
 ---
-**Version**: 3.0.0  
-**Updated**: 2025-06-28  
+**Version**: 3.1.0  
+**Updated**: 2025-07-01  
 **Maintainer**: SafeWork Pro Development Team  
 **CI/CD Status**: ✅ Active (Self-hosted runner + Watchtower)

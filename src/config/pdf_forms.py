@@ -1,5 +1,7 @@
 """
 PDF 양식 좌표 설정 및 필드 정보
+PDF form coordinates and field information
+Enhanced with validation and field types
 """
 
 # PDF 양식별 필드 좌표 정의 (x, y 좌표 - A4 용지 기준)
@@ -234,3 +236,162 @@ FIELD_LABELS = {
     "worker_signature": "작업자 서명",
     "supervisor_signature": "감독자 서명"
 }
+
+# 필드 타입 정의
+FIELD_TYPES = {
+    # 날짜 타입 필드
+    "visit_date": "date",
+    "exam_date": "date", 
+    "msds_date": "date",
+    "update_date": "date",
+    "creation_date": "date",
+    "date": "date",
+    
+    # 숫자 타입 필드
+    "worker_count": "number",
+    "quantity": "number",
+    "concentration": "number",
+    "duration": "number",
+    "year": "number",
+    
+    # 서명 타입 필드
+    "counselor_signature": "signature",
+    "manager_signature": "signature",
+    "prepared_by": "signature",
+    "approved_by": "signature",
+    "worker_signature": "signature",
+    "supervisor_signature": "signature",
+    
+    # 텍스트 영역 필드
+    "health_issues": "textarea",
+    "work_environment": "textarea",
+    "improvement_suggestions": "textarea",
+    "immediate_actions": "textarea",
+    "follow_up_actions": "textarea",
+    "next_visit_plan": "textarea",
+    "safety_measures": "textarea",
+    "emergency_procedures": "textarea",
+    "opinion": "textarea",
+    "corrective_actions": "textarea",
+    "special_notes": "textarea",
+}
+
+# 필드 옵션 정의
+FIELD_OPTIONS = {
+    "work_type": [
+        "건설", "전기", "배관", "도장", "용접", 
+        "철근", "콘크리트", "조적", "타일", "방수"
+    ],
+    "hazard_class": [
+        "1급(고위험)", "2급(중위험)", "3급(저위험)", "해당없음"
+    ],
+    "exam_result": [
+        "정상", "주의", "관찰", "치료", "업무전환"
+    ],
+    "health_status": [
+        "양호", "보통", "주의", "이상"
+    ],
+    "ventilation_status": [
+        "양호", "보통", "불량", "해당없음"
+    ]
+}
+
+# 사용 가능한 PDF 양식 목록
+AVAILABLE_PDF_FORMS = [
+    {
+        "form_id": "유소견자_관리대장",
+        "name": "유소견자 관리대장",
+        "category": "register",
+        "description": "건강진단 유소견자 관리",
+        "template_path": "03-관리대장/003_유소견자_관리대장.xlsx"
+    },
+    {
+        "form_id": "MSDS_관리대장", 
+        "name": "MSDS 관리대장",
+        "category": "register",
+        "description": "화학물질 안전보건자료 관리",
+        "template_path": "03-관리대장/001_MSDS_관리대장.xls"
+    },
+    {
+        "form_id": "건강관리_상담방문_일지",
+        "name": "건강관리 상담방문 일지",
+        "category": "register",
+        "description": "보건관리자의 정기 상담방문 기록",
+        "template_path": "03-관리대장/002_건강관리_상담방문_일지.xls"
+    }
+]
+
+# PDF 좌표 유효성 검사
+def validate_coordinates(form_id: str) -> bool:
+    """PDF 양식 좌표의 유효성을 검사합니다."""
+    if form_id not in PDF_FORM_COORDINATES:
+        return False
+    
+    form_data = PDF_FORM_COORDINATES[form_id]
+    
+    # A4 크기 기준 좌표 범위 검사 (595 x 842 points)
+    max_width = 595
+    max_height = 842
+    
+    for field_name, field_info in form_data["fields"].items():
+        if isinstance(field_info, dict):
+            x, y = field_info.get("x", 0), field_info.get("y", 0)
+        else:
+            x, y = field_info
+            
+        if not (0 <= x <= max_width and 0 <= y <= max_height):
+            print(f"경고: {form_id}의 {field_name} 필드 좌표가 범위를 벗어남: ({x}, {y})")
+            return False
+    
+    return True
+
+# 모든 양식 좌표 검증
+def validate_all_coordinates() -> dict:
+    """모든 PDF 양식 좌표를 검증합니다."""
+    results = {}
+    
+    for form_id in PDF_FORM_COORDINATES.keys():
+        results[form_id] = validate_coordinates(form_id)
+    
+    return results
+
+# 필드 정보 통합 반환
+def get_field_info(form_id: str, field_name: str) -> dict:
+    """특정 필드의 전체 정보를 반환합니다."""
+    if form_id not in PDF_FORM_COORDINATES:
+        return None
+    
+    if field_name not in PDF_FORM_COORDINATES[form_id]["fields"]:
+        return None
+    
+    field_data = PDF_FORM_COORDINATES[form_id]["fields"][field_name]
+    
+    if isinstance(field_data, dict):
+        x, y = field_data.get("x", 0), field_data.get("y", 0)
+        label = field_data.get("label", FIELD_LABELS.get(field_name, field_name))
+    else:
+        x, y = field_data
+        label = FIELD_LABELS.get(field_name, field_name)
+    
+    return {
+        "name": field_name,
+        "label": label,
+        "coordinates": {"x": x, "y": y},
+        "type": FIELD_TYPES.get(field_name, "text"),
+        "options": FIELD_OPTIONS.get(field_name, []),
+        "required": field_name in ["company_name", "date", "manager"]  # 필수 필드
+    }
+
+# 양식별 전체 필드 정보 반환
+def get_form_fields(form_id: str) -> list:
+    """특정 양식의 모든 필드 정보를 반환합니다."""
+    if form_id not in PDF_FORM_COORDINATES:
+        return []
+    
+    fields = []
+    for field_name in PDF_FORM_COORDINATES[form_id]["fields"].keys():
+        field_info = get_field_info(form_id, field_name)
+        if field_info:
+            fields.append(field_info)
+    
+    return fields

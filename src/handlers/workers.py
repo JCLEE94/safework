@@ -276,3 +276,8 @@ async def get_worker_statistics(
 async def test_endpoint():
     """테스트 엔드포인트"""
     return {"status": "ok", "message": "workers router working"}
+
+@router.post("/debug/test-post")
+async def test_post_endpoint(data: dict):
+    """POST 테스트 엔드포인트"""
+    return {"status": "ok", "received": data, "message": "POST working"}

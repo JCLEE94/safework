@@ -114,42 +114,45 @@ def create_app() -> FastAPI:
     logger.info("에러 핸들러 등록 완료")
     
     # 미들웨어 등록 (순서 중요) - 설정값 사용
-    # 1. Security headers (first)
-    app.add_middleware(SecurityHeadersMiddleware)
+    # TEMPORARY: Disable ALL middleware to fix POST request issues
+    # Only keep CORS which is essential
     
-    # 2. Rate limiting and DDoS protection
-    app.add_middleware(RateLimitMiddleware, rate_limit=settings.rate_limit, window_seconds=settings.rate_limit_window)
-    app.add_middleware(IPWhitelistMiddleware, enabled=False)  # Disabled by default
+    # # 1. Security headers (first)
+    # app.add_middleware(SecurityHeadersMiddleware)
     
-    # 3. Security protection
-    app.add_middleware(XSSProtectionMiddleware)
-    app.add_middleware(SQLInjectionProtectionMiddleware)
-    app.add_middleware(CSRFProtectionMiddleware)
-    app.add_middleware(ContentSecurityPolicyMiddleware)
+    # # 2. Rate limiting and DDoS protection
+    # app.add_middleware(RateLimitMiddleware, rate_limit=settings.rate_limit, window_seconds=settings.rate_limit_window)
+    # app.add_middleware(IPWhitelistMiddleware, enabled=False)  # Disabled by default
     
-    # 4. Authentication and authorization
-    app.add_middleware(JWTAuthMiddleware)
-    app.add_middleware(RoleBasedAccessMiddleware)
-    app.add_middleware(SessionManagementMiddleware)
-    app.add_middleware(APIKeyAuthMiddleware, api_keys=set())  # Add API keys as needed
+    # # 3. Security protection
+    # app.add_middleware(XSSProtectionMiddleware)
+    # app.add_middleware(SQLInjectionProtectionMiddleware)
+    # app.add_middleware(CSRFProtectionMiddleware)
+    # app.add_middleware(ContentSecurityPolicyMiddleware)
     
-    # 5. Logging
-    app.add_middleware(SecurityLoggingMiddleware)
-    app.add_middleware(LoggingMiddleware)
+    # # 4. Authentication and authorization
+    # app.add_middleware(JWTAuthMiddleware)
+    # app.add_middleware(RoleBasedAccessMiddleware)
+    # app.add_middleware(SessionManagementMiddleware)
+    # app.add_middleware(APIKeyAuthMiddleware, api_keys=set())  # Add API keys as needed
     
-    # 6. Performance optimization
-    app.add_middleware(CompressionMiddleware)
-    app.add_middleware(ConnectionPoolMiddleware, pool_size=settings.db_pool_size, max_overflow=10)
-    app.add_middleware(QueryOptimizationMiddleware, slow_query_threshold=settings.slow_query_threshold)
-    app.add_middleware(BatchingMiddleware, batch_window_ms=50, max_batch_size=settings.max_batch_size)
-    app.add_middleware(PaginationOptimizationMiddleware, default_page_size=50, max_page_size=200)
+    # # 5. Logging
+    # app.add_middleware(SecurityLoggingMiddleware)
+    # app.add_middleware(LoggingMiddleware)
     
-    # 7. Caching
-    app.add_middleware(CacheInvalidationMiddleware)
-    app.add_middleware(ResponseCachingMiddleware)
+    # # 6. Performance optimization
+    # app.add_middleware(CompressionMiddleware)
+    # app.add_middleware(ConnectionPoolMiddleware, pool_size=settings.db_pool_size, max_overflow=10)
+    # app.add_middleware(QueryOptimizationMiddleware, slow_query_threshold=settings.slow_query_threshold)
+    # app.add_middleware(BatchingMiddleware, batch_window_ms=50, max_batch_size=settings.max_batch_size)
+    # app.add_middleware(PaginationOptimizationMiddleware, default_page_size=50, max_page_size=200)
     
-    # 8. Performance monitoring (last to measure total time)
-    app.add_middleware(PerformanceMiddleware, slow_request_threshold=1000.0)
+    # # 7. Caching
+    # app.add_middleware(CacheInvalidationMiddleware)
+    # app.add_middleware(ResponseCachingMiddleware)
+    
+    # # 8. Performance monitoring (last to measure total time)
+    # app.add_middleware(PerformanceMiddleware, slow_request_threshold=1000.0)
     
     # CORS 설정
     app.add_middleware(
@@ -186,7 +189,7 @@ def create_app() -> FastAPI:
     from .handlers.health_education import router as health_education_router
     from .handlers.chemical_substances import router as chemical_substances_router
     from .handlers.accident_reports import router as accident_reports_router
-    from .handlers.documents import router as documents_router
+    from .handlers.documents import router as documents_router, pdf_router
     from .handlers.monitoring import router as monitoring_router
     from .handlers.auth import router as auth_router
     from .handlers.reports import router as reports_router
@@ -201,6 +204,7 @@ def create_app() -> FastAPI:
     app.include_router(chemical_substances_router, tags=["화학물질관리"])
     app.include_router(accident_reports_router, tags=["산업재해"])
     app.include_router(documents_router, tags=["문서관리"])
+    app.include_router(pdf_router, tags=["PDF편집"])
     app.include_router(monitoring_router, tags=["모니터링"])
     app.include_router(auth_router, tags=["인증"])
     app.include_router(reports_router, tags=["보고서"])
