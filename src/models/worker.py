@@ -88,25 +88,5 @@ class Worker(Base):
         Index('ix_workers_name_active', 'name', 'is_active'),
     )
 
-class HealthConsultation(Base):
-    """건강상담 기록"""
-    __tablename__ = "health_consultations"
-    
-    id = Column(Integer, primary_key=True, index=True)
-    worker_id = Column(Integer, ForeignKey("workers.id"), nullable=False)
-    
-    consultation_date = Column(DateTime(timezone=True), nullable=False, comment="상담일시")
-    consultation_type = Column(String(50), nullable=False, comment="상담유형")
-    symptoms = Column(Text, comment="증상")
-    consultation_content = Column(Text, comment="상담내용")
-    recommendations = Column(Text, comment="권고사항")
-    follow_up_date = Column(Date, comment="추후관리일")
-    
-    # 상담자 정보
-    counselor_name = Column(String(50), comment="상담자명")
-    counselor_title = Column(String(50), comment="상담자 직책")
-    
-    created_at = Column(DateTime(timezone=True), server_default=func.now())
-    
-    # 관계설정
-    worker = relationship("Worker", back_populates="health_consultations")
+# HealthConsultation 모델은 별도 파일로 이동됨
+# src/models/health_consultation.py 참조

@@ -12,12 +12,17 @@ from datetime import date, datetime
 import logging
 
 from ..config.database import get_db
-from ..models.worker import HealthConsultation, Worker
-from ..schemas.worker import (
+from ..models.health_consultation import HealthConsultation, ConsultationFollowUp
+from ..models.worker import Worker
+from ..schemas.health_consultation import (
     HealthConsultationCreate, 
     HealthConsultationUpdate,
     HealthConsultationResponse, 
-    HealthConsultationListResponse
+    HealthConsultationListResponse,
+    ConsultationStatistics,
+    ConsultationType,
+    ConsultationStatus,
+    HealthIssueCategory
 )
 
 logger = logging.getLogger(__name__)

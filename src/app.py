@@ -185,6 +185,7 @@ def create_app() -> FastAPI:
     # API 라우터 등록
     from .handlers.workers import router as workers_router
     from .handlers.health_exams import router as health_exams_router
+    from .handlers.health_consultations import router as health_consultations_router
     from .handlers.work_environments import router as work_environments_router
     from .handlers.health_education import router as health_education_router
     from .handlers.chemical_substances import router as chemical_substances_router
@@ -197,9 +198,14 @@ def create_app() -> FastAPI:
     from .handlers.pipeline import router as pipeline_router
     from .handlers.compliance import router as compliance_router
     from .handlers.dashboard import router as dashboard_router
+    from .handlers.legal_forms import router as legal_forms_router, unified_router as unified_documents_router
+    from .handlers.settings import router as settings_router
+    from .handlers.checklist import router as checklist_router
+    from .handlers.special_materials import router as special_materials_router
     
     app.include_router(workers_router, prefix="/api/v1/workers", tags=["근로자관리"])
     app.include_router(health_exams_router, tags=["건강진단"])
+    app.include_router(health_consultations_router, tags=["보건상담"])
     app.include_router(work_environments_router, tags=["작업환경측정"])
     app.include_router(health_education_router, tags=["보건교육"])
     app.include_router(chemical_substances_router, tags=["화학물질관리"])
@@ -213,6 +219,11 @@ def create_app() -> FastAPI:
     app.include_router(pipeline_router, tags=["파이프라인"])
     app.include_router(compliance_router, tags=["법령준수"])
     app.include_router(dashboard_router, tags=["대시보드"])
+    app.include_router(legal_forms_router, tags=["법정서식"])
+    app.include_router(unified_documents_router, tags=["통합문서"])
+    app.include_router(settings_router, tags=["설정관리"])
+    app.include_router(checklist_router, tags=["체크리스트"])
+    app.include_router(special_materials_router, tags=["특별관리물질"])
     
     # 정적 파일 서빙 (React 빌드된 파일들) - Mount after all API routes
     try:

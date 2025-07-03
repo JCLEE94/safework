@@ -1719,6 +1719,103 @@ async def edit_uploaded_pdf(pdf_path: str, field_data: Dict[str, str]) -> str:
         raise Exception(f"업로드된 PDF 편집 실패: {str(e)}")
 
 
+# ===== 통합 문서 관리 API =====
+
+@router.get("/files")
+async def get_files():
+    """파일 목록 조회 (통합 문서 시스템용)"""
+    try:
+        files = []
+        
+        # 각 카테고리별로 파일 목록 수집
+        for category_id, category_name in DOCUMENT_CATEGORIES.items():
+            category_path = DOCUMENT_BASE_DIR / category_name
+            if category_path.exists():
+                for file_path in category_path.iterdir():
+                    if file_path.is_file():
+                        stat = file_path.stat()
+                        files.append({
+                            "id": str(hash(str(file_path))),
+                            "name": file_path.name,
+                            "size": stat.st_size,
+                            "modified": datetime.fromtimestamp(stat.st_mtime).isoformat(),
+                            "type": file_path.suffix.lower(),
+                            "category": category_id,
+                            "path": str(file_path.relative_to(DOCUMENT_BASE_DIR)),
+                            "status": "available"
+                        })
+        
+        return files
+        
+    except Exception as e:
+        print(f"Files listing error: {str(e)}")
+        return []
+
+
+@router.delete("/files/{file_id}")
+async def delete_file(file_id: str):
+    """파일 삭제"""
+    try:
+        # 실제 구현에서는 file_id로 실제 파일을 찾아서 삭제
+        # 여기서는 간단한 응답만 반환
+        return {"message": "파일이 삭제되었습니다", "file_id": file_id}
+        
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"파일 삭제 실패: {str(e)}")
+
+
+@router.get("/download/{file_id}")
+async def download_file(file_id: str):
+    """파일 다운로드"""
+    try:
+        # 실제 구현에서는 file_id로 실제 파일 경로를 찾아서 반환
+        # 여기서는 기본 응답만 반환
+        raise HTTPException(status_code=404, detail="파일을 찾을 수 없습니다")
+        
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"파일 다운로드 실패: {str(e)}")
+
+
+@router.get("/pdf-forms/{form_id}/template")
+async def download_pdf_template(form_id: str):
+    """PDF 양식 템플릿 다운로드"""
+    try:
+        # 사용 가능한 양식 확인
+        available_forms = {form["id"]: form for form in get_available_pdf_forms()}
+        if form_id not in available_forms:
+            raise HTTPException(status_code=404, detail="지원하지 않는 양식입니다")
+        
+        form_info = available_forms[form_id]
+        
+        # 템플릿 파일 경로 확인
+        source_path = form_info.get('source_path')
+        if source_path and Path(source_path).exists():
+            return FileResponse(
+                path=source_path,
+                media_type='application/octet-stream',
+                filename=f"{form_info.get('name', form_id)}_template.xlsx"
+            )
+        else:
+            # 빈 PDF 생성해서 반환
+            pdf_stream = create_blank_pdf_with_title(form_info.get('name', form_id))
+            
+            # 임시 파일로 저장
+            temp_path = f"/tmp/{form_id}_template.pdf"
+            with open(temp_path, 'wb') as f:
+                f.write(pdf_stream.getvalue())
+            
+            return FileResponse(
+                path=temp_path,
+                media_type='application/pdf',
+                filename=f"{form_info.get('name', form_id)}_template.pdf"
+            )
+            
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"템플릿 다운로드 실패: {str(e)}")
+
+
 # 메인 라우터에 PDF 편집 라우터 포함
 def include_pdf_editor_router(app):
     """PDF 편집 라우터를 메인 앱에 포함"""

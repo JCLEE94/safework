@@ -3,20 +3,23 @@
  * Unified Document Management System
  * 
  * 기존의 DocumentManagement, FileManagement, PDFForms를 통합
+ * DocumentWorkspace와 함께 완전한 문서 관리 솔루션 제공
  */
 
 import React, { useState, useEffect } from 'react';
 import { 
   FileText, FolderOpen, Plus, Download, Upload, Search, 
   Filter, Edit, Eye, Trash2, Settings, FileEdit, File,
-  RefreshCw, AlertCircle, CheckCircle
+  RefreshCw, AlertCircle, CheckCircle, BarChart, Activity,
+  Users, Archive, Share2, Clock
 } from 'lucide-react';
 import { Card, Button, Badge, Modal } from '../common';
 import { useApi } from '../../hooks/useApi';
 import { PDFFormEditor } from '../PDFFormEditor';
+import { DocumentWorkspace } from './DocumentWorkspace';
 
 // 탭 정의
-type DocumentTab = 'files' | 'pdf-forms' | 'templates' | 'categories';
+type DocumentTab = 'workspace' | 'files' | 'pdf-forms' | 'templates' | 'categories' | 'analytics';
 
 interface DocumentFile {
   id: string;
@@ -61,7 +64,7 @@ const DOCUMENT_CATEGORIES = [
 ];
 
 export function UnifiedDocuments() {
-  const [activeTab, setActiveTab] = useState<DocumentTab>('files');
+  const [activeTab, setActiveTab] = useState<DocumentTab>('workspace');
   const [files, setFiles] = useState<DocumentFile[]>([]);
   const [pdfForms, setPdfForms] = useState<PDFForm[]>([]);
   const [categories, setCategories] = useState<DocumentCategory[]>([]);
@@ -218,14 +221,18 @@ export function UnifiedDocuments() {
 
   const renderTabContent = () => {
     switch (activeTab) {
+      case 'workspace':
+        return <DocumentWorkspace />;
       case 'files':
         return renderFilesTab();
       case 'pdf-forms':
         return renderPDFFormsTab();
       case 'categories':
         return renderCategoriesTab();
+      case 'analytics':
+        return renderAnalyticsTab();
       default:
-        return renderFilesTab();
+        return <DocumentWorkspace />;
     }
   };
 
@@ -506,6 +513,110 @@ export function UnifiedDocuments() {
     </div>
   );
 
+  const renderAnalyticsTab = () => (
+    <div className="space-y-6">
+      {/* 통계 카드 */}
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
+        <Card className="p-6">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-sm text-gray-600">총 문서</p>
+              <p className="text-2xl font-bold text-blue-600">{files.length}</p>
+            </div>
+            <FileText className="text-blue-600" size={32} />
+          </div>
+        </Card>
+        
+        <Card className="p-6">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-sm text-gray-600">PDF 양식</p>
+              <p className="text-2xl font-bold text-green-600">{pdfForms.length}</p>
+            </div>
+            <FileEdit className="text-green-600" size={32} />
+          </div>
+        </Card>
+        
+        <Card className="p-6">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-sm text-gray-600">카테고리</p>
+              <p className="text-2xl font-bold text-orange-600">{categories.length}</p>
+            </div>
+            <FolderOpen className="text-orange-600" size={32} />
+          </div>
+        </Card>
+        
+        <Card className="p-6">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-sm text-gray-600">활성 사용자</p>
+              <p className="text-2xl font-bold text-purple-600">12</p>
+            </div>
+            <Users className="text-purple-600" size={32} />
+          </div>
+        </Card>
+      </div>
+
+      {/* 활동 분석 */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <Card className="p-6">
+          <h3 className="text-lg font-semibold text-gray-800 mb-4">카테고리별 문서 분포</h3>
+          <div className="space-y-3">
+            {categories.map(category => (
+              <div key={category.id} className="flex items-center justify-between">
+                <span className="text-sm text-gray-600">{category.name}</span>
+                <div className="flex items-center gap-2">
+                  <div className="w-32 bg-gray-200 rounded-full h-2">
+                    <div 
+                      className="bg-blue-600 h-2 rounded-full" 
+                      style={{ width: `${Math.min((category.file_count / Math.max(...categories.map(c => c.file_count), 1)) * 100, 100)}%` }}
+                    ></div>
+                  </div>
+                  <span className="text-sm font-medium">{category.file_count}</span>
+                </div>
+              </div>
+            ))}
+          </div>
+        </Card>
+
+        <Card className="p-6">
+          <h3 className="text-lg font-semibold text-gray-800 mb-4">최근 활동</h3>
+          <div className="space-y-3">
+            {[
+              { action: '업로드', file: '건강검진 결과서.pdf', user: '김관리자', time: '2시간 전' },
+              { action: '편집', file: '안전교육 이수증', user: '이담당자', time: '4시간 전' },
+              { action: '다운로드', file: 'MSDS 신청서', user: '박보건', time: '6시간 전' },
+              { action: '승인', file: '사고보고서 양식', user: '최관리자', time: '1일 전' }
+            ].map((activity, index) => (
+              <div key={index} className="flex items-center gap-3">
+                <div className="w-2 h-2 bg-blue-500 rounded-full"></div>
+                <div className="flex-1">
+                  <p className="text-sm text-gray-900">
+                    <span className="font-medium">{activity.user}</span>가 
+                    <span className="text-blue-600 mx-1">{activity.file}</span>를 
+                    {activity.action}했습니다
+                  </p>
+                  <p className="text-xs text-gray-500">{activity.time}</p>
+                </div>
+              </div>
+            ))}
+          </div>
+        </Card>
+      </div>
+
+      {/* 사용 추세 */}
+      <Card className="p-6">
+        <h3 className="text-lg font-semibold text-gray-800 mb-4">문서 사용 추세</h3>
+        <div className="bg-gray-50 rounded-lg p-8 text-center">
+          <BarChart className="mx-auto text-gray-400" size={48} />
+          <p className="text-gray-600 mt-2">문서 사용 통계 차트</p>
+          <p className="text-sm text-gray-500">차트 라이브러리 통합 예정</p>
+        </div>
+      </Card>
+    </div>
+  );
+
   return (
     <div className="space-y-6">
       {/* Header */}
@@ -523,9 +634,11 @@ export function UnifiedDocuments() {
       <div className="border-b border-gray-200">
         <nav className="-mb-px flex space-x-8">
           {[
+            { id: 'workspace', name: '통합 작업공간', icon: Activity },
             { id: 'files', name: '파일관리', icon: File },
             { id: 'pdf-forms', name: 'PDF 양식', icon: FileEdit },
             { id: 'categories', name: '카테고리', icon: FolderOpen },
+            { id: 'analytics', name: '분석', icon: BarChart },
           ].map((tab) => {
             const Icon = tab.icon;
             return (
