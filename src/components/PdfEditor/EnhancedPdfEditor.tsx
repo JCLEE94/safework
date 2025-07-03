@@ -1,5 +1,6 @@
 import React, { useState, useRef, useCallback } from 'react';
 import { EmbedPDF, useEmbed } from '@simplepdf/react-embed-pdf';
+import { API_BASE_URL } from '../../config/api';
 import { 
   Upload, 
   Download, 
@@ -48,6 +49,8 @@ const EnhancedPdfEditor: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
   const [pdfViewerMode, setPdfViewerMode] = useState<'viewer' | 'editor'>('editor');
+  const [autoMapping, setAutoMapping] = useState(false);
+  const [mappingSuggestions, setMappingSuggestions] = useState<any[]>([]);
   
   const fileInputRef = useRef<HTMLInputElement>(null);
   const { embedRef, actions } = useEmbed();
@@ -56,7 +59,7 @@ const EnhancedPdfEditor: React.FC = () => {
   const fetchAvailableForms = async () => {
     try {
       setLoading(true);
-      const response = await fetch('/api/v1/pdf-editor/forms/');
+      const response = await fetch(`${API_BASE_URL}/api/v1/pdf-editor/forms/`);
       const data = await response.json();
       
       if (response.ok && data.status === 'success') {
@@ -112,7 +115,7 @@ const EnhancedPdfEditor: React.FC = () => {
     }
   }, [selectedForm]);
 
-  const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
+  const handleFileUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (file && file.type === 'application/pdf') {
       setUploadedFile(file);
@@ -121,6 +124,23 @@ const EnhancedPdfEditor: React.FC = () => {
       setDocumentUrl(blobUrl);
       setSelectedForm(''); // 업로드 시 기본 양식 선택 해제
       setError(null);
+      
+      // 자동 필드 감지 옵션이 켜져있으면 필드 감지
+      if (autoMapping) {
+        setLoading(true);
+        const detectionResult = await detectPdfFields(file);
+        if (detectionResult) {
+          // 감지된 필드 정보 표시
+          console.log('감지된 필드:', detectionResult);
+          if (detectionResult.auto_detection?.mapped_fields) {
+            // 자동 매핑된 필드가 있으면 표시
+            setMappingSuggestions(Object.entries(detectionResult.auto_detection.mapped_fields));
+            setSuccess(`${Object.keys(detectionResult.auto_detection.mapped_fields).length}개의 필드가 자동으로 감지되었습니다`);
+          }
+        }
+        setLoading(false);
+      }
+      
       setEditMode('advanced'); // 업로드된 파일은 고급 편집기로
     } else {
       setError('PDF 파일만 업로드 가능합니다');
@@ -160,6 +180,51 @@ const EnhancedPdfEditor: React.FC = () => {
     } catch (error) {
       console.error('도구 선택 실패:', error);
       setError('도구 선택에 실패했습니다');
+    }
+  };
+
+  // PDF 필드 자동 감지
+  const detectPdfFields = async (file: File) => {
+    try {
+      const formData = new FormData();
+      formData.append('file', file);
+      
+      const response = await fetch(`${API_BASE_URL}/api/v1/pdf-auto/detect-fields`, {
+        method: 'POST',
+        body: formData
+      });
+      
+      if (response.ok) {
+        const data = await response.json();
+        return data;
+      }
+    } catch (error) {
+      console.error('필드 감지 실패:', error);
+    }
+    return null;
+  };
+
+  // 자동 필드 매핑
+  const autoFillPdf = async (file: File, data: Record<string, string>) => {
+    try {
+      const formData = new FormData();
+      formData.append('file', file);
+      formData.append('data', JSON.stringify(data));
+      
+      const response = await fetch(`${API_BASE_URL}/api/v1/pdf-auto/auto-fill`, {
+        method: 'POST',
+        body: formData
+      });
+      
+      if (response.ok) {
+        const blob = await response.blob();
+        const url = window.URL.createObjectURL(blob);
+        setDocumentUrl(url);
+        setSuccess('PDF 필드가 자동으로 채워졌습니다');
+      }
+    } catch (error) {
+      console.error('자동 채우기 실패:', error);
+      setError('PDF 자동 채우기 중 오류가 발생했습니다');
     }
   };
 
@@ -205,7 +270,7 @@ const EnhancedPdfEditor: React.FC = () => {
         formData.append('file', uploadedFile);
         formData.append('field_data', JSON.stringify(fieldValues));
 
-        response = await fetch('/api/v1/pdf-editor/upload-and-edit', {
+        response = await fetch(`${API_BASE_URL}/api/v1/pdf-editor/upload-and-edit`, {
           method: 'POST',
           body: formData
         });
@@ -215,7 +280,7 @@ const EnhancedPdfEditor: React.FC = () => {
           formData.append(key, value);
         });
 
-        response = await fetch(`/api/v1/pdf-editor/forms/${selectedForm}/edit`, {
+        response = await fetch(`${API_BASE_URL}/api/v1/pdf-editor/forms/${selectedForm}/edit`, {
           method: 'POST',
           body: formData
         });
@@ -388,6 +453,20 @@ const EnhancedPdfEditor: React.FC = () => {
                     <Upload className="mr-2" size={20} />
                     PDF 파일 업로드
                   </h2>
+                  
+                  {/* 자동 필드 매핑 토글 */}
+                  <div className="mb-4 flex items-center">
+                    <input
+                      type="checkbox"
+                      id="autoMapping"
+                      checked={autoMapping}
+                      onChange={(e) => setAutoMapping(e.target.checked)}
+                      className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
+                    />
+                    <label htmlFor="autoMapping" className="ml-2 text-sm text-gray-700">
+                      PDF 필드 자동 감지 및 매핑
+                    </label>
+                  </div>
                   <div className="border-2 border-dashed border-gray-300 rounded-lg p-6 text-center">
                     <input
                       ref={fileInputRef}
@@ -412,6 +491,27 @@ const EnhancedPdfEditor: React.FC = () => {
                     </label>
                   </div>
                 </div>
+                
+                {/* 자동 감지된 필드 표시 */}
+                {mappingSuggestions.length > 0 && (
+                  <div className="mt-4 p-4 bg-blue-50 rounded-lg">
+                    <h3 className="text-sm font-semibold text-blue-900 mb-2">
+                      자동 감지된 필드 ({mappingSuggestions.length}개)
+                    </h3>
+                    <div className="space-y-1">
+                      {mappingSuggestions.slice(0, 5).map(([key, value]: any, idx) => (
+                        <div key={idx} className="text-xs text-blue-700">
+                          {value.original_name || key} → {key}
+                        </div>
+                      ))}
+                      {mappingSuggestions.length > 5 && (
+                        <div className="text-xs text-blue-600">
+                          ... 외 {mappingSuggestions.length - 5}개
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                )}
               </div>
 
               {/* 우측: 필드 입력 */}

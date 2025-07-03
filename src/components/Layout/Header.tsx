@@ -44,7 +44,7 @@ export function Header({ onMenuToggle }: HeaderProps) {
             
             <div className="flex items-center">
               <img
-                src="https://ui-avatars.com/api/?name=Admin&background=4F46E5&color=fff"
+                src={`https://ui-avatars.com/api/?name=${encodeURIComponent('관리자')}&background=4F46E5&color=fff`}
                 alt="User"
                 className="h-8 w-8 rounded-full"
               />
