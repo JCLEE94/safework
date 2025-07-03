@@ -156,7 +156,6 @@ class SpecialMaterialUsage(Base):
     
     # 관계
     material = relationship("SpecialMaterial", back_populates="usage_records")
-    worker = relationship("Worker")
 
     def __repr__(self):
         return f"<SpecialMaterialUsage(id={self.id}, material_id={self.material_id})>"
