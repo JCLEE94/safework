@@ -12,7 +12,7 @@ from datetime import datetime, timedelta
 from uuid import UUID
 import json
 
-from ..models.database import get_db
+from ..config.database import get_db
 from ..models.special_materials import (
     SpecialMaterial, SpecialMaterialUsage, ExposureAssessment, SpecialMaterialMonitoring,
     ControlMeasure, SpecialMaterialType, ExposureLevel, MonitoringStatus

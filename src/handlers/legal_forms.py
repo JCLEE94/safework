@@ -12,7 +12,7 @@ from typing import List, Optional, Dict, Any
 from datetime import datetime, timedelta
 from uuid import UUID
 
-from ..models.database import get_db
+from ..config.database import get_db
 from ..models.legal_forms import (
     LegalForm, LegalFormAttachment, LegalFormApproval, UnifiedDocument,
     LegalFormStatus, LegalFormPriority, LegalFormCategory

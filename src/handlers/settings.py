@@ -10,7 +10,7 @@ from typing import List, Optional, Dict, Any
 from datetime import datetime
 import json
 
-from ..models.database import get_db
+from ..config.database import get_db
 from ..models.settings import SystemSettings, UserSettings, SettingsHistory
 from ..schemas.settings import (
     SystemSettingsCreate, SystemSettingsUpdate, SystemSettingsResponse,

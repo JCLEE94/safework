@@ -12,7 +12,7 @@ from datetime import datetime, timedelta
 from uuid import UUID
 import json
 
-from ..models.database import get_db
+from ..config.database import get_db
 from ..models.checklist import (
     ChecklistTemplate, ChecklistTemplateItem, ChecklistInstance, ChecklistInstanceItem,
     ChecklistAttachment, ChecklistSchedule, ChecklistType, ChecklistStatus, ChecklistPriority
