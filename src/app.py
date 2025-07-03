@@ -190,6 +190,7 @@ def create_app() -> FastAPI:
     from .handlers.chemical_substances import router as chemical_substances_router
     from .handlers.accident_reports import router as accident_reports_router
     from .handlers.documents import router as documents_router, pdf_router
+    from .handlers.pdf_auto_fill import router as pdf_auto_router
     from .handlers.monitoring import router as monitoring_router
     from .handlers.auth import router as auth_router
     from .handlers.reports import router as reports_router
@@ -205,6 +206,7 @@ def create_app() -> FastAPI:
     app.include_router(accident_reports_router, tags=["산업재해"])
     app.include_router(documents_router, tags=["문서관리"])
     app.include_router(pdf_router, tags=["PDF편집"])
+    app.include_router(pdf_auto_router, tags=["PDF자동매핑"])
     app.include_router(monitoring_router, tags=["모니터링"])
     app.include_router(auth_router, tags=["인증"])
     app.include_router(reports_router, tags=["보고서"])
