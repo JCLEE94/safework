@@ -9,31 +9,26 @@ on:
 env:
   REGISTRY: ${{ vars.DOCKER_REGISTRY || 'registry.jclee.me' }}
   IMAGE_NAME: ${{ vars.IMAGE_NAME || 'safework' }}
-  PRODUCTION_URL: ${{ vars.PRODUCTION_URL || 'http://192.168.50.215:3001' }}
+  PRODUCTION_URL: ${{ vars.PRODUCTION_URL || 'https://safework.jclee.me' }}
   WATCHTOWER_URL: ${{ vars.WATCHTOWER_URL || 'https://watchtower.jclee.me' }}
   
 jobs:
   test:
     name: Run Tests
-    runs-on: [self-hosted, linux]
-    container:
-      image: python:3.11-slim
-      options: --user root
+    runs-on: ubuntu-latest
+
     
     steps:
-      - name: Clean workspace
-        run: |
-          echo "Cleaning workspace..."
-          sudo rm -rf ${{ github.workspace }}/* ${{ github.workspace }}/.* 2>/dev/null || true
+
           
       - uses: actions/checkout@v4
-        with:
-          clean: false
       
-      - name: Install system dependencies
-        run: |
-          apt-get update
-          apt-get install -y curl git nodejs npm
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+          cache: 'npm'
+          cache-dependency-path: frontend/package-lock.json
           
       - name: Install frontend dependencies
         working-directory: frontend
@@ -61,18 +56,15 @@ jobs:
           
   build:
     name: Build Docker Image
-    runs-on: [self-hosted, linux]
+    runs-on: ubuntu-latest
     needs: test
-    container:
-      image: docker:24-cli
-      options: --user root
+
     
     steps:
       - uses: actions/checkout@v4
       
-      - name: Setup environment
-        run: |
-          apk add --no-cache curl git
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
           
       - name: Log in to Docker Registry
         run: |
@@ -116,7 +108,7 @@ jobs:
 
   notify:
     name: Deployment Notification
-    runs-on: [self-hosted, linux]
+    runs-on: ubuntu-latest
     needs: build
     if: github.ref == 'refs/heads/main'
     permissions:
@@ -170,7 +162,7 @@ jobs:
 
   failure-notification:
     name: Pipeline Failure Notification
-    runs-on: [self-hosted, linux]
+    runs-on: ubuntu-latest
     needs: [test, build]
     if: failure()
     
