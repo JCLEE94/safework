@@ -186,6 +186,11 @@ def convert_office_to_pdf_with_libreoffice(office_file_path: str) -> io.BytesIO:
     try:
         print(f"Converting {office_file_path} to PDF using LibreOffice")
         
+        # 파일 존재 여부 확인
+        if not os.path.exists(office_file_path):
+            print(f"Warning: Office file not found: {office_file_path}")
+            return create_blank_pdf_with_title(os.path.basename(office_file_path))
+        
         # 임시 디렉토리 생성
         with tempfile.TemporaryDirectory() as temp_dir:
             # 원본 파일을 임시 디렉토리에 복사
@@ -194,7 +199,7 @@ def convert_office_to_pdf_with_libreoffice(office_file_path: str) -> io.BytesIO:
             
             # LibreOffice로 PDF 변환
             cmd = [
-                'libreoffice',
+                'soffice',  # 'libreoffice' 대신 'soffice' 사용
                 '--headless',
                 '--invisible',
                 '--nodefault',
@@ -202,24 +207,30 @@ def convert_office_to_pdf_with_libreoffice(office_file_path: str) -> io.BytesIO:
                 '--nologo',
                 '--norestore',
                 '--convert-to',
-                'pdf',
+                'pdf:writer_pdf_Export',  # 명시적인 필터 지정
                 '--outdir',
                 temp_dir,
                 temp_input
             ]
             
-            result = subprocess.run(cmd, capture_output=True, text=True)
+            # HOME 환경변수 설정 (LibreOffice가 필요로 함)
+            env = os.environ.copy()
+            env['HOME'] = '/tmp'
+            
+            result = subprocess.run(cmd, capture_output=True, text=True, env=env, timeout=30)
             
             if result.returncode != 0:
                 print(f"LibreOffice conversion error: {result.stderr}")
-                raise Exception(f"LibreOffice conversion failed: {result.stderr}")
+                # 변환 실패시 reportlab으로 PDF 생성
+                return create_form_template_pdf(os.path.splitext(os.path.basename(office_file_path))[0])
             
             # 변환된 PDF 파일 찾기
             pdf_filename = os.path.splitext(os.path.basename(office_file_path))[0] + '.pdf'
             pdf_path = os.path.join(temp_dir, pdf_filename)
             
             if not os.path.exists(pdf_path):
-                raise Exception(f"Converted PDF not found: {pdf_path}")
+                print(f"Converted PDF not found: {pdf_path}, creating template PDF")
+                return create_form_template_pdf(os.path.splitext(os.path.basename(office_file_path))[0])
             
             # PDF 내용을 BytesIO로 읽기
             with open(pdf_path, 'rb') as f:
@@ -227,10 +238,13 @@ def convert_office_to_pdf_with_libreoffice(office_file_path: str) -> io.BytesIO:
             
             return io.BytesIO(pdf_content)
             
+    except subprocess.TimeoutExpired:
+        print("LibreOffice conversion timeout")
+        return create_form_template_pdf(os.path.splitext(os.path.basename(office_file_path))[0])
     except Exception as e:
         print(f"Office to PDF conversion error: {str(e)}")
-        # 변환 실패시 빈 PDF 생성
-        return create_blank_pdf_with_title(os.path.basename(office_file_path))
+        # 변환 실패시 템플릿 PDF 생성
+        return create_form_template_pdf(os.path.splitext(os.path.basename(office_file_path))[0])
 
 
 
@@ -602,50 +616,91 @@ async def download_document(category_id: str, filename: str):
 
 async def _generate_pdf_content(template_id: str, data: Dict) -> bytes:
     """PDF 콘텐츠 생성 공통 함수"""
-    template_info = FORM_TEMPLATES[template_id]
-    
-    print(f"Generating PDF for template: {template_id}")
-    print(f"Data received: {data}")
-    
-    # 원본 PDF 경로 확인
-    if 'original_pdf' in template_info:
-        original_pdf_path = DOCUMENT_BASE_DIR / template_info['original_pdf']
+    try:
+        template_info = FORM_TEMPLATES[template_id]
         
-        if original_pdf_path.exists():
-            # 실제 원본 PDF 양식 사용
-            print(f"Using original PDF: {original_pdf_path}")
+        print(f"Generating PDF for template: {template_id}")
+        print(f"Data received: {data}")
+        
+        # PDF 지원 양식인 경우 (Excel/Word 파일)
+        if template_info.get('pdf_support', False) and 'template_path' in template_info:
+            template_path = DOCUMENT_BASE_DIR / template_info['template_path']
             
-            # 특정 페이지만 추출하여 사용
-            reader = PdfReader(str(original_pdf_path))
-            page_num = template_info.get('page_number', 0)
+            if template_path.exists():
+                print(f"Using template file: {template_path}")
+                
+                # Office 파일을 PDF로 변환
+                pdf_stream = convert_office_to_pdf(str(template_path))
+                
+                # 데이터 오버레이 적용
+                if data:
+                    overlay_packet = create_text_overlay(data, template_id)
+                    if overlay_packet:
+                        # 기존 PDF 읽기
+                        existing_pdf = PdfReader(pdf_stream)
+                        overlay_pdf = PdfReader(overlay_packet)
+                        
+                        # 새로운 PDF 생성
+                        output = PdfWriter()
+                        
+                        # 첫 페이지에 오버레이 적용
+                        for page_num in range(len(existing_pdf.pages)):
+                            page = existing_pdf.pages[page_num]
+                            if page_num == 0 and len(overlay_pdf.pages) > 0:
+                                page.merge_page(overlay_pdf.pages[0])
+                            output.add_page(page)
+                        
+                        # 결과 반환
+                        result_buffer = io.BytesIO()
+                        output.write(result_buffer)
+                        result_buffer.seek(0)
+                        return result_buffer.getvalue()
+                
+                # 오버레이 없이 원본 PDF 반환
+                pdf_stream.seek(0)
+                return pdf_stream.getvalue()
+        
+        # 원본 PDF 방식 (기존 코드 유지)
+        if 'original_pdf' in template_info:
+            original_pdf_path = DOCUMENT_BASE_DIR / template_info['original_pdf']
             
-            if page_num < len(reader.pages):
-                # 해당 페이지만 추출
-                writer = PdfWriter()
-                page = reader.pages[page_num]
+            if original_pdf_path.exists():
+                print(f"Using original PDF: {original_pdf_path}")
                 
-                # 데이터 오버레이 생성
-                overlay_packet = create_text_overlay(data, template_id)
+                # 특정 페이지만 추출하여 사용
+                reader = PdfReader(str(original_pdf_path))
+                page_num = template_info.get('page_number', 0)
                 
-                if overlay_packet:
-                    overlay_reader = PdfReader(overlay_packet)
-                    overlay_page = overlay_reader.pages[0]
+                if page_num < len(reader.pages):
+                    # 해당 페이지만 추출
+                    writer = PdfWriter()
+                    page = reader.pages[page_num]
                     
-                    # 원본 페이지에 오버레이 병합
-                    page.merge_page(overlay_page)
-                
-                writer.add_page(page)
-                
-                # PDF 내용을 바이트로 반환
-                buffer = io.BytesIO()
-                writer.write(buffer)
-                buffer.seek(0)
-                pdf_content = buffer.getvalue()
-                print(f"PDF generated successfully with original form, size: {len(pdf_content)} bytes")
-                return pdf_content
-    
-    # 원본 PDF가 없으면 reportlab으로 새로 생성
-    print("Original PDF not found, creating new PDF with reportlab")
+                    # 데이터 오버레이 생성
+                    overlay_packet = create_text_overlay(data, template_id)
+                    
+                    if overlay_packet:
+                        overlay_reader = PdfReader(overlay_packet)
+                        overlay_page = overlay_reader.pages[0]
+                        
+                        # 원본 페이지에 오버레이 병합
+                        page.merge_page(overlay_page)
+                    
+                    writer.add_page(page)
+                    
+                    # PDF 내용을 바이트로 반환
+                    buffer = io.BytesIO()
+                    writer.write(buffer)
+                    buffer.seek(0)
+                    pdf_content = buffer.getvalue()
+                    print(f"PDF generated successfully with original form, size: {len(pdf_content)} bytes")
+                    return pdf_content
+        
+        # 원본 파일이 없으면 reportlab으로 새로 생성
+        print("No template found, creating new PDF with reportlab")
+    except Exception as e:
+        print(f"Error in PDF generation: {str(e)}")
+        # 에러 발생시 기본 PDF 생성
     
     # Create PDF in memory
     buffer = io.BytesIO()
@@ -966,24 +1021,27 @@ async def get_recent_forms():
 @router.get("/preview/{form_id}")
 async def preview_form(form_id: str):
     """양식 미리보기 (원본 PDF로 변환)"""
-    # 지원하는 양식인지 확인
-    available_forms = {form["id"]: form for form in get_available_pdf_forms()}
-    if form_id not in available_forms:
-        raise HTTPException(status_code=404, detail="지원하지 않는 양식입니다")
-    
-    form_info = available_forms[form_id]
-    
     try:
+        # FORM_TEMPLATES에서 양식 정보 확인
+        if form_id not in FORM_TEMPLATES:
+            raise HTTPException(status_code=404, detail="지원하지 않는 양식입니다")
+        
+        form_info = FORM_TEMPLATES[form_id]
+        
         print(f"Generating preview for form: {form_id}")
         
-        # 원본 Office 파일을 PDF로 변환
-        source_path = form_info.get('source_path')
-        if source_path and Path(source_path).exists():
-            print(f"Converting office file to PDF for preview: {source_path}")
-            pdf_stream = convert_office_to_pdf(source_path)
+        # 템플릿 파일 경로 확인
+        if 'template_path' in form_info:
+            template_path = DOCUMENT_BASE_DIR / form_info['template_path']
+            if template_path.exists():
+                print(f"Converting template file to PDF for preview: {template_path}")
+                pdf_stream = convert_office_to_pdf(str(template_path))
+            else:
+                print(f"Template file not found: {template_path}")
+                pdf_stream = create_form_template_pdf(form_id)
         else:
-            print(f"Source file not found, creating blank preview")
-            pdf_stream = create_blank_pdf_with_title(form_info.get('source_file', form_id))
+            print(f"No template path, creating blank preview")
+            pdf_stream = create_form_template_pdf(form_id)
         
         pdf_content = pdf_stream.getvalue()
         print(f"Preview PDF generated, size: {len(pdf_content)} bytes")
