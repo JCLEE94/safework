@@ -1,12 +1,13 @@
 name: SafeWork Pro - Security Scan
 
 on:
-  push:
-    branches: [main, develop]
+  # push:
+  #   branches: [main, develop]
   pull_request:
     branches: [main]
   schedule:
     - cron: '0 0 * * 1'  # Weekly on Monday
+  workflow_dispatch:
 
 jobs:
   security-scan:
