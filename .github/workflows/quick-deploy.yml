@@ -2,12 +2,12 @@ name: Quick Deploy to Production
 
 on:
   workflow_dispatch:
-  push:
-    branches: [main]
-    paths-ignore:
-      - '**.md'
-      - '.github/workflows/test.yml'
-      - '.github/workflows/security.yml'
+  # push:
+  #   branches: [main]
+  #   paths-ignore:
+  #     - '**.md'
+  #     - '.github/workflows/test.yml'
+  #     - '.github/workflows/security.yml'
 
 env:
   REGISTRY: registry.jclee.me
