@@ -11,7 +11,8 @@ from datetime import datetime
 import logging
 
 from ..config.database import get_db
-from ..models.worker import Worker, HealthConsultation
+from ..models.worker import Worker
+from ..models.health_consultation import HealthConsultation
 from ..schemas.worker import (
     WorkerCreate, WorkerUpdate, WorkerResponse, WorkerListResponse,
     HealthConsultationCreate, HealthConsultationResponse

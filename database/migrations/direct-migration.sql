@@ -360,7 +360,7 @@ CREATE TABLE unified_documents (
     category VARCHAR(100),
     status VARCHAR(20) NOT NULL DEFAULT 'draft',
     content JSONB,
-    metadata JSONB,
+    document_metadata JSONB,
     version INTEGER NOT NULL DEFAULT 1,
     is_active BOOLEAN NOT NULL DEFAULT true,
     generated_at TIMESTAMP,

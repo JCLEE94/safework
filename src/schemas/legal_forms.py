@@ -180,7 +180,7 @@ class UnifiedDocumentCreate(BaseModel):
     tags: List[str] = Field(default_factory=list, description="태그 목록")
     is_template: bool = Field(default=False, description="템플릿 여부")
     access_level: str = Field(default="public", description="접근 권한")
-    metadata: Optional[Dict[str, Any]] = Field(None, description="추가 메타데이터")
+    document_metadata: Optional[Dict[str, Any]] = Field(None, description="추가 메타데이터")
 
 
 class UnifiedDocumentUpdate(BaseModel):
@@ -193,7 +193,7 @@ class UnifiedDocumentUpdate(BaseModel):
     status: Optional[str] = Field(None, description="문서 상태")
     is_template: Optional[bool] = Field(None, description="템플릿 여부")
     access_level: Optional[str] = Field(None, description="접근 권한")
-    metadata: Optional[Dict[str, Any]] = Field(None, description="추가 메타데이터")
+    document_metadata: Optional[Dict[str, Any]] = Field(None, description="추가 메타데이터")
 
 
 class UnifiedDocumentResponse(BaseModel):
@@ -214,7 +214,7 @@ class UnifiedDocumentResponse(BaseModel):
     version: int = Field(..., description="버전")
     is_template: bool = Field(..., description="템플릿 여부")
     access_level: str = Field(..., description="접근 권한")
-    metadata: Optional[Dict[str, Any]] = Field(None, description="추가 메타데이터")
+    document_metadata: Optional[Dict[str, Any]] = Field(None, description="추가 메타데이터")
 
     class Config:
         from_attributes = True

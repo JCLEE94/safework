@@ -178,7 +178,7 @@ class UnifiedDocument(Base):
     access_level = Column(String(50), nullable=False, default="public", comment="접근 권한")
     
     # 추가 메타데이터
-    metadata = Column(JSON, nullable=True, comment="추가 메타데이터")
+    document_metadata = Column(JSON, nullable=True, comment="추가 메타데이터")
 
     def __repr__(self):
         return f"<UnifiedDocument(id={self.id}, title={self.title}, category={self.category})>"
