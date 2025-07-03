@@ -190,9 +190,9 @@ export function SimpleDashboard() {
                   <div className="w-10 h-10 bg-gradient-to-br from-blue-500 to-purple-600 rounded-full flex items-center justify-center text-white font-bold">
                     {activity.description.charAt(0)}
                   </div>
-                  <div className="flex-1">
-                    <p className="font-medium text-gray-800">{activity.description}</p>
-                    <p className="text-sm text-gray-500">{activity.time}</p>
+                  <div className="flex-1 min-w-0">
+                    <p className="font-medium text-gray-800 truncate">{activity.description}</p>
+                    <p className="text-sm text-gray-500 truncate">{activity.time}</p>
                   </div>
                   <div className="px-3 py-1 bg-green-100 text-green-700 rounded-full text-xs font-medium">
                     완료

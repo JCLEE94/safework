@@ -59,8 +59,8 @@ export function Sidebar({ isOpen, onClose, activeMenu, onMenuSelect }: SidebarPr
                   }
                 `}
               >
-                <Icon size={20} className={activeMenu === item.id ? 'text-white' : item.color} />
-                <span className="ml-3 font-medium">{item.name}</span>
+                <Icon size={20} className={`flex-shrink-0 ${activeMenu === item.id ? 'text-white' : item.color}`} />
+                <span className="ml-3 font-medium truncate">{item.name}</span>
               </button>
             );
           })}

@@ -61,11 +61,13 @@ export function Table<T extends { id: number | string }>({
               className={onRowClick ? 'hover:bg-gray-50 cursor-pointer' : ''}
             >
               {columns.map((column) => (
-                <td key={column.key} className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                  {column.render 
-                    ? column.render(item) 
-                    : (item as any)[column.key]
-                  }
+                <td key={column.key} className="px-6 py-4 text-sm text-gray-900">
+                  <div className="max-w-xs truncate" title={String((item as any)[column.key] || '')}>
+                    {column.render 
+                      ? column.render(item) 
+                      : (item as any)[column.key]
+                    }
+                  </div>
                 </td>
               ))}
             </tr>
