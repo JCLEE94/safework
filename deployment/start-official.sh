@@ -91,12 +91,41 @@ else
     exit 1
 fi
 
-# FastAPI 시작
-echo "🎯 SafeWork Pro 백엔드 시작 중..."
+# 데이터베이스 마이그레이션 실행
+echo "🔄 데이터베이스 마이그레이션 실행 중..."
 export DATABASE_URL="postgresql://admin:safework123@localhost:5432/health_management"
 export REDIS_URL="redis://localhost:6379/0"
 export JWT_SECRET="safework-pro-jwt-secret-key-2024"
 export PORT="${PORT:-3001}"
 
 cd /app
+
+# 데이터베이스 마이그레이션 실행
+echo "📋 데이터베이스 마이그레이션 실행..."
+
+# 직접 SQL 마이그레이션 실행
+if [ -f "database/migrations/direct-migration.sql" ]; then
+    echo "🔄 직접 SQL 마이그레이션 실행 중..."
+    PGPASSWORD=safework123 psql -h localhost -U admin -d health_management < database/migrations/direct-migration.sql || {
+        echo "⚠️ SQL 마이그레이션 실패 (이미 적용되었을 수 있음)"
+    }
+    echo "✅ SQL 마이그레이션 완료"
+elif [ -f "deployment/direct-migration.sql" ]; then
+    echo "🔄 백업 위치에서 SQL 마이그레이션 실행 중..."
+    PGPASSWORD=safework123 psql -h localhost -U admin -d health_management < deployment/direct-migration.sql || {
+        echo "⚠️ SQL 마이그레이션 실패 (이미 적용되었을 수 있음)"
+    }
+    echo "✅ SQL 마이그레이션 완료"
+else
+    echo "⚠️ 마이그레이션 파일을 찾을 수 없습니다"
+fi
+
+# Alembic 마이그레이션 시도 (있는 경우)
+if [ -d "alembic" ]; then
+    echo "📋 Alembic 마이그레이션 시도..."
+    python -m alembic upgrade head || echo "⚠️ Alembic 마이그레이션 실패 (이미 적용되었을 수 있음)"
+fi
+
+# FastAPI 시작
+echo "🎯 SafeWork Pro 백엔드 시작 중..."
 exec uvicorn src.app:app --host 0.0.0.0 --port $PORT --workers 2

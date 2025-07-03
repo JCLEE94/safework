@@ -73,6 +73,10 @@ COPY --from=frontend-builder /app/dist ./dist/
 # 설정 파일 및 문서 복사
 COPY document/ ./document/
 
+# 마이그레이션 파일 복사
+COPY database/migrations/ ./database/migrations/
+COPY deployment/direct-migration.sql ./deployment/
+
 # 필요한 디렉토리 생성 및 권한 설정
 RUN mkdir -p uploads logs /var/lib/redis /var/lib/postgresql /var/log/postgresql \
     && chmod 755 uploads logs \
