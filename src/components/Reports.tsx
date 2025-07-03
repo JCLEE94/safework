@@ -1,4 +1,6 @@
 import React, { useState, useEffect } from 'react';
+import { API_BASE_URL } from '../config/api';
+import { DASHBOARD_RECENT_ITEMS } from '../constants';
 
 interface ReportFilters {
   reportType: string;
@@ -84,7 +86,7 @@ export const Reports: React.FC = () => {
 
   const fetchRecentReports = async () => {
     try {
-      const response = await fetch('/api/v1/reports/recent');
+      const response = await fetch(`${API_BASE_URL}/api/v1/reports/recent`);
       if (response.ok) {
         const data = await response.json();
         setRecentReports(data.reports || []);
@@ -110,10 +112,10 @@ export const Reports: React.FC = () => {
         template_id: selectedTemplate.id,
         filters,
         generated_at: new Date().toISOString(),
-        generated_by: 'system' // Should come from auth
+        generated_by: 'system' // TODO: Should come from auth
       };
 
-      const response = await fetch('/api/v1/reports/generate', {
+      const response = await fetch(`${API_BASE_URL}/api/v1/reports/generate`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -346,7 +348,7 @@ export const Reports: React.FC = () => {
               <p className="text-gray-500 text-sm">최근 생성된 보고서가 없습니다.</p>
             ) : (
               <div className="space-y-2">
-                {recentReports.slice(0, 5).map((report, index) => (
+                {recentReports.slice(0, DASHBOARD_RECENT_ITEMS).map((report, index) => (
                   <div key={index} className="flex items-center gap-3 p-2 bg-gray-50 rounded">
                     <span className="text-lg">{getFileIcon(report.type)}</span>
                     <div className="flex-1 min-w-0">

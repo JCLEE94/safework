@@ -20,6 +20,7 @@ from reportlab.pdfbase import pdfmetrics
 import os
 
 from src.config.database import get_db
+from src.config.settings import get_settings
 from src.models import (
     Worker, HealthExam, WorkEnvironment, HealthEducation, 
     ChemicalSubstance, AccidentReport
@@ -29,8 +30,9 @@ from src.schemas.base import BaseResponse
 router = APIRouter(prefix="/api/v1/reports", tags=["reports"])
 
 # 한글 폰트 등록 (PDF용)
+settings = get_settings()
 try:
-    font_path = "/usr/share/fonts/truetype/nanum/NanumGothic.ttf"
+    font_path = settings.font_path
     if os.path.exists(font_path):
         pdfmetrics.registerFont(TTFont('NanumGothic', font_path))
 except:
@@ -91,8 +93,8 @@ class ReportGenerator:
             
             if latest_exam:
                 ws.cell(row=row, column=7, value=latest_exam.exam_date.strftime('%Y-%m-%d'))
-                # 차기 검진일 (1년 후)
-                next_exam = latest_exam.exam_date + timedelta(days=365)
+                # 차기 검진일
+                next_exam = latest_exam.exam_date + timedelta(days=settings.health_exam_interval_days)
                 ws.cell(row=row, column=8, value=next_exam.strftime('%Y-%m-%d'))
         
         # 열 너비 조정
@@ -354,18 +356,20 @@ async def get_recent_reports():
     """최근 생성된 보고서 목록"""
     # 실제로는 데이터베이스에서 보고서 생성 이력을 조회해야 함
     # 현재는 예시 데이터 반환
+    # 동적 타임스탬프 사용
+    now = datetime.now()
     recent_reports = [
         {
             "name": "근로자 건강현황 종합보고서",
             "type": "excel",
-            "generated_at": "2025-06-26 13:20:00",
-            "download_url": "/api/v1/reports/download/sample1"
+            "generated_at": (now - timedelta(hours=2)).strftime("%Y-%m-%d %H:%M:%S"),
+            "download_url": f"{router.prefix}/download/sample1"
         },
         {
             "name": "작업환경측정 법규준수 보고서", 
             "type": "pdf",
-            "generated_at": "2025-06-25 15:30:00",
-            "download_url": "/api/v1/reports/download/sample2"
+            "generated_at": (now - timedelta(days=1)).strftime("%Y-%m-%d %H:%M:%S"),
+            "download_url": f"{router.prefix}/download/sample2"
         }
     ]
     

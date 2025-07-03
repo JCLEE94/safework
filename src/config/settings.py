@@ -90,6 +90,25 @@ class Settings(BaseSettings):
     sentry_dsn: str = Field(default="", env="SENTRY_DSN")
     log_level: str = Field(default="INFO", env="LOG_LEVEL")
     
+    # 보고서 설정
+    font_path: str = Field(default="/usr/share/fonts/truetype/nanum/NanumGothic.ttf", env="FONT_PATH")
+    health_exam_interval_days: int = Field(default=365, env="HEALTH_EXAM_INTERVAL_DAYS")
+    accident_report_deadline_hours: int = Field(default=24, env="ACCIDENT_REPORT_DEADLINE_HOURS")
+    work_days_lost_threshold: int = Field(default=3, env="WORK_DAYS_LOST_THRESHOLD")
+    
+    # 업로드 디렉토리 설정
+    msds_upload_subdir: str = Field(default="msds", env="MSDS_UPLOAD_SUBDIR")
+    accident_upload_subdir: str = Field(default="accidents", env="ACCIDENT_UPLOAD_SUBDIR")
+    
+    # 기본 근로 계산 설정
+    annual_work_days: int = Field(default=250, env="ANNUAL_WORK_DAYS")
+    daily_work_hours: int = Field(default=8, env="DAILY_WORK_HOURS")
+    default_worker_count: int = Field(default=100, env="DEFAULT_WORKER_COUNT")
+    
+    # 페이지네이션 설정
+    max_recent_items: int = Field(default=10, env="MAX_RECENT_ITEMS")
+    dashboard_recent_items: int = Field(default=5, env="DASHBOARD_RECENT_ITEMS")
+    
     @property
     def allowed_extensions_list(self) -> list:
         """허용된 확장자 리스트 반환"""

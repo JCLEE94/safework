@@ -9,6 +9,7 @@ import shutil
 import json
 
 from src.config.database import get_db
+from src.config.settings import get_settings
 from src.models import AccidentReport, Worker
 from src.schemas.accident_report import (
     AccidentReportCreate, AccidentReportUpdate, AccidentReportResponse,
@@ -31,7 +32,7 @@ async def create_accident_report(
     
     # Create accident report
     report = AccidentReport(**report_data.model_dump())
-    report.created_by = "system"  # Should come from auth
+    report.created_by = "system"  # TODO: Should come from auth
     db.add(report)
     await db.commit()
     await db.refresh(report)
@@ -253,8 +254,8 @@ async def get_safety_metrics(
     )
     
     # Calculate frequency rate (accidents per 1M work hours)
-    # Assuming 250 work days/year, 8 hours/day, 100 workers average
-    total_work_hours = 250 * 8 * 100
+    settings = get_settings()
+    total_work_hours = settings.annual_work_days * settings.daily_work_hours * settings.default_worker_count
     frequency_rate = (year_accidents / total_work_hours) * 1000000 if total_work_hours > 0 else 0
     
     # Severity rate (days lost per 1000 work hours)
@@ -298,7 +299,7 @@ async def get_authority_reporting_required(db: AsyncSession = Depends(get_db)):
             and_(
                 or_(
                     AccidentReport.severity.in_(['SEVERE', 'FATAL']),
-                    AccidentReport.work_days_lost >= 3  # 3일 이상 휴업
+                    AccidentReport.work_days_lost >= settings.work_days_lost_threshold  # 휴업일수 기준
                 ),
                 AccidentReport.reported_to_authorities == 'N'
             )
@@ -316,7 +317,7 @@ async def get_authority_reporting_required(db: AsyncSession = Depends(get_db)):
             "severity": accident.severity.value,
             "work_days_lost": accident.work_days_lost,
             "days_since_accident": days_since,
-            "reporting_deadline_passed": days_since > 1  # Must report within 24 hours
+            "reporting_deadline_passed": days_since * 24 > settings.accident_report_deadline_hours  # 신고 기한
         })
     
     return {
@@ -390,7 +391,8 @@ async def upload_accident_photos(
         raise HTTPException(status_code=404, detail="산업재해 신고서를 찾을 수 없습니다")
     
     # Create upload directory
-    upload_dir = "uploads/accidents"
+    settings = get_settings()
+    upload_dir = os.path.join(settings.upload_dir, settings.accident_upload_subdir)
     os.makedirs(upload_dir, exist_ok=True)
     
     # Get existing photos

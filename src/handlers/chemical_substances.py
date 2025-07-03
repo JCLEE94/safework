@@ -8,6 +8,7 @@ import os
 import shutil
 
 from src.config.database import get_db
+from src.config.settings import get_settings
 from src.models import ChemicalSubstance, ChemicalUsageRecord, Worker
 from src.schemas.chemical_substance import (
     ChemicalSubstanceCreate, ChemicalSubstanceUpdate, ChemicalSubstanceResponse,
@@ -34,7 +35,7 @@ async def create_chemical_substance(
             raise HTTPException(status_code=400, detail="이미 등록된 CAS 번호입니다")
     
     chemical = ChemicalSubstance(**chemical_data.model_dump())
-    chemical.created_by = "system"  # Should come from auth
+    chemical.created_by = "system"  # TODO: Should come from auth
     db.add(chemical)
     await db.commit()
     await db.refresh(chemical)
@@ -140,7 +141,7 @@ async def get_chemical_statistics(db: AsyncSession = Depends(get_db)):
                 ChemicalSubstance.status == 'IN_USE'
             )
         )
-        .limit(10)
+        .limit(get_settings().max_recent_items)
     )
     low_stock_items = []
     for item in low_stock_query.scalars():
@@ -153,7 +154,8 @@ async def get_chemical_statistics(db: AsyncSession = Depends(get_db)):
         })
     
     # Expired MSDS
-    one_year_ago = datetime.utcnow().date() - timedelta(days=365)
+    settings = get_settings()
+    one_year_ago = datetime.utcnow().date() - timedelta(days=settings.health_exam_interval_days)
     expired_msds_query = await db.execute(
         select(ChemicalSubstance)
         .where(
@@ -162,7 +164,7 @@ async def get_chemical_statistics(db: AsyncSession = Depends(get_db)):
                 ChemicalSubstance.msds_file_path.is_(None)
             )
         )
-        .limit(10)
+        .limit(settings.max_recent_items)
     )
     expired_msds = []
     for item in expired_msds_query.scalars():
@@ -368,7 +370,8 @@ async def upload_msds(
         raise HTTPException(status_code=400, detail="PDF, DOC, DOCX 파일만 허용됩니다")
     
     # Create upload directory
-    upload_dir = "uploads/msds"
+    settings = get_settings()
+    upload_dir = os.path.join(settings.upload_dir, settings.msds_upload_subdir)
     os.makedirs(upload_dir, exist_ok=True)
     
     # Save file

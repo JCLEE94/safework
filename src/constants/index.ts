@@ -5,7 +5,19 @@
 
 export const API_BASE_URL = import.meta.env.VITE_API_URL || window.location.origin;
 
-export const BUILD_TIME = '2025-06-26 07:32:00 KST';
+export const BUILD_TIME = new Date().toLocaleString('ko-KR', {
+  timeZone: 'Asia/Seoul',
+  year: 'numeric',
+  month: '2-digit',
+  day: '2-digit',
+  hour: '2-digit',
+  minute: '2-digit',
+  second: '2-digit'
+}).replace(/\. /g, '-').replace(/\.$/, '') + ' KST';
+
+// 페이지네이션 및 표시 제한 설정
+export const DASHBOARD_RECENT_ITEMS = 5;
+export const MAX_RECENT_ITEMS = 10;
 
 // 메뉴 정의 (통합 및 최적화)
 export const MENU_ITEMS = [
