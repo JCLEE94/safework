@@ -27,7 +27,7 @@ jobs:
 
       - name: Build and push Docker image
         run: |
-          docker build -f Dockerfile -t ${{ env.REGISTRY_URL }}/${{ env.IMAGE_NAME }}:latest .
+          docker build -f deployment/Dockerfile.prod -t ${{ env.REGISTRY_URL }}/${{ env.IMAGE_NAME }}:latest .
           docker push ${{ env.REGISTRY_URL }}/${{ env.IMAGE_NAME }}:latest
 
       - name: Build completed
