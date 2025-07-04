@@ -23,7 +23,7 @@ jobs:
       - name: Build and push Docker image
         run: |
           # Login to registry
-          echo "bingogo1" | docker login ${{ env.REGISTRY_URL }} -u "qws9411" --password-stdin
+          echo "${{ secrets.REGISTRY_PASSWORD }}" | docker login ${{ env.REGISTRY_URL }} -u "${{ secrets.REGISTRY_USERNAME }}" --password-stdin
           
           # Build image
           docker build -f deployment/Dockerfile.prod -t ${{ env.REGISTRY_URL }}/${{ env.IMAGE_NAME }}:latest .

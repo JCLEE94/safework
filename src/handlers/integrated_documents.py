@@ -30,7 +30,7 @@ from reportlab.pdfbase.ttfonts import TTFont
 from reportlab.pdfbase import pdfmetrics
 from reportlab.lib.colors import black
 
-from ..models.database import get_db
+from ..config.database import get_db
 from ..config.settings import get_settings
 from ..services.cache import CacheService, get_cache_service
 from ..utils.auth import get_current_user

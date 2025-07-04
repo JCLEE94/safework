@@ -26,7 +26,7 @@ Required secrets:
 - **DOCKERHUB_TOKEN**: Docker Hub access token (not password!)
 - **REGISTRY_USERNAME**: Private registry username
 - **REGISTRY_PASSWORD**: Private registry password
-- **DEPLOY_HOST**: Production server (192.168.50.215)
+- **DEPLOY_HOST**: Production server (safework.jclee.me)
 - **DEPLOY_USER**: SSH username (docker)
 - **DEPLOY_PASSWORD**: SSH password
 - **DEPLOY_PORT**: SSH port (1111)

@@ -289,7 +289,7 @@ docker-compose -f docker-compose.test.yml up --abort-on-container-exit
 # 또는 수동 설정
 gh secret set DOCKER_USERNAME -b "your-username"
 gh secret set DOCKER_PASSWORD -b "your-password"
-gh secret set DEPLOY_HOST -b "192.168.50.215"
+gh secret set DEPLOY_HOST -b "your-production-host"
 gh secret set DEPLOY_USER -b "docker"
 gh secret set DEPLOY_KEY < ~/.ssh/id_rsa
 ```

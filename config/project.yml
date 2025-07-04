@@ -18,12 +18,12 @@ project:
   # Deployment settings
   deployment:
     production:
-      host: "192.168.50.215"
-      port: 1111
-      user: "docker"
-      path: "/volume1/app/health"
-      compose_file: "compose.yaml"
-      service_name: "health-app"
+      host: "safework.jclee.me"
+      port: 443
+      user: "kubernetes"
+      path: "/deployments/safework"
+      compose_file: "k8s-deployment.yaml"
+      service_name: "safework"
       
   # Port configuration
   ports:

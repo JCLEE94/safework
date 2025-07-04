@@ -9,7 +9,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 ### Repository Information
 - **GitHub**: JCLEE94/safework (previously qws941/health)
 - **Registry**: registry.jclee.me/safework:latest
-- **Production**: http://192.168.50.215:3001
+- **Production**: https://safework.jclee.me
 - **Architecture**: All-in-one container (PostgreSQL + Redis + FastAPI + React)
 - **Self-hosted runner**: Used for CI/CD with special configurations
 
@@ -52,7 +52,7 @@ git add . && git commit -m "feat: description" && git push
 ./deploy-single.sh
 
 # Check deployment status
-curl http://192.168.50.215:3001/health
+curl https://safework.jclee.me/health
 docker logs safework --tail=50
 
 # Monitor pipeline status
@@ -238,7 +238,7 @@ npm_config_cache: ${{ runner.temp }}/.npm  # For self-hosted runner
 ```bash
 # Container health
 docker ps | grep safework
-curl http://192.168.50.215:3001/health
+curl https://safework.jclee.me/health
 
 # View logs
 docker logs safework --tail=100 | grep ERROR
