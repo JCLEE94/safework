@@ -1,11 +1,12 @@
-name: SafeWork Pro - K8s Deploy
+name: SafeWork Pro - K8s Deploy (Disabled)
 
 on:
   workflow_dispatch:
-  push:
-    branches: [main, develop]
-  pull_request:
-    branches: [main]
+  # Disabled - replaced by main-deploy.yml
+  # push:
+  #   branches: [main, develop]
+  # pull_request:
+  #   branches: [main]
 
 env:
   REGISTRY: registry.jclee.me

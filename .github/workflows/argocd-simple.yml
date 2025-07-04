@@ -1,8 +1,10 @@
-name: ArgoCD Simple Deploy
+name: ArgoCD Simple Deploy (Replaced by main-deploy.yml)
 
 on:
-  push:
-    branches: [ main ]
+  workflow_dispatch:
+  # Disabled - replaced by main-deploy.yml
+  # push:
+  #   branches: [ main ]
 
 env:
   REGISTRY_URL: registry.jclee.me

@@ -45,7 +45,7 @@ npm run preview      # Preview production build
 
 ### Deployment
 ```bash
-# Deploy to production (automated CI/CD via GitHub Actions + Watchtower)
+# Deploy to production (automated CI/CD via GitHub Actions + ArgoCD)
 git add . && git commit -m "feat: description" && git push
 
 # Manual deployment (backup)
@@ -181,13 +181,15 @@ async def test_worker(async_session):
 - **Service containers**: PostgreSQL (port 15432), Redis (port 16379)
 - **npm cache workaround**: `npm_config_cache: ${{ runner.temp }}/.npm`
 - **Test timeout**: 10 minutes max
-- **Watchtower webhook**: Triggered after successful build
+- **ArgoCD auto-sync**: Automatically detects and deploys new images
 
 ### Workflow Files
-- `build-deploy.yml` - Main CI/CD pipeline with Watchtower webhook
+- `main-deploy.yml` - Primary CI/CD pipeline for production (ArgoCD)
+- `build-deploy.yml` - Development branch deployment (Watchtower)
 - `test.yml` - Test suite with service containers
 - `security.yml` - Trivy security scanning
-- `pipeline-monitor.yml` - Pipeline failure detection
+- ~~`argocd-simple.yml`~~ - Disabled (replaced by main-deploy.yml)
+- ~~`k8s-deploy.yml`~~ - Disabled (replaced by main-deploy.yml)
 
 ### Environment Variables (CI/CD)
 ```yaml
@@ -202,17 +204,23 @@ npm_config_cache: ${{ runner.temp }}/.npm  # For self-hosted runner
 
 ### Automated Flow
 ```
-1. Git Push → GitHub Actions (self-hosted runner)
-2. Run Tests → Build Docker Image → Push to registry.jclee.me
-3. Trigger Watchtower Webhook → Auto-deploy to production
-4. Health check at http://192.168.50.215:3001/health
+1. Git Push (main) → GitHub Actions (self-hosted runner)
+2. Run Tests + Security Scan → Build Docker Image → Push to registry.jclee.me
+3. Update K8s manifests → Git commit with new image tags
+4. ArgoCD auto-sync → Deploy to Kubernetes cluster
+5. Production health check at https://safework.jclee.me/health
 ```
 
-### Watchtower Configuration
-- Monitors registry.jclee.me for new images
-- Automatically updates running containers
-- Can start stopped containers with WATCHTOWER_INCLUDE_STOPPED=true
-- Webhook endpoint for manual triggers
+### ArgoCD Configuration
+- Monitors Git repository k8s/ directory for changes
+- Auto-sync enabled with self-healing
+- Private registry credentials configured
+- Dashboard: https://argo.jclee.me/applications/safework
+
+### Image Tagging Strategy
+- Production: `prod-YYYYMMDD-SHA7` (e.g., prod-20250104-abc1234)
+- Development: `dev-YYYYMMDD-SHA7`
+- Latest: Always points to most recent production build
 
 ## Common Issues & Solutions
 
