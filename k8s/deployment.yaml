@@ -1,0 +1,66 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: safework
+  namespace: safework
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: safework
+  template:
+    metadata:
+      labels:
+        app: safework
+    spec:
+      containers:
+      - name: safework
+        image: registry.jclee.me/safework:latest
+        ports:
+        - containerPort: 3001
+          name: http
+        env:
+        - name: DATABASE_URL
+          value: "postgresql://admin:password@localhost:5432/health_management"
+        - name: REDIS_URL
+          value: "redis://localhost:6379/0"
+        - name: JWT_SECRET
+          valueFrom:
+            secretKeyRef:
+              name: safework-secrets
+              key: jwt-secret
+        resources:
+          requests:
+            memory: "512Mi"
+            cpu: "250m"
+          limits:
+            memory: "2Gi"
+            cpu: "1000m"
+        livenessProbe:
+          httpGet:
+            path: /health
+            port: 3001
+          initialDelaySeconds: 30
+          periodSeconds: 10
+        readinessProbe:
+          httpGet:
+            path: /health
+            port: 3001
+          initialDelaySeconds: 10
+          periodSeconds: 5
+      imagePullSecrets:
+      - name: regcred
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: safework
+  namespace: safework
+spec:
+  selector:
+    app: safework
+  ports:
+  - port: 3001
+    targetPort: 3001
+    name: http
+  type: ClusterIP

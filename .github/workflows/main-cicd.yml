@@ -33,6 +33,21 @@ jobs:
           
           echo "✅ Image pushed successfully!"
       
+      - name: Update K8s manifests
+        run: |
+          # Get image digest
+          IMAGE_DIGEST=$(docker inspect --format='{{index .RepoDigests 0}}' ${{ env.REGISTRY_URL }}/${{ env.IMAGE_NAME }}:latest | cut -d'@' -f2)
+          echo "Image digest: $IMAGE_DIGEST"
+          
+          # Update deployment manifest
+          sed -i "s|image: ${{ env.REGISTRY_URL }}/${{ env.IMAGE_NAME }}:.*|image: ${{ env.REGISTRY_URL }}/${{ env.IMAGE_NAME }}@${IMAGE_DIGEST}|g" k8s/deployment.yaml
+          
+          # Commit and push changes
+          git config user.name "GitHub Actions"
+          git config user.email "actions@github.com"
+          git add k8s/deployment.yaml
+          git diff --staged --quiet || (git commit -m "chore: update image to ${IMAGE_DIGEST:0:12}" && git push)
+      
       - name: Create issue on failure
         if: failure()
         uses: actions/github-script@v7
