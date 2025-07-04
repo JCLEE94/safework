@@ -196,8 +196,8 @@ jobs:
       - name: Login to ArgoCD
         run: |
           argocd login ${{ env.ARGOCD_SERVER }} \
-            --username ${{ secrets.ARGOCD_ADMIN_USER }} \
-            --password ${{ secrets.ARGOCD_ADMIN_PASS }} \
+            --username "${{ secrets.ARGOCD_ADMIN_USER }}" \
+            --password "${{ secrets.ARGOCD_ADMIN_PASS }}" \
             --insecure
 
       - name: Create/Update ArgoCD Application
@@ -231,11 +231,11 @@ jobs:
       - name: Update image tag in manifests
         run: |
           # Update backend deployment
-          sed -i "s|image: registry.jclee.me/safework:.*|image: ${{ needs.build.outputs.image-tag }}|g" \
+          sed -i "s|image: registry.jclee.me/safework:.*|image: ${{ env.REGISTRY_URL }}/${{ env.IMAGE_NAME }}:latest|g" \
             k8s/backend/backend-deployment.yaml
           
           # Update frontend deployment  
-          sed -i "s|image: registry.jclee.me/safework:.*|image: ${{ needs.build.outputs.image-tag }}|g" \
+          sed -i "s|image: registry.jclee.me/safework:.*|image: ${{ env.REGISTRY_URL }}/${{ env.IMAGE_NAME }}:latest|g" \
             k8s/frontend/frontend-deployment.yaml
 
       - name: Commit updated manifests
@@ -283,7 +283,7 @@ jobs:
           echo "🚀 Deployment Summary:"
           echo "- Repository: ${{ github.repository }}"
           echo "- Commit: ${{ github.sha }}"
-          echo "- Image: ${{ needs.build.outputs.image-tag }}"
+          echo "- Image: ${{ env.REGISTRY_URL }}/${{ env.IMAGE_NAME }}:latest"
           echo "- ArgoCD App: https://${{ env.ARGOCD_SERVER }}/applications/safework"
           
           echo "📊 Deployment Status:"
