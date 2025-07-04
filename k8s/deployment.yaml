@@ -13,6 +13,7 @@ metadata:
     argocd-image-updater.argoproj.io/git-branch: main
 spec:
   replicas: 1
+  progressDeadlineSeconds: 1200
   selector:
     matchLabels:
       app: safework
