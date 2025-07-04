@@ -11,7 +11,7 @@ env:
 
 jobs:
   build-and-deploy:
-    runs-on: [self-hosted, linux]
+    runs-on: ubuntu-latest
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     
     steps:
@@ -30,39 +30,14 @@ jobs:
           docker build -f Dockerfile -t ${{ env.REGISTRY_URL }}/${{ env.IMAGE_NAME }}:latest .
           docker push ${{ env.REGISTRY_URL }}/${{ env.IMAGE_NAME }}:latest
 
-      - name: Install ArgoCD CLI
+      - name: Build completed
         run: |
-          if ! command -v argocd &> /dev/null; then
-            curl -sSL -o argocd-linux-amd64 https://github.com/argoproj/argo-cd/releases/latest/download/argocd-linux-amd64
-            sudo install -m 555 argocd-linux-amd64 /usr/local/bin/argocd
-            rm argocd-linux-amd64
-          fi
-
-      - name: Deploy via ArgoCD
-        run: |
-          # Login to ArgoCD
-          argocd login ${{ env.ARGOCD_SERVER }} \
-            --username admin \
-            --password bingogo1 \
-            --insecure
-          
-          # Create/sync application
-          if argocd app get safework &>/dev/null; then
-            echo "Application exists, syncing..."
-            argocd app sync safework --prune --force
-          else
-            echo "Creating new application..."
-            kubectl apply -f k8s/argocd/application.yaml
-            sleep 10
-            argocd app sync safework --prune --force
-          fi
-          
-          # Wait for sync
-          argocd app wait safework --timeout 600 --health
-
-      - name: Deployment status
-        run: |
-          echo "🚀 Deployment completed!"
-          echo "🔗 ArgoCD: https://${{ env.ARGOCD_SERVER }}/applications/safework"
-          echo "🌐 App: https://safework.jclee.me"
-          kubectl get pods -n safework || echo "Namespace not ready yet"
+          echo "🚀 Image built and pushed successfully!"
+          echo "📦 Image: ${{ env.REGISTRY_URL }}/${{ env.IMAGE_NAME }}:latest"
+          echo ""
+          echo "🔗 Next steps:"
+          echo "1. ArgoCD will automatically detect the new image"
+          echo "2. Check ArgoCD Dashboard: https://${{ env.ARGOCD_SERVER }}/applications/safework"
+          echo "3. Monitor deployment: https://safework.jclee.me"
+          echo ""
+          echo "✅ CI/CD Pipeline completed successfully!"
