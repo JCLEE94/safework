@@ -15,7 +15,7 @@ spec:
     spec:
       containers:
       - name: safework
-        image: registry.jclee.me/safework:latest
+        image: registry.jclee.me/safework@sha256:16322cac77ad368e4bdc87a76b4e67e5d8e054082eb890ceed39cf8895ab90de
         ports:
         - containerPort: 3001
           name: http
