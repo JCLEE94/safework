@@ -1,0 +1,67 @@
+apiVersion: argoproj.io/v1alpha1
+kind: AppProject
+metadata:
+  name: safework-project
+  namespace: argocd
+  labels:
+    project: safework
+spec:
+  description: SafeWork Pro - 건설업 보건관리 시스템
+  sourceRepos:
+    - 'https://github.com/JCLEE94/safework.git'
+    - 'registry.jclee.me/*'
+  destinations:
+    - namespace: safework
+      server: https://kubernetes.default.svc
+    - namespace: safework-*
+      server: https://kubernetes.default.svc
+  clusterResourceWhitelist:
+    - group: ''
+      kind: Namespace
+    - group: ''
+      kind: PersistentVolume
+    - group: storage.k8s.io
+      kind: StorageClass
+    - group: networking.k8s.io
+      kind: Ingress
+    - group: networking.k8s.io
+      kind: IngressClass
+  namespaceResourceWhitelist:
+    - group: ''
+      kind: '*'
+    - group: apps
+      kind: '*'
+    - group: networking.k8s.io
+      kind: '*'
+    - group: extensions
+      kind: '*'
+  roles:
+    - name: admin
+      description: Admin access to SafeWork project
+      policies:
+        - p, proj:safework-project:admin, applications, *, safework-project/*, allow
+        - p, proj:safework-project:admin, repositories, *, *, allow
+        - p, proj:safework-project:admin, clusters, *, *, allow
+      groups:
+        - safework:admin
+    - name: developer
+      description: Developer access to SafeWork project
+      policies:
+        - p, proj:safework-project:developer, applications, get, safework-project/*, allow
+        - p, proj:safework-project:developer, applications, sync, safework-project/*, allow
+        - p, proj:safework-project:developer, repositories, get, *, allow
+      groups:
+        - safework:developer
+  syncWindows:
+    - kind: allow
+      schedule: '* * * * *'
+      duration: 24h
+      applications:
+        - '*'
+      manualSync: true
+    - kind: deny
+      schedule: '0 22 * * *'
+      duration: 8h
+      applications:
+        - '*'
+      manualSync: false

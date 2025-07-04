@@ -1,0 +1,333 @@
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: backend-service
+  namespace: safework
+  labels:
+    app: safework
+    component: backend
+spec:
+  type: ClusterIP
+  ports:
+    - port: 8000
+      targetPort: 8000
+      protocol: TCP
+      name: fastapi
+  selector:
+    app: safework
+    component: backend
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: safework-backend
+  namespace: safework
+  labels:
+    app: safework
+    component: backend
+spec:
+  replicas: 2
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxUnavailable: 1
+      maxSurge: 1
+  selector:
+    matchLabels:
+      app: safework
+      component: backend
+  template:
+    metadata:
+      labels:
+        app: safework
+        component: backend
+    spec:
+      imagePullSecrets:
+      - name: registry-secret
+      initContainers:
+      - name: db-migrate
+        image: registry.jclee.me/safework:latest
+        imagePullPolicy: Always
+        command: ["/bin/sh"]
+        args:
+        - -c
+        - |
+          # Wait for PostgreSQL to be ready
+          until pg_isready -h $DATABASE_HOST -p $DATABASE_PORT -U $DATABASE_USER; do
+            echo "Waiting for PostgreSQL..."
+            sleep 2
+          done
+          echo "PostgreSQL is ready!"
+          
+          # Run database migrations
+          cd /app && python -c "
+          import asyncio
+          from src.config.database import init_db
+          asyncio.run(init_db())
+          print('Database initialized successfully')
+          "
+        env:
+        - name: DATABASE_HOST
+          valueFrom:
+            configMapKeyRef:
+              name: safework-config
+              key: DATABASE_HOST
+        - name: DATABASE_PORT
+          valueFrom:
+            configMapKeyRef:
+              name: safework-config
+              key: DATABASE_PORT
+        - name: DATABASE_USER
+          valueFrom:
+            configMapKeyRef:
+              name: safework-config
+              key: DATABASE_USER
+        - name: DATABASE_URL
+          valueFrom:
+            secretKeyRef:
+              name: safework-secrets
+              key: DATABASE_URL
+        - name: PYTHONPATH
+          value: "/app"
+      containers:
+      - name: safework-backend
+        image: registry.jclee.me/safework:latest
+        imagePullPolicy: Always
+        ports:
+        - containerPort: 8000
+          name: fastapi
+        command: ["/bin/sh"]
+        args:
+        - -c
+        - |
+          cd /app && uvicorn src.app:app --host 0.0.0.0 --port 8000 --workers 2
+        env:
+        # Database Configuration
+        - name: DATABASE_HOST
+          valueFrom:
+            configMapKeyRef:
+              name: safework-config
+              key: DATABASE_HOST
+        - name: DATABASE_PORT
+          valueFrom:
+            configMapKeyRef:
+              name: safework-config
+              key: DATABASE_PORT
+        - name: DATABASE_NAME
+          valueFrom:
+            configMapKeyRef:
+              name: safework-config
+              key: DATABASE_NAME
+        - name: DATABASE_USER
+          valueFrom:
+            configMapKeyRef:
+              name: safework-config
+              key: DATABASE_USER
+        - name: DATABASE_URL
+          valueFrom:
+            secretKeyRef:
+              name: safework-secrets
+              key: DATABASE_URL
+        
+        # Redis Configuration
+        - name: REDIS_HOST
+          valueFrom:
+            configMapKeyRef:
+              name: safework-config
+              key: REDIS_HOST
+        - name: REDIS_PORT
+          valueFrom:
+            configMapKeyRef:
+              name: safework-config
+              key: REDIS_PORT
+        - name: REDIS_DB
+          valueFrom:
+            configMapKeyRef:
+              name: safework-config
+              key: REDIS_DB
+        - name: REDIS_URL
+          valueFrom:
+            secretKeyRef:
+              name: safework-secrets
+              key: REDIS_URL
+        
+        # Application Configuration
+        - name: APP_NAME
+          valueFrom:
+            configMapKeyRef:
+              name: safework-config
+              key: APP_NAME
+        - name: APP_VERSION
+          valueFrom:
+            configMapKeyRef:
+              name: safework-config
+              key: APP_VERSION
+        - name: ENVIRONMENT
+          valueFrom:
+            configMapKeyRef:
+              name: safework-config
+              key: ENVIRONMENT
+        - name: DEBUG
+          valueFrom:
+            configMapKeyRef:
+              name: safework-config
+              key: DEBUG
+        
+        # FastAPI Configuration
+        - name: BACKEND_CORS_ORIGINS
+          valueFrom:
+            configMapKeyRef:
+              name: safework-config
+              key: BACKEND_CORS_ORIGINS
+        
+        # Timezone and Locale
+        - name: TZ
+          valueFrom:
+            configMapKeyRef:
+              name: safework-config
+              key: TZ
+        - name: LANG
+          valueFrom:
+            configMapKeyRef:
+              name: safework-config
+              key: LANG
+        
+        # Upload Configuration
+        - name: MAX_UPLOAD_SIZE
+          valueFrom:
+            configMapKeyRef:
+              name: safework-config
+              key: MAX_UPLOAD_SIZE
+        - name: UPLOAD_DIR
+          valueFrom:
+            configMapKeyRef:
+              name: safework-config
+              key: UPLOAD_DIR
+        
+        # PDF Configuration
+        - name: PDF_FONT_PATH
+          valueFrom:
+            configMapKeyRef:
+              name: safework-config
+              key: PDF_FONT_PATH
+        - name: PDF_TEMP_DIR
+          valueFrom:
+            configMapKeyRef:
+              name: safework-config
+              key: PDF_TEMP_DIR
+        
+        # Security Configuration
+        - name: JWT_SECRET_KEY
+          valueFrom:
+            secretKeyRef:
+              name: safework-secrets
+              key: JWT_SECRET_KEY
+        - name: JWT_ALGORITHM
+          valueFrom:
+            secretKeyRef:
+              name: safework-secrets
+              key: JWT_ALGORITHM
+        - name: JWT_ACCESS_TOKEN_EXPIRE_MINUTES
+          valueFrom:
+            secretKeyRef:
+              name: safework-secrets
+              key: JWT_ACCESS_TOKEN_EXPIRE_MINUTES
+        - name: SECRET_KEY
+          valueFrom:
+            secretKeyRef:
+              name: safework-secrets
+              key: SECRET_KEY
+        - name: CSRF_SECRET_KEY
+          valueFrom:
+            configMapKeyRef:
+              name: safework-config
+              key: CSRF_SECRET_KEY
+        
+        # Logging Configuration
+        - name: LOG_LEVEL
+          valueFrom:
+            configMapKeyRef:
+              name: safework-config
+              key: LOG_LEVEL
+        - name: LOG_FORMAT
+          valueFrom:
+            configMapKeyRef:
+              name: safework-config
+              key: LOG_FORMAT
+        
+        # Health Check Configuration
+        - name: HEALTH_CHECK_TIMEOUT
+          valueFrom:
+            configMapKeyRef:
+              name: safework-config
+              key: HEALTH_CHECK_TIMEOUT
+        - name: HEALTH_CHECK_INTERVAL
+          valueFrom:
+            configMapKeyRef:
+              name: safework-config
+              key: HEALTH_CHECK_INTERVAL
+        
+        # Python Configuration
+        - name: PYTHONPATH
+          value: "/app"
+        - name: PYTHONUNBUFFERED
+          value: "1"
+        
+        volumeMounts:
+        - name: app-uploads
+          mountPath: /app/uploads
+        - name: pdf-temp
+          mountPath: /tmp/pdf
+        
+        resources:
+          requests:
+            memory: "512Mi"
+            cpu: "250m"
+          limits:
+            memory: "2Gi"
+            cpu: "1000m"
+        
+        livenessProbe:
+          httpGet:
+            path: /health
+            port: 8000
+            scheme: HTTP
+          initialDelaySeconds: 60
+          periodSeconds: 30
+          timeoutSeconds: 10
+          successThreshold: 1
+          failureThreshold: 3
+        
+        readinessProbe:
+          httpGet:
+            path: /health
+            port: 8000
+            scheme: HTTP
+          initialDelaySeconds: 10
+          periodSeconds: 10
+          timeoutSeconds: 5
+          successThreshold: 1
+          failureThreshold: 3
+        
+        startupProbe:
+          httpGet:
+            path: /health
+            port: 8000
+            scheme: HTTP
+          initialDelaySeconds: 30
+          periodSeconds: 10
+          timeoutSeconds: 5
+          successThreshold: 1
+          failureThreshold: 30
+      
+      volumes:
+      - name: app-uploads
+        persistentVolumeClaim:
+          claimName: app-uploads-pvc
+      - name: pdf-temp
+        emptyDir:
+          sizeLimit: 1Gi
+      
+      restartPolicy: Always
+      terminationGracePeriodSeconds: 60

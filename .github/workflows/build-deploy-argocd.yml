@@ -1,0 +1,309 @@
+name: Build and Deploy with ArgoCD
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+env:
+  REGISTRY_URL: registry.jclee.me
+  IMAGE_NAME: safework
+  ARGOCD_SERVER: argo.jclee.me
+  
+jobs:
+  test:
+    runs-on: [self-hosted, linux]
+    
+    services:
+      postgres:
+        image: postgres:15
+        ports:
+          - 15432:5432
+        env:
+          POSTGRES_USER: admin
+          POSTGRES_PASSWORD: password
+          POSTGRES_DB: health_management
+          POSTGRES_INITDB_ARGS: "--locale=ko_KR.UTF-8 --encoding=UTF-8"
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+      redis:
+        image: redis:7-alpine
+        ports:
+          - 16379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    env:
+      DATABASE_URL: postgresql://admin:password@localhost:15432/health_management
+      REDIS_URL: redis://localhost:16379/0
+      JWT_SECRET: test-secret-key
+      PYTHONPATH: ${{ github.workspace }}
+      npm_config_cache: ${{ runner.temp }}/.npm
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.11'
+
+      - name: Cache Python dependencies
+        uses: actions/cache@v3
+        with:
+          path: ~/.cache/pip
+          key: ${{ runner.os }}-pip-${{ hashFiles('requirements.txt') }}
+
+      - name: Install Python dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install pytest pytest-asyncio pytest-cov pytest-timeout
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+
+      - name: Cache npm dependencies
+        uses: actions/cache@v3
+        with:
+          path: ${{ runner.temp }}/.npm
+          key: ${{ runner.os }}-node-${{ hashFiles('package-lock.json') }}
+
+      - name: Install npm dependencies
+        run: |
+          npm ci --cache ${{ runner.temp }}/.npm
+
+      - name: Build frontend
+        run: |
+          npm run build
+
+      - name: Wait for services
+        run: |
+          timeout 60s bash -c 'until pg_isready -h localhost -p 15432 -U admin; do sleep 1; done'
+          timeout 30s bash -c 'until redis-cli -h localhost -p 16379 ping; do sleep 1; done'
+
+      - name: Run Python tests
+        run: |
+          pytest tests/ -v --cov=src --cov-report=term --timeout=300 -x --tb=short
+        timeout-minutes: 10
+
+  build:
+    needs: test
+    runs-on: [self-hosted, linux]
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    
+    outputs:
+      image-tag: ${{ steps.meta.outputs.tags }}
+      image-digest: ${{ steps.build.outputs.digest }}
+      
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Login to Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY_URL }}
+          username: ${{ secrets.DOCKER_USERNAME }}
+          password: ${{ secrets.DOCKER_PASSWORD }}
+
+      - name: Extract metadata
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.REGISTRY_URL }}/${{ env.IMAGE_NAME }}
+          tags: |
+            type=ref,event=branch
+            type=ref,event=pr
+            type=sha,prefix={{branch}}-
+            type=raw,value=latest,enable={{is_default_branch}}
+
+      - name: Build and push Docker image
+        id: build
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+          platforms: linux/amd64
+
+      - name: Generate SBOM
+        uses: anchore/sbom-action@v0
+        with:
+          image: ${{ env.REGISTRY_URL }}/${{ env.IMAGE_NAME }}:latest
+          format: spdx-json
+          output-file: sbom.spdx.json
+
+      - name: Upload SBOM artifact
+        uses: actions/upload-artifact@v3
+        with:
+          name: sbom
+          path: sbom.spdx.json
+
+  security-scan:
+    needs: build
+    runs-on: [self-hosted, linux]
+    continue-on-error: true
+    
+    steps:
+      - name: Run Trivy vulnerability scanner
+        uses: aquasecurity/trivy-action@master
+        with:
+          image-ref: ${{ env.REGISTRY_URL }}/${{ env.IMAGE_NAME }}:latest
+          format: 'sarif'
+          output: 'trivy-results.sarif'
+
+      - name: Upload Trivy scan results
+        uses: github/codeql-action/upload-sarif@v2
+        if: always()
+        with:
+          sarif_file: 'trivy-results.sarif'
+
+  deploy:
+    needs: [build, security-scan]
+    runs-on: [self-hosted, linux]
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Install ArgoCD CLI
+        run: |
+          if ! command -v argocd &> /dev/null; then
+            curl -sSL -o argocd-linux-amd64 https://github.com/argoproj/argo-cd/releases/latest/download/argocd-linux-amd64
+            sudo install -m 555 argocd-linux-amd64 /usr/local/bin/argocd
+            rm argocd-linux-amd64
+          fi
+
+      - name: Login to ArgoCD
+        run: |
+          argocd login ${{ env.ARGOCD_SERVER }} \
+            --username ${{ secrets.ARGOCD_ADMIN_USER }} \
+            --password ${{ secrets.ARGOCD_ADMIN_PASS }} \
+            --insecure
+
+      - name: Create/Update ArgoCD Application
+        run: |
+          # Check if application exists
+          if argocd app get safework &>/dev/null; then
+            echo "Application exists, syncing..."
+            argocd app sync safework --prune --force
+          else
+            echo "Creating new application..."
+            argocd app create safework \
+              --repo https://github.com/${{ github.repository }}.git \
+              --path k8s \
+              --dest-server https://kubernetes.default.svc \
+              --dest-namespace safework \
+              --sync-policy automated \
+              --auto-prune \
+              --self-heal \
+              --sync-option CreateNamespace=true
+          fi
+
+      - name: Wait for sync completion
+        run: |
+          argocd app wait safework --timeout 600 --health
+
+      - name: Get application status
+        run: |
+          argocd app get safework
+          argocd app history safework
+
+      - name: Update image tag in manifests
+        run: |
+          # Update backend deployment
+          sed -i "s|image: registry.jclee.me/safework:.*|image: ${{ needs.build.outputs.image-tag }}|g" \
+            k8s/backend/backend-deployment.yaml
+          
+          # Update frontend deployment  
+          sed -i "s|image: registry.jclee.me/safework:.*|image: ${{ needs.build.outputs.image-tag }}|g" \
+            k8s/frontend/frontend-deployment.yaml
+
+      - name: Commit updated manifests
+        run: |
+          git config --local user.email "action@github.com"
+          git config --local user.name "GitHub Action"
+          git add k8s/
+          if git diff --cached --quiet; then
+            echo "No changes to commit"
+          else
+            git commit -m "feat: update image tag to ${{ github.sha }}"
+            git push
+          fi
+
+      - name: Force refresh ArgoCD
+        run: |
+          argocd app sync safework --force --prune
+          argocd app wait safework --timeout 600 --health
+
+  verify-deployment:
+    needs: deploy
+    runs-on: [self-hosted, linux]
+    
+    steps:
+      - name: Wait for deployment rollout
+        run: |
+          kubectl rollout status deployment/safework-backend -n safework --timeout=600s
+          kubectl rollout status deployment/safework-frontend -n safework --timeout=300s
+
+      - name: Health check
+        run: |
+          sleep 30
+          # Get service endpoints
+          BACKEND_URL=$(kubectl get svc backend-service -n safework -o jsonpath='{.spec.clusterIP}')
+          
+          # Health check
+          kubectl exec -n safework deployment/safework-backend -- \
+            curl -f http://localhost:8000/health || exit 1
+          
+          kubectl exec -n safework deployment/safework-frontend -- \
+            curl -f http://localhost:80/nginx-health || exit 1
+
+      - name: Deploy summary
+        run: |
+          echo "🚀 Deployment Summary:"
+          echo "- Repository: ${{ github.repository }}"
+          echo "- Commit: ${{ github.sha }}"
+          echo "- Image: ${{ needs.build.outputs.image-tag }}"
+          echo "- ArgoCD App: https://${{ env.ARGOCD_SERVER }}/applications/safework"
+          
+          echo "📊 Deployment Status:"
+          kubectl get pods -n safework -o wide
+          kubectl get svc -n safework
+          kubectl get ingress -n safework
+
+  notification:
+    needs: [deploy, verify-deployment]
+    runs-on: [self-hosted, linux]
+    if: always()
+    
+    steps:
+      - name: Deployment notification
+        run: |
+          if [[ "${{ needs.verify-deployment.result }}" == "success" ]]; then
+            echo "✅ SafeWork deployed successfully via ArgoCD!"
+            echo "🔗 ArgoCD Dashboard: https://${{ env.ARGOCD_SERVER }}/applications/safework"
+            echo "🌐 Application: https://safework.jclee.me"
+          else
+            echo "❌ Deployment failed. Check ArgoCD dashboard for details."
+            exit 1
+          fi
