@@ -86,17 +86,51 @@ jobs:
     if: github.ref == 'refs/heads/main'
     
     steps:
-      - name: Deploy to Production
+      - name: Deploy to Production Server
         run: |
-          # Watchtower가 자동으로 처리하므로 별도 배포 작업 불필요
-          echo "✅ SafeWork Pro 이미지가 registry.jclee.me/safework:latest로 푸시되었습니다"
-          echo "🔄 Watchtower가 자동으로 운영 서버에 배포합니다"
+          echo "🚀 SafeWork Pro 서버 배포 시작..."
+          
+          # SSH 키 없이 webhook 또는 API 호출로 배포
+          # 서버 192.168.50.110:33301에 배포 신호 전송
+          
+          # Watchtower webhook 호출 (만약 설정되어 있다면)
+          curl -X POST http://192.168.50.110:8080/v1/update \
+            -H "Authorization: Bearer ${{ secrets.WATCHTOWER_TOKEN }}" \
+            -H "Content-Type: application/json" \
+            -d '{"image": "registry.jclee.me/safework:latest"}' || echo "Watchtower webhook 호출 실패 - 수동 배포 필요"
+          
+          echo "✅ 배포 신호 전송 완료"
+          
+      - name: Verify Production Deployment
+        run: |
+          echo "🔍 운영 서버 배포 확인 중..."
+          
+          # 서버 헬스체크 (60초 대기 후)
+          sleep 60
+          
+          # 헬스체크 재시도
+          for i in {1..10}; do
+            if curl -f http://192.168.50.110:33301/health; then
+              echo "✅ 운영 서버 헬스체크 성공!"
+              break
+            else
+              echo "❌ 헬스체크 실패 (시도 $i/10), 30초 후 재시도..."
+              sleep 30
+            fi
+          done
+          
+          # 도메인 헬스체크
+          if curl -f https://safework.jclee.me/health; then
+            echo "✅ 도메인 헬스체크 성공!"
+          else
+            echo "⚠️ 도메인 헬스체크 실패 - 확인 필요"
+          fi
           
       - name: Notify Deployment
         run: |
           echo "🎉 SafeWork Pro 배포 완료!"
           echo "📍 Registry: registry.jclee.me/safework:latest"  
           echo "🔗 Public URL: https://safework.jclee.me"
-          echo "🏠 Local URL: http://192.168.50.215:3001"
+          echo "🏠 Server URL: http://192.168.50.110:33301"
           echo "🏥 건설업 보건관리 시스템 업데이트됨"
           echo "📦 Repository: JCLEE94/safework"

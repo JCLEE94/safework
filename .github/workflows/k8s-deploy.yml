@@ -1,0 +1,246 @@
+name: SafeWork Pro - K8s Deploy
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main, develop]
+  pull_request:
+    branches: [main]
+
+env:
+  REGISTRY: registry.jclee.me
+  IMAGE_NAME: safework
+  K8S_SERVER: 192.168.50.110
+  K8S_NAMESPACE: safework
+
+jobs:
+  build:
+    runs-on: self-hosted
+    
+    outputs:
+      image-tag: ${{ steps.build.outputs.tag }}
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        
+      - name: Build SafeWork Pro Image
+        id: build
+        run: |
+          # 빌드 시간 설정
+          BUILD_TIME=$(TZ=Asia/Seoul date +'%Y-%m-%d %H:%M:%S KST')
+          IMAGE_TAG=${{ github.sha }}
+          
+          # Docker 이미지 빌드
+          docker build -f deployment/Dockerfile.prod -t ${{ env.IMAGE_NAME }}:${IMAGE_TAG} \
+            --build-arg BUILD_TIME="$BUILD_TIME" \
+            .
+          
+          # latest 태그도 추가
+          docker tag ${{ env.IMAGE_NAME }}:${IMAGE_TAG} ${{ env.IMAGE_NAME }}:latest
+          
+          echo "tag=${IMAGE_TAG}" >> $GITHUB_OUTPUT
+        
+      - name: Login to Private Registry
+        run: |
+          echo "${{ secrets.REGISTRY_PASSWORD }}" | docker login ${{ env.REGISTRY }} -u "${{ secrets.REGISTRY_USERNAME }}" --password-stdin
+          
+      - name: Push to Registry
+        run: |
+          IMAGE_TAG=${{ steps.build.outputs.tag }}
+          
+          # 레지스트리용 태그 생성
+          docker tag ${{ env.IMAGE_NAME }}:${IMAGE_TAG} ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${IMAGE_TAG}
+          docker tag ${{ env.IMAGE_NAME }}:latest ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest
+          
+          # 레지스트리에 푸시
+          docker push ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${IMAGE_TAG}
+          docker push ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest
+
+      - name: Test Container Health
+        run: |
+          # 기존 테스트 컨테이너 정리
+          docker stop safework-test || true
+          docker rm safework-test || true
+          
+          # 테스트용 컨테이너 실행
+          docker run -d --name safework-test -p 3002:8000 \
+            -e DISABLE_AUTH=true \
+            -e DATABASE_URL=sqlite:///test.db \
+            -e REDIS_URL=redis://localhost:6379/0 \
+            ${{ env.IMAGE_NAME }}:latest
+          
+          # 헬스체크
+          echo "🔍 컨테이너 상태 확인 중..."
+          sleep 30
+          
+          # 헬스체크 테스트
+          echo "🏥 헬스체크 테스트..."
+          for i in {1..5}; do
+            if curl -f http://localhost:3002/health; then
+              echo "✅ 헬스체크 성공!"
+              break
+            else
+              echo "❌ 헬스체크 실패 (시도 $i/5), 5초 후 재시도..."
+              sleep 5
+            fi
+          done
+          
+          # 테스트 컨테이너 정리
+          docker stop safework-test
+          docker rm safework-test
+
+  deploy-k8s:
+    needs: build
+    runs-on: self-hosted
+    if: github.ref == 'refs/heads/main'
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Setup kubectl
+        run: |
+          # kubectl 설치 확인
+          if ! command -v kubectl &> /dev/null; then
+            echo "kubectl 설치 중..."
+            curl -LO "https://dl.k8s.io/release/$(curl -L -s https://dl.k8s.io/release/stable.txt)/bin/linux/amd64/kubectl"
+            sudo install -o root -g root -m 0755 kubectl /usr/local/bin/kubectl
+          fi
+          
+          # kubeconfig 설정
+          mkdir -p ~/.kube
+          echo "${{ secrets.KUBECONFIG }}" | base64 -d > ~/.kube/config
+          chmod 600 ~/.kube/config
+          
+          # 클러스터 연결 테스트
+          kubectl cluster-info
+          kubectl get nodes
+      
+      - name: Update K8s Manifests
+        run: |
+          IMAGE_TAG=${{ needs.build.outputs.image-tag }}
+          
+          # 백엔드 이미지 태그 업데이트
+          sed -i "s|registry.jclee.me/safework:latest|registry.jclee.me/safework:${IMAGE_TAG}|g" k8s/backend/backend-deployment.yaml
+          
+          # 프론트엔드 이미지 태그 업데이트 (같은 이미지 사용)
+          sed -i "s|registry.jclee.me/safework:latest|registry.jclee.me/safework:${IMAGE_TAG}|g" k8s/frontend/frontend-deployment.yaml
+          
+          echo "✅ K8s 매니페스트 업데이트 완료 (이미지 태그: ${IMAGE_TAG})"
+      
+      - name: Deploy to Kubernetes
+        run: |
+          echo "🚀 SafeWork Pro K8s 배포 시작..."
+          
+          # Namespace 생성/업데이트
+          kubectl apply -f k8s/namespace/namespace.yaml
+          
+          # ConfigMap 및 Secret 배포
+          kubectl apply -f k8s/configmap/app-config.yaml
+          kubectl apply -f k8s/secrets/app-secrets.yaml
+          
+          # 스토리지 배포
+          kubectl apply -f k8s/storage/persistent-volumes.yaml
+          
+          # 데이터베이스 배포
+          kubectl apply -f k8s/postgres/postgres-simple.yaml
+          kubectl wait --for=condition=ready pod -l app=postgres -n ${{ env.K8S_NAMESPACE }} --timeout=300s
+          
+          # Redis 배포
+          kubectl apply -f k8s/redis/redis-deployment.yaml
+          kubectl wait --for=condition=ready pod -l app=redis -n ${{ env.K8S_NAMESPACE }} --timeout=300s
+          
+          # 백엔드 배포
+          kubectl apply -f k8s/backend/backend-deployment.yaml
+          kubectl wait --for=condition=ready pod -l app=safework,component=backend -n ${{ env.K8S_NAMESPACE }} --timeout=600s
+          
+          # 프론트엔드 배포
+          kubectl apply -f k8s/frontend/frontend-deployment.yaml
+          kubectl wait --for=condition=ready pod -l app=safework,component=frontend -n ${{ env.K8S_NAMESPACE }} --timeout=300s
+          
+          # Ingress 배포
+          kubectl apply -f k8s/ingress/ingress.yaml
+          
+          echo "✅ K8s 배포 완료!"
+      
+      - name: Verify Deployment
+        run: |
+          echo "🔍 배포 상태 확인 중..."
+          
+          # Pod 상태 확인
+          kubectl get pods -n ${{ env.K8S_NAMESPACE }} -o wide
+          
+          # Service 상태 확인
+          kubectl get svc -n ${{ env.K8S_NAMESPACE }}
+          
+          # Ingress 상태 확인
+          kubectl get ingress -n ${{ env.K8S_NAMESPACE }}
+          
+          # 백엔드 헬스체크
+          echo "🏥 백엔드 헬스체크..."
+          for i in {1..10}; do
+            if kubectl exec -n ${{ env.K8S_NAMESPACE }} deployment/safework-backend -- curl -f http://localhost:8000/health; then
+              echo "✅ 백엔드 헬스체크 성공!"
+              break
+            else
+              echo "❌ 백엔드 헬스체크 실패 (시도 $i/10), 10초 후 재시도..."
+              sleep 10
+            fi
+          done
+          
+          # 프론트엔드 헬스체크
+          echo "🌐 프론트엔드 헬스체크..."
+          for i in {1..5}; do
+            if kubectl exec -n ${{ env.K8S_NAMESPACE }} deployment/safework-frontend -- curl -f http://localhost:80/nginx-health; then
+              echo "✅ 프론트엔드 헬스체크 성공!"
+              break
+            else
+              echo "❌ 프론트엔드 헬스체크 실패 (시도 $i/5), 5초 후 재시도..."
+              sleep 5
+            fi
+          done
+      
+      - name: Get Service URLs
+        run: |
+          echo "📍 SafeWork Pro 서비스 정보:"
+          
+          # NodePort 또는 LoadBalancer IP 확인
+          FRONTEND_PORT=$(kubectl get svc frontend-service -n ${{ env.K8S_NAMESPACE }} -o jsonpath='{.spec.ports[0].nodePort}')
+          BACKEND_PORT=$(kubectl get svc backend-service -n ${{ env.K8S_NAMESPACE }} -o jsonpath='{.spec.ports[0].nodePort}')
+          
+          echo "🌐 Frontend: http://${{ env.K8S_SERVER }}:${FRONTEND_PORT}"
+          echo "⚡ Backend: http://${{ env.K8S_SERVER }}:${BACKEND_PORT}"
+          echo "🔗 Domain: https://safework.jclee.me"
+          echo "📦 Image: registry.jclee.me/safework:${{ needs.build.outputs.image-tag }}"
+      
+      - name: Notify Deployment Success
+        run: |
+          echo "🎉 SafeWork Pro K8s 배포 성공!"
+          echo "📍 클러스터: ${{ env.K8S_SERVER }}"
+          echo "📂 네임스페이스: ${{ env.K8S_NAMESPACE }}"
+          echo "🏥 건설업 보건관리 시스템이 Kubernetes로 업데이트되었습니다!"
+
+  rollback:
+    needs: [build, deploy-k8s]
+    runs-on: self-hosted
+    if: failure()
+    
+    steps:
+      - name: Rollback on Failure
+        run: |
+          echo "❌ 배포 실패, 롤백 수행 중..."
+          
+          # kubectl 설정
+          mkdir -p ~/.kube
+          echo "${{ secrets.KUBECONFIG }}" | base64 -d > ~/.kube/config
+          
+          # 이전 버전으로 롤백
+          kubectl rollout undo deployment/safework-backend -n ${{ env.K8S_NAMESPACE }}
+          kubectl rollout undo deployment/safework-frontend -n ${{ env.K8S_NAMESPACE }}
+          
+          # 롤백 상태 확인
+          kubectl rollout status deployment/safework-backend -n ${{ env.K8S_NAMESPACE }}
+          kubectl rollout status deployment/safework-frontend -n ${{ env.K8S_NAMESPACE }}
+          
+          echo "🔄 롤백 완료"

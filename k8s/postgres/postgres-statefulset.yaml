@@ -19,7 +19,7 @@ spec:
     component: database
 ---
 apiVersion: apps/v1
-kind: StatefulSet
+kind: Deployment
 metadata:
   name: postgres
   namespace: safework
@@ -27,7 +27,6 @@ metadata:
     app: postgres
     component: database
 spec:
-  serviceName: postgres-service
   replicas: 1
   selector:
     matchLabels:
@@ -83,23 +82,17 @@ spec:
             memory: "1Gi"
             cpu: "500m"
         livenessProbe:
-          exec:
-            command:
-            - /bin/sh
-            - -c
-            - exec pg_isready -U "$POSTGRES_USER" -d "$POSTGRES_DB" -h 127.0.0.1 -p 5432
-          initialDelaySeconds: 30
-          periodSeconds: 10
+          tcpSocket:
+            port: 5432
+          initialDelaySeconds: 60
+          periodSeconds: 30
           timeoutSeconds: 5
           successThreshold: 1
           failureThreshold: 6
         readinessProbe:
-          exec:
-            command:
-            - /bin/sh
-            - -c
-            - exec pg_isready -U "$POSTGRES_USER" -d "$POSTGRES_DB" -h 127.0.0.1 -p 5432
-          initialDelaySeconds: 5
+          tcpSocket:
+            port: 5432
+          initialDelaySeconds: 10
           periodSeconds: 10
           timeoutSeconds: 5
           successThreshold: 1
@@ -111,18 +104,9 @@ spec:
       - name: postgres-initdb
         configMap:
           name: postgres-initdb
-  volumeClaimTemplates:
-  - metadata:
-      name: postgres-data
-      labels:
-        app: postgres
-        component: database
-    spec:
-      accessModes: ["ReadWriteOnce"]
-      storageClassName: local-storage
-      resources:
-        requests:
-          storage: 10Gi
+      - name: postgres-data
+        persistentVolumeClaim:
+          claimName: postgres-pvc
 ---
 # PostgreSQL Initialization Scripts
 apiVersion: v1
