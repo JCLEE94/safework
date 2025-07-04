@@ -29,7 +29,7 @@ jobs:
               owner: context.repo.owner,
               repo: context.repo.repo,
               state: 'open',
-              labels: 'ci-failure'
+              labels: 'bug'
             });
             
             const existingIssue = issues.data.find(issue => 
@@ -53,8 +53,7 @@ jobs:
                 repo: context.repo.repo,
                 title: issueTitle,
                 body: `## 🚨 CI/CD Pipeline Failure\n\n**Workflow:** ${workflow.name}\n**Branch:** \`${workflow.head_branch}\`\n**Commit:** \`${workflow.head_sha.substring(0, 7)}\`\n**Failed at:** ${workflow.created_at}\n**Actor:** @${workflow.actor.login}\n\n### 📋 Details\n\n[View workflow run](${workflow.html_url})\n\n### 🏷️ Labels\n- ci-failure\n- automated\n\n---\n*This issue was automatically created by CI/CD Failure Tracker*`,
-                labels: ['ci-failure', 'automated'],
-                assignees: [workflow.actor.login]
+                labels: ['bug']
               });
               console.log(`Created issue #${issue.data.number}`);
             }
