@@ -74,7 +74,7 @@ class Settings(BaseSettings):
     moel_api_url: str = Field(default="https://www.moel.go.kr/api", env="MOEL_API_URL")
     
     # 프로덕션 환경 설정
-    production_url: str = Field(default="http://192.168.50.215:3001", env="PRODUCTION_URL")
+    production_url: str = Field(default="https://safework.jclee.me", env="PRODUCTION_URL")
     remote_host: str = Field(default="192.168.50.215", env="REMOTE_HOST")
     remote_port: int = Field(default=1111, env="REMOTE_PORT")
     remote_user: str = Field(default="docker", env="REMOTE_USER")
