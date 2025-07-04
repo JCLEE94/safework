@@ -10,7 +10,7 @@ on:
       skip_tests:
         description: 'Skip tests (not recommended)'
         required: false
-        default: false
+        default: 'false'
         type: boolean
 
 env:
