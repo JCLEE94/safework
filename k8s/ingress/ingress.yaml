@@ -29,38 +29,14 @@ spec:
   - host: safework.jclee.me
     http:
       paths:
-      # API 경로 (백엔드로 라우팅)
-      - path: /api
-        pathType: Prefix
-        backend:
-          service:
-            name: backend-service
-            port:
-              number: 8000
-      # WebSocket 경로 (백엔드로 라우팅)
-      - path: /ws
-        pathType: Prefix
-        backend:
-          service:
-            name: backend-service
-            port:
-              number: 8000
-      # Health check 경로 (백엔드로 라우팅)
-      - path: /health
-        pathType: Prefix
-        backend:
-          service:
-            name: backend-service
-            port:
-              number: 8000
-      # 모든 다른 경로 (프론트엔드로 라우팅)
+      # 모든 경로를 올인원 SafeWork 컨테이너로 라우팅 (포트 3001)
       - path: /
         pathType: Prefix
         backend:
           service:
-            name: frontend-service
+            name: safework
             port:
-              number: 80
+              number: 3001
 ---
 # ClusterIssuer for Let's Encrypt (if not already exists)
 apiVersion: cert-manager.io/v1
@@ -91,13 +67,12 @@ spec:
   type: LoadBalancer
   ports:
     - port: 80
-      targetPort: 80
+      targetPort: 3001
       protocol: TCP
       name: http
-    - port: 8000
-      targetPort: 8000
+    - port: 3001
+      targetPort: 3001
       protocol: TCP
-      name: api
+      name: safework
   selector:
     app: safework
-    component: frontend
