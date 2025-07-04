@@ -1,0 +1,19 @@
+name: Test Self-Hosted Runner
+
+on:
+  push:
+    branches: [ main ]
+  workflow_dispatch:
+
+jobs:
+  test:
+    runs-on: [self-hosted, linux]
+    steps:
+      - name: Test runner
+        run: |
+          echo "✅ Runner is working!"
+          echo "Runner name: ${{ runner.name }}"
+          echo "Runner OS: ${{ runner.os }}"
+          echo "GitHub workspace: ${{ github.workspace }}"
+          docker --version
+          python3 --version
