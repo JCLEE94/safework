@@ -25,10 +25,7 @@ spec:
         - name: REDIS_URL
           value: "redis://localhost:6379/0"
         - name: JWT_SECRET
-          valueFrom:
-            secretKeyRef:
-              name: safework-secrets
-              key: jwt-secret
+          value: "your-secret-key-here"
         resources:
           requests:
             memory: "512Mi"
@@ -48,8 +45,6 @@ spec:
             port: 3001
           initialDelaySeconds: 10
           periodSeconds: 5
-      imagePullSecrets:
-      - name: regcred
 ---
 apiVersion: v1
 kind: Service
