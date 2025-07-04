@@ -7,9 +7,16 @@ import io
 import logging
 from typing import Dict, List, Tuple, Optional, Any
 import pdfplumber
-import pymupdf  # PyMuPDF
 from pypdf import PdfReader
 from pypdf.annotations import FreeText, Widget
+
+# PyMuPDF를 optional로 처리
+try:
+    import pymupdf  # PyMuPDF
+    HAS_PYMUPDF = True
+except ImportError:
+    HAS_PYMUPDF = False
+    logger.warning("PyMuPDF가 설치되지 않았습니다. 일부 PDF 기능이 제한됩니다.")
 
 logger = logging.getLogger(__name__)
 
@@ -129,6 +136,10 @@ class PDFFieldDetector:
     
     def detect_fields_pymupdf(self, pdf_content: bytes) -> Dict[str, Any]:
         """PyMuPDF를 사용한 필드 감지 (가장 강력)"""
+        if not HAS_PYMUPDF:
+            logger.warning("PyMuPDF가 없어서 필드 감지를 건너뜁니다.")
+            return {}
+            
         try:
             doc = pymupdf.open(stream=pdf_content, filetype="pdf")
             fields = {}
