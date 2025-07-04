@@ -38,34 +38,29 @@ jobs:
     runs-on: [self-hosted, linux]
     if: ${{ !inputs.skip_tests }}
     
-    services:
-      postgres:
-        image: postgres:14
-        env:
-          POSTGRES_USER: admin
-          POSTGRES_PASSWORD: password
-          POSTGRES_DB: health_management
-        ports:
-          - 15432:5432
-        options: >-
-          --health-cmd pg_isready
-          --health-interval 10s
-          --health-timeout 5s
-          --health-retries 5
-
-      redis:
-        image: redis:7
-        ports:
-          - 16379:6379
-        options: >-
-          --health-cmd "redis-cli ping"
-          --health-interval 10s
-          --health-timeout 5s
-          --health-retries 5
-    
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
+      
+      - name: Start test containers
+        run: |
+          # Stop any existing containers
+          docker stop test-postgres test-redis 2>/dev/null || true
+          docker rm test-postgres test-redis 2>/dev/null || true
+          
+          # Start PostgreSQL
+          docker run -d --name test-postgres \
+            -e POSTGRES_USER=admin \
+            -e POSTGRES_PASSWORD=password \
+            -e POSTGRES_DB=health_management \
+            -p 15432:5432 \
+            postgres:14
+          
+          # Start Redis
+          docker run -d --name test-redis -p 16379:6379 redis:7
+          
+          # Wait for services
+          sleep 10
       
       - name: Set up Python
         uses: actions/setup-python@v5
@@ -102,6 +97,12 @@ jobs:
         run: |
           cd frontend
           npm run lint || echo "No linting configured"
+      
+      - name: Cleanup test containers
+        if: always()
+        run: |
+          docker stop test-postgres test-redis 2>/dev/null || true
+          docker rm test-postgres test-redis 2>/dev/null || true
 
   security-scan:
     name: Security Scan
