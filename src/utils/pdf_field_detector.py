@@ -8,7 +8,16 @@ import logging
 from typing import Dict, List, Tuple, Optional, Any
 import pdfplumber
 from pypdf import PdfReader
-from pypdf.annotations import FreeText, Widget
+
+logger = logging.getLogger(__name__)
+
+# pypdf annotations를 optional로 처리
+try:
+    from pypdf.annotations import FreeText
+    HAS_PYPDF_ANNOTATIONS = True
+except ImportError:
+    HAS_PYPDF_ANNOTATIONS = False
+    logger.warning("pypdf.annotations를 가져올 수 없습니다.")
 
 # PyMuPDF를 optional로 처리
 try:
@@ -17,8 +26,6 @@ try:
 except ImportError:
     HAS_PYMUPDF = False
     logger.warning("PyMuPDF가 설치되지 않았습니다. 일부 PDF 기능이 제한됩니다.")
-
-logger = logging.getLogger(__name__)
 
 
 class PDFFieldDetector:
