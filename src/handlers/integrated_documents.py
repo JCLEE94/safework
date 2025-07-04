@@ -30,10 +30,10 @@ from reportlab.pdfbase.ttfonts import TTFont
 from reportlab.pdfbase import pdfmetrics
 from reportlab.lib.colors import black
 
-from src.models.database import get_db
-from src.config.settings import get_settings
-from src.services.cache import CacheService, get_cache_service
-from src.utils.auth import get_current_user
+from ..models.database import get_db
+from ..config.settings import get_settings
+from ..services.cache import CacheService, get_cache_service
+from ..utils.auth import get_current_user
 
 # Initialize
 router = APIRouter(prefix="/api/v1/documents", tags=["통합문서관리"])
