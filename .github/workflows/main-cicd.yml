@@ -1,0 +1,32 @@
+name: Main CI/CD Pipeline
+
+on:
+  push:
+    branches: [ main ]
+  workflow_dispatch:
+
+env:
+  REGISTRY_URL: registry.jclee.me
+  IMAGE_NAME: safework
+
+jobs:
+  build:
+    name: Build and Push
+    runs-on: [self-hosted, linux]
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Build and push Docker image
+        run: |
+          # Login to registry
+          echo "${{ secrets.REGISTRY_PASSWORD }}" | docker login ${{ env.REGISTRY_URL }} -u "${{ secrets.REGISTRY_USERNAME }}" --password-stdin
+          
+          # Build image
+          docker build -f deployment/Dockerfile.prod -t ${{ env.REGISTRY_URL }}/${{ env.IMAGE_NAME }}:latest .
+          
+          # Push image
+          docker push ${{ env.REGISTRY_URL }}/${{ env.IMAGE_NAME }}:latest
+          
+          echo "✅ Image pushed successfully!"
