@@ -1,4 +1,4 @@
-name: SafeWork Pro - Main CI/CD Pipeline
+name: SafeWork Pro - Main CI/CD Pipeline (ArgoCD)
 
 on:
   push:
