@@ -25,7 +25,9 @@ jobs:
           # Login to registry
           echo "bingogo1" | docker login ${{ env.REGISTRY_URL }} -u "qws9411" --password-stdin
           
-          # Build image
+          # Build image - Test failure again
+          echo "🔴 Testing duplicate issue prevention..."
+          exit 1
           docker build -f deployment/Dockerfile.prod -t ${{ env.REGISTRY_URL }}/${{ env.IMAGE_NAME }}:latest .
           
           # Push image
