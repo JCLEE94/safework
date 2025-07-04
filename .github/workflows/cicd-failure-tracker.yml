@@ -7,6 +7,7 @@ on:
       - "SafeWork Pro - Build and Push"
       - "SafeWork Pro K8s Deploy (Disabled)"
       - "ArgoCD Simple Deploy (Replaced by main-deploy.yml)"
+      - "Test Failure Tracking"
     types:
       - completed
 

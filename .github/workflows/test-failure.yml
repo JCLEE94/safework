@@ -1,0 +1,14 @@
+name: Test Failure Tracking
+
+on:
+  workflow_dispatch:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Intentional failure
+        run: |
+          echo "This workflow will fail intentionally"
+          echo "ERROR: Something went wrong!"
+          exit 1
