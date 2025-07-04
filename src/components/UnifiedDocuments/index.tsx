@@ -17,9 +17,10 @@ import { Card, Button, Badge, Modal } from '../common';
 import { useApi } from '../../hooks/useApi';
 import { PDFFormEditor } from '../PDFFormEditor';
 import { DocumentWorkspace } from './DocumentWorkspace';
+import { EDITABLE_FORMS, EditableForm, getEditableFormsByCategory } from '../../services/editableForms';
 
 // 탭 정의
-type DocumentTab = 'workspace' | 'files' | 'pdf-forms' | 'templates' | 'categories' | 'analytics';
+type DocumentTab = 'workspace' | 'editable-forms' | 'categories' | 'analytics';
 
 interface DocumentFile {
   id: string;
@@ -65,16 +66,14 @@ const DOCUMENT_CATEGORIES = [
 
 export function UnifiedDocuments() {
   const [activeTab, setActiveTab] = useState<DocumentTab>('workspace');
-  const [files, setFiles] = useState<DocumentFile[]>([]);
-  const [pdfForms, setPdfForms] = useState<PDFForm[]>([]);
+  const [editableForms, setEditableForms] = useState<EditableForm[]>(EDITABLE_FORMS);
   const [categories, setCategories] = useState<DocumentCategory[]>([]);
   const [loading, setLoading] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedCategory, setSelectedCategory] = useState('');
-  const [showUploadModal, setShowUploadModal] = useState(false);
   const [showFormModal, setShowFormModal] = useState(false);
-  const [selectedFile, setSelectedFile] = useState<DocumentFile | null>(null);
-  const [selectedForm, setSelectedForm] = useState<PDFForm | null>(null);
+  const [selectedForm, setSelectedForm] = useState<EditableForm | null>(null);
+  const [editingData, setEditingData] = useState<Record<string, string>>({});
   
   const { fetchApi } = useApi();
 
@@ -86,11 +85,8 @@ export function UnifiedDocuments() {
     setLoading(true);
     try {
       switch (activeTab) {
-        case 'files':
-          await loadFiles();
-          break;
-        case 'pdf-forms':
-          await loadPDFForms();
+        case 'editable-forms':
+          // 편집 가능한 양식은 이미 로드됨
           break;
         case 'categories':
           await loadCategories();
@@ -171,34 +167,44 @@ export function UnifiedDocuments() {
     }
   };
 
-  const handleFormAction = async (action: string, form: PDFForm) => {
+  const handleFormAction = async (action: string, form: EditableForm) => {
     switch (action) {
-      case 'fill':
+      case 'edit':
         setSelectedForm(form);
         setShowFormModal(true);
         break;
-      case 'preview':
-        setSelectedForm(form);
-        // Show form preview modal or navigate to preview page
+      case 'view':
+        // 문서 파일 다운로드하여 보기
+        try {
+          const response = await fetch(`/api/v1/document-editor/view/${form.file_path}`);
+          if (response.ok) {
+            const blob = await response.blob();
+            const url = window.URL.createObjectURL(blob);
+            window.open(url, '_blank');
+          }
+        } catch (error) {
+          console.error('View failed:', error);
+          alert('문서 보기에 실패했습니다.');
+        }
         break;
       case 'download':
-        // Download original template
+        // 원본 템플릿 다운로드
         try {
-          const response = await fetch(`/api/v1/documents/pdf-forms/${form.id}/template`);
+          const response = await fetch(`/api/v1/document-editor/download/${form.file_path}`);
           if (response.ok) {
             const blob = await response.blob();
             const url = window.URL.createObjectURL(blob);
             const a = document.createElement('a');
             a.href = url;
-            a.download = `${form.name_korean}_template.pdf`;
+            a.download = `${form.korean_name}_template.${form.file_path.split('.').pop()}`;
             document.body.appendChild(a);
             a.click();
             window.URL.revokeObjectURL(url);
             document.body.removeChild(a);
           }
         } catch (error) {
-          console.error('Template download failed:', error);
-          alert('템플릿 다운로드에 실패했습니다.');
+          console.error('Download failed:', error);
+          alert('다운로드에 실패했습니다.');
         }
         break;
     }
@@ -211,10 +217,11 @@ export function UnifiedDocuments() {
     return matchesSearch && matchesCategory;
   });
 
-  const filteredForms = pdfForms.filter(form => {
+  const filteredForms = editableForms.filter(form => {
     const matchesSearch = !searchTerm || 
-      form.name_korean.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      form.name.toLowerCase().includes(searchTerm.toLowerCase());
+      form.korean_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      form.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      form.description.toLowerCase().includes(searchTerm.toLowerCase());
     const matchesCategory = !selectedCategory || form.category === selectedCategory;
     return matchesSearch && matchesCategory;
   });
@@ -223,10 +230,8 @@ export function UnifiedDocuments() {
     switch (activeTab) {
       case 'workspace':
         return <DocumentWorkspace />;
-      case 'files':
-        return renderFilesTab();
-      case 'pdf-forms':
-        return renderPDFFormsTab();
+      case 'editable-forms':
+        return renderEditableFormsTab();
       case 'categories':
         return renderCategoriesTab();
       case 'analytics':
@@ -477,6 +482,119 @@ export function UnifiedDocuments() {
     </div>
   );
 
+  const renderEditableFormsTab = () => (
+    <div className="space-y-6">
+      {/* Controls */}
+      <div className="flex flex-col sm:flex-row gap-4 justify-between">
+        <div className="flex gap-2">
+          <div className="relative">
+            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" size={20} />
+            <input
+              type="text"
+              placeholder="편집 양식 검색..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              className="pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+            />
+          </div>
+          <select
+            value={selectedCategory}
+            onChange={(e) => setSelectedCategory(e.target.value)}
+            className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+          >
+            <option value="">모든 카테고리</option>
+            {DOCUMENT_CATEGORIES.map(category => (
+              <option key={category.id} value={category.name}>
+                {category.name}
+              </option>
+            ))}
+          </select>
+        </div>
+        <div className="flex gap-2">
+          <Button onClick={() => loadData()} variant="outline">
+            <RefreshCw size={16} className="mr-2" />
+            새로고침
+          </Button>
+        </div>
+      </div>
+
+      {/* Editable Forms Grid */}
+      {loading ? (
+        <div className="flex justify-center items-center h-64">
+          <RefreshCw className="animate-spin" size={32} />
+        </div>
+      ) : (
+        <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-6">
+          {filteredForms.map(form => (
+            <Card key={form.id} className="p-6 hover:shadow-lg transition-shadow">
+              <div className="space-y-4">
+                {/* Header */}
+                <div className="flex items-start justify-between">
+                  <div className="flex items-center min-w-0 flex-1">
+                    <FileEdit className="text-green-600 mr-3 flex-shrink-0" size={24} />
+                    <div className="min-w-0">
+                      <h3 className="font-semibold text-gray-900 text-lg truncate">{form.korean_name}</h3>
+                      <p className="text-sm text-gray-600 mt-1 line-clamp-2">{form.description}</p>
+                    </div>
+                  </div>
+                  <Badge color="blue" className="ml-2 flex-shrink-0">
+                    {form.template_type}
+                  </Badge>
+                </div>
+                
+                {/* Category and File Path */}
+                <div className="space-y-2">
+                  <div className="flex items-center">
+                    <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-800">
+                      {form.category}
+                    </span>
+                  </div>
+                  <p className="text-xs text-gray-500 truncate">{form.file_path}</p>
+                </div>
+                
+                {/* Actions */}
+                <div className="flex gap-2 pt-2 border-t border-gray-100">
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => handleFormAction('view', form)}
+                    className="flex-1"
+                  >
+                    <Eye size={16} className="mr-1" />
+                    보기
+                  </Button>
+                  <Button
+                    size="sm"
+                    onClick={() => handleFormAction('edit', form)}
+                    className="flex-1"
+                  >
+                    <Edit size={16} className="mr-1" />
+                    편집
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => handleFormAction('download', form)}
+                  >
+                    <Download size={16} />
+                  </Button>
+                </div>
+              </div>
+            </Card>
+          ))}
+        </div>
+      )}
+
+      {filteredForms.length === 0 && !loading && (
+        <div className="text-center py-12">
+          <FileEdit className="mx-auto h-12 w-12 text-gray-400" />
+          <h3 className="mt-2 text-sm font-medium text-gray-900">편집 가능한 양식이 없습니다</h3>
+          <p className="mt-1 text-sm text-gray-500">검색 조건을 변경하여 다시 시도하세요.</p>
+        </div>
+      )}
+    </div>
+  );
+
   const renderCategoriesTab = () => (
     <div className="space-y-6">
       <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-6">
@@ -635,8 +753,7 @@ export function UnifiedDocuments() {
         <nav className="-mb-px flex space-x-8">
           {[
             { id: 'workspace', name: '통합 작업공간', icon: Activity },
-            { id: 'files', name: '파일관리', icon: File },
-            { id: 'pdf-forms', name: 'PDF 양식', icon: FileEdit },
+            { id: 'editable-forms', name: '편집 양식', icon: FileEdit },
             { id: 'categories', name: '카테고리', icon: FolderOpen },
             { id: 'analytics', name: '분석', icon: BarChart },
           ].map((tab) => {

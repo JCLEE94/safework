@@ -154,6 +154,10 @@ def create_app() -> FastAPI:
     # # 8. Performance monitoring (last to measure total time)
     # app.add_middleware(PerformanceMiddleware, slow_request_threshold=1000.0)
     
+    # 에러 리포팅 미들웨어 (다른 미들웨어보다 먼저)
+    from .middleware.error_reporter import add_error_reporting_middleware
+    add_error_reporting_middleware(app, enabled=settings.error_reporting_enabled)
+    
     # CORS 설정
     app.add_middleware(
         CORSMiddleware,
@@ -203,6 +207,8 @@ def create_app() -> FastAPI:
     from .handlers.settings import router as settings_router
     from .handlers.checklist import router as checklist_router
     from .handlers.special_materials import router as special_materials_router
+    from .handlers.error_reporting import router as error_reporting_router
+    from .handlers.document_editor import router as document_editor_router
     
     app.include_router(workers_router, prefix="/api/v1/workers", tags=["근로자관리"])
     app.include_router(health_exams_router, tags=["건강진단"])
@@ -226,6 +232,8 @@ def create_app() -> FastAPI:
     app.include_router(settings_router, tags=["설정관리"])
     app.include_router(checklist_router, tags=["체크리스트"])
     app.include_router(special_materials_router, tags=["특별관리물질"])
+    app.include_router(error_reporting_router, tags=["에러리포팅"])
+    app.include_router(document_editor_router, tags=["문서편집"])
     
     # 정적 파일 서빙 (React 빌드된 파일들) - Mount after all API routes
     try:

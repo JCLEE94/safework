@@ -109,6 +109,12 @@ class Settings(BaseSettings):
     max_recent_items: int = Field(default=10, env="MAX_RECENT_ITEMS")
     dashboard_recent_items: int = Field(default=5, env="DASHBOARD_RECENT_ITEMS")
     
+    # GitHub 에러 리포팅 설정
+    github_token: str = Field(default="", env="GITHUB_TOKEN")
+    github_repo_owner: str = Field(default="JCLEE94", env="GITHUB_REPO_OWNER")
+    github_repo_name: str = Field(default="safework", env="GITHUB_REPO_NAME")
+    error_reporting_enabled: bool = Field(default=True, env="ERROR_REPORTING_ENABLED")
+    
     @property
     def allowed_extensions_list(self) -> list:
         """허용된 확장자 리스트 반환"""

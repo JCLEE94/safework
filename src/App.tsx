@@ -13,7 +13,7 @@ import { AccidentReports } from './components/AccidentReports';
 import { UnifiedDocuments } from './components/UnifiedDocuments';
 import { EnhancedReports } from './components/EnhancedReports';
 import { Settings } from './components/Settings';
-import PdfEditor from './components/PdfEditor';
+import ErrorBoundary from './components/ErrorBoundary';
 
 function App() {
   const [activeMenu, setActiveMenu] = useState('dashboard');
@@ -43,22 +43,22 @@ function App() {
         return <AdvancedMonitoring />;
       case 'settings':
         return <Settings />;
-      case 'pdf-editor':
-        return <PdfEditor />;
       default:
         return <SimpleDashboard />;
     }
   };
   
   return (
-    <Layout
-      sidebarOpen={sidebarOpen}
-      setSidebarOpen={setSidebarOpen}
-      activeMenu={activeMenu}
-      setActiveMenu={setActiveMenu}
-    >
-      {renderContent()}
-    </Layout>
+    <ErrorBoundary>
+      <Layout
+        sidebarOpen={sidebarOpen}
+        setSidebarOpen={setSidebarOpen}
+        activeMenu={activeMenu}
+        setActiveMenu={setActiveMenu}
+      >
+        {renderContent()}
+      </Layout>
+    </ErrorBoundary>
   );
 }
 
