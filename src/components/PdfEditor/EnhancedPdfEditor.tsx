@@ -1,6 +1,7 @@
 import React, { useState, useRef, useCallback } from 'react';
 import { EmbedPDF, useEmbed } from '@simplepdf/react-embed-pdf';
 import { API_BASE_URL } from '../../config/api';
+import PrecisePdfEditor from './PrecisePdfEditor';
 import { 
   Upload, 
   Download, 
@@ -44,7 +45,7 @@ const EnhancedPdfEditor: React.FC = () => {
   const [fieldValues, setFieldValues] = useState<FormData>({});
   const [uploadedFile, setUploadedFile] = useState<File | null>(null);
   const [documentUrl, setDocumentUrl] = useState<string>('');
-  const [editMode, setEditMode] = useState<'simple' | 'advanced'>('simple');
+  const [editMode, setEditMode] = useState<'simple' | 'advanced' | 'precise'>('simple');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
@@ -381,6 +382,17 @@ const EnhancedPdfEditor: React.FC = () => {
                 <Edit3 className="inline mr-2" size={16} />
                 고급 편집
               </button>
+              <button
+                onClick={() => setEditMode('precise')}
+                className={`px-4 py-2 rounded-md transition-colors ${
+                  editMode === 'precise'
+                    ? 'bg-purple-600 text-white'
+                    : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
+                }`}
+              >
+                <Edit3 className="inline mr-2" size={16} />
+                정밀 편집
+              </button>
             </div>
           </div>
         </div>
@@ -411,7 +423,10 @@ const EnhancedPdfEditor: React.FC = () => {
         )}
 
         <div className="p-6">
-          {editMode === 'simple' ? (
+          {editMode === 'precise' ? (
+            // 정밀 편집기 UI
+            <PrecisePdfEditor initialData={fieldValues} />
+          ) : editMode === 'simple' ? (
             // 기존 Simple 편집기 UI
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
               {/* 좌측: 양식 선택 및 파일 업로드 */}
