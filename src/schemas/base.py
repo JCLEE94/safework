@@ -49,7 +49,7 @@ class StatusResponse(BaseModel):
     """상태 응답 스키마"""
     status: str = "ok"
     service: str = "SafeWork Pro"
-    version: str = "1.0.0"
+    version: str = "1.0.1"
     timestamp: datetime = datetime.now()
     components: Optional[Dict[str, str]] = None
     

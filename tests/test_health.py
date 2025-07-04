@@ -21,7 +21,7 @@ def test_health_check(client):
     data = response.json()
     assert data["status"] == "healthy"
     assert data["service"] == "건설업 보건관리 시스템"
-    assert data["version"] == "1.0.0"
+    assert data["version"] == "1.0.1"
     assert "timestamp" in data
     assert "components" in data
 
