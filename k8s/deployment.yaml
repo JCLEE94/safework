@@ -3,6 +3,14 @@ kind: Deployment
 metadata:
   name: safework
   namespace: safework
+  annotations:
+    # ArgoCD Image Updater 설정 강화
+    argocd-image-updater.argoproj.io/image-list: safework=registry.jclee.me/safework
+    argocd-image-updater.argoproj.io/safework.update-strategy: latest
+    argocd-image-updater.argoproj.io/safework.allow-tags: regexp:^prod-[0-9]{8}-[a-f0-9]{7}$
+    argocd-image-updater.argoproj.io/safework.force-update: "true"
+    argocd-image-updater.argoproj.io/write-back-method: git
+    argocd-image-updater.argoproj.io/git-branch: main
 spec:
   replicas: 1
   selector:
@@ -12,6 +20,7 @@ spec:
     metadata:
       labels:
         app: safework
+        version: "prod-latest"
     spec:
       imagePullSecrets:
       - name: regcred
@@ -21,17 +30,13 @@ spec:
         ports:
         - containerPort: 3001
           name: http
-        env:
-        - name: DATABASE_URL
-          value: "postgresql://admin:password@localhost:5432/health_management"
-        - name: REDIS_URL
-          value: "redis://localhost:6379/0"
-        - name: JWT_SECRET
-          value: "your-secret-key-here"
+        envFrom:
+        - secretRef:
+            name: safework-secrets
         resources:
           requests:
-            memory: "256Mi"
-            cpu: "200m"
+            memory: "512Mi"
+            cpu: "250m"
           limits:
             memory: "1Gi"
             cpu: "500m"

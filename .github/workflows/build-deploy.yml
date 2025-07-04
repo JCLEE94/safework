@@ -1,10 +1,8 @@
-name: Build and Deploy SafeWork Pro (Legacy Watchtower)
+name: Build and Deploy SafeWork Pro (DEPRECATED - USE main-cicd.yml)
 
 on:
-  push:
-    branches: [develop]
-  pull_request:
-    branches: [develop]
+  # 비활성화됨 - main-cicd.yml 사용
+  workflow_dispatch:  # 수동 실행만 허용
 
 env:
   REGISTRY: ${{ vars.DOCKER_REGISTRY || 'registry.jclee.me' }}
