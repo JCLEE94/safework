@@ -104,4 +104,4 @@ coverage.xml
 *.cover
 .hypothesis/
 pytest_cache/
-cover/
+cover/argocd-linux-amd64
