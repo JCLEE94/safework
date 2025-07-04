@@ -1,0 +1,147 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: argocd-image-updater-config
+  namespace: argocd
+data:
+  registries.conf: |
+    registries:
+    - name: jclee-registry
+      api_url: https://registry.jclee.me
+      prefix: registry.jclee.me
+      insecure: false
+      credentials: secret:argocd/registry-credentials#token
+  log.level: debug
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: argocd-image-updater-ssh-config
+  namespace: argocd
+data:
+  config: |
+    Host github.com
+      HostName github.com
+      User git
+      IdentityFile ~/.ssh/id_rsa
+      StrictHostKeyChecking no
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: argocd-image-updater
+  namespace: argocd
+spec:
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: argocd-image-updater
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: argocd-image-updater
+    spec:
+      containers:
+      - command:
+        - /usr/local/bin/argocd-image-updater
+        - run
+        env:
+        - name: APPLICATIONS_API
+          value: argocd-server.argocd.svc.cluster.local:443
+        - name: ARGOCD_GRPC_WEB
+          value: "true"
+        - name: ARGOCD_SERVER
+          value: argocd-server.argocd.svc.cluster.local:443
+        - name: ARGOCD_INSECURE
+          value: "false"
+        - name: ARGOCD_PLAINTEXT
+          value: "false"
+        - name: ARGOCD_TOKEN
+          valueFrom:
+            secretKeyRef:
+              key: token
+              name: argocd-image-updater-secret
+        - name: IMAGE_UPDATER_LOGLEVEL
+          value: debug
+        - name: KUBE_CONFIG_PATH
+          value: /app/config/kubeconfig
+        image: quay.io/argoprojlabs/argocd-image-updater:v0.12.2
+        imagePullPolicy: Always
+        name: argocd-image-updater
+        ports:
+        - containerPort: 8080
+        resources:
+          limits:
+            memory: 512Mi
+          requests:
+            memory: 256Mi
+        volumeMounts:
+        - mountPath: /app/config
+          name: image-updater-conf
+        - mountPath: /app/config/ssh
+          name: ssh-config
+        - mountPath: /tmp
+          name: tmp-dir
+      serviceAccountName: argocd-image-updater
+      volumes:
+      - configMap:
+          items:
+          - key: registries.conf
+            path: registries.conf
+          - key: log.level
+            path: log_level
+          name: argocd-image-updater-config
+        name: image-updater-conf
+      - configMap:
+          name: argocd-image-updater-ssh-config
+        name: ssh-config
+      - emptyDir: {}
+        name: tmp-dir
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: argocd-image-updater
+  namespace: argocd
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: argocd-image-updater
+rules:
+- apiGroups:
+  - ""
+  resources:
+  - secrets
+  - configmaps
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups:
+  - argoproj.io
+  resources:
+  - applications
+  verbs:
+  - get
+  - list
+  - update
+  - patch
+- apiGroups:
+  - ""
+  resources:
+  - events
+  verbs:
+  - create
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: argocd-image-updater
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: argocd-image-updater
+subjects:
+- kind: ServiceAccount
+  name: argocd-image-updater
+  namespace: argocd
