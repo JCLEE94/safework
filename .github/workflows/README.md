@@ -2,17 +2,24 @@
 
 ## 🚀 Active Workflows
 
-### main-deploy.yml (Primary CI/CD Pipeline)
-- **Trigger**: Push to `main` branch, PRs to `main`, manual dispatch
-- **Purpose**: Complete CI/CD pipeline for production deployment via ArgoCD
+### main-cicd.yml (Primary CI/CD Pipeline)
+- **Trigger**: Push to `main` branch, manual dispatch
+- **Purpose**: Build and push Docker images to registry
 - **Features**:
-  - Comprehensive test suite (backend + frontend)
-  - Security scanning with Trivy
-  - Multi-stage Docker build with caching
-  - Automated K8s manifest updates
-  - ArgoCD auto-sync integration
-  - Production health verification
-  - Automated rollback notifications
+  - Docker image build and push
+  - Registry authentication
+  - Build status reporting
+  - Automatic failure tracking
+
+### cicd-failure-tracker.yml (Failure Monitoring)
+- **Trigger**: When any CI/CD workflow fails
+- **Purpose**: Automatically create GitHub issues for CI/CD failures
+- **Features**:
+  - Failure detection across all workflows
+  - Error log extraction and parsing
+  - Duplicate issue prevention (24-hour window)
+  - Automatic issue assignment to committer
+  - Recurring failure tracking via comments
 
 ### build-deploy.yml
 - **Trigger**: Push to `develop` branch
@@ -91,9 +98,30 @@ on:
 argocd app rollback safework --server argo.jclee.me
 ```
 
+## 🚨 CI/CD Failure Tracking
+
+When a CI/CD workflow fails:
+
+1. **Automatic Issue Creation**
+   - Title: `[CI/CD Failure] {Workflow Name} - {Branch}`
+   - Labels: `ci/cd`, `bug`, `automated`
+   - Assignee: Person who triggered the workflow
+   - Content: Error logs, workflow details, and suggested actions
+
+2. **Duplicate Prevention**
+   - Checks for similar issues created within 24 hours
+   - If found, adds a comment instead of creating new issue
+   - Tracks recurring failures
+
+3. **Error Log Collection**
+   - Extracts last 50 error/failure/exception messages
+   - Links to full workflow run
+   - Provides troubleshooting suggestions
+
 ## 📝 Notes
 
 - All workflows use self-hosted runners for better performance
 - Test containers use ports 15432 (PostgreSQL) and 16379 (Redis)
 - Production URL: https://safework.jclee.me
 - ArgoCD Dashboard: https://argo.jclee.me
+- CI/CD failures are automatically tracked via GitHub Issues

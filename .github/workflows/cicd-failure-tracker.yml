@@ -1,0 +1,187 @@
+name: CI/CD Failure Tracker
+
+on:
+  workflow_run:
+    workflows:
+      - "Main CI/CD Pipeline"
+      - "SafeWork Pro - Build and Push"
+      - "SafeWork Pro K8s Deploy (Disabled)"
+      - "ArgoCD Simple Deploy (Replaced by main-deploy.yml)"
+    types:
+      - completed
+
+jobs:
+  check-and-report:
+    if: ${{ github.event.workflow_run.conclusion == 'failure' }}
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Get workflow run details
+        id: run-details
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          RUN_ID=${{ github.event.workflow_run.id }}
+          WORKFLOW_NAME="${{ github.event.workflow_run.name }}"
+          BRANCH="${{ github.event.workflow_run.head_branch }}"
+          COMMIT="${{ github.event.workflow_run.head_sha }}"
+          COMMIT_SHORT=$(echo $COMMIT | cut -c1-7)
+          FAILURE_TIME=$(date -u +"%Y-%m-%d %H:%M:%S UTC")
+          RUN_URL="${{ github.event.workflow_run.html_url }}"
+          
+          echo "run_id=$RUN_ID" >> $GITHUB_OUTPUT
+          echo "workflow_name=$WORKFLOW_NAME" >> $GITHUB_OUTPUT
+          echo "branch=$BRANCH" >> $GITHUB_OUTPUT
+          echo "commit_short=$COMMIT_SHORT" >> $GITHUB_OUTPUT
+          echo "failure_time=$FAILURE_TIME" >> $GITHUB_OUTPUT
+          echo "run_url=$RUN_URL" >> $GITHUB_OUTPUT
+          
+          # Get failed jobs
+          FAILED_JOBS=$(gh api repos/${{ github.repository }}/actions/runs/$RUN_ID/jobs \
+            --jq '.jobs[] | select(.conclusion == "failure") | .name' | tr '\n' ', ' | sed 's/,$//')
+          
+          echo "failed_jobs=$FAILED_JOBS" >> $GITHUB_OUTPUT
+      
+      - name: Get failure logs
+        id: failure-logs
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          RUN_ID=${{ steps.run-details.outputs.run_id }}
+          
+          # Get first failed job logs
+          FAILED_JOB_ID=$(gh api repos/${{ github.repository }}/actions/runs/$RUN_ID/jobs \
+            --jq '.jobs[] | select(.conclusion == "failure") | .id' | head -1)
+          
+          if [ -n "$FAILED_JOB_ID" ]; then
+            # Download logs
+            gh api repos/${{ github.repository }}/actions/jobs/$FAILED_JOB_ID/logs \
+              > failure_logs.txt 2>/dev/null || echo "Failed to download logs" > failure_logs.txt
+            
+            # Extract error lines (last 100 lines containing error/fail/exception)
+            ERROR_LOGS=$(grep -i -E "(error|fail|exception|fatal)" failure_logs.txt | tail -100 | head -50 || echo "No specific error messages found")
+            
+            # Save to file for multi-line handling
+            echo "$ERROR_LOGS" > error_summary.txt
+          else
+            echo "Could not identify failed job" > error_summary.txt
+          fi
+      
+      - name: Check for duplicate issues
+        id: check-duplicate
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          WORKFLOW_NAME="${{ steps.run-details.outputs.workflow_name }}"
+          BRANCH="${{ steps.run-details.outputs.branch }}"
+          
+          # Search for open issues with same workflow and branch
+          SEARCH_QUERY="is:issue is:open \"[CI/CD Failure]\" \"$WORKFLOW_NAME\" in:title"
+          
+          EXISTING_ISSUES=$(gh issue list \
+            --search "$SEARCH_QUERY" \
+            --json number,title,createdAt \
+            --limit 10)
+          
+          # Check if similar issue exists (within last 24 hours)
+          DUPLICATE_FOUND=false
+          EXISTING_ISSUE_NUMBER=""
+          
+          if [ "$EXISTING_ISSUES" != "[]" ]; then
+            # Check each issue
+            while IFS= read -r issue; do
+              ISSUE_NUMBER=$(echo "$issue" | jq -r '.number')
+              ISSUE_CREATED=$(echo "$issue" | jq -r '.createdAt')
+              
+              # Check if issue was created within last 24 hours
+              CREATED_TIMESTAMP=$(date -d "$ISSUE_CREATED" +%s 2>/dev/null || date -j -f "%Y-%m-%dT%H:%M:%SZ" "$ISSUE_CREATED" +%s)
+              CURRENT_TIMESTAMP=$(date +%s)
+              DIFF=$((CURRENT_TIMESTAMP - CREATED_TIMESTAMP))
+              
+              if [ $DIFF -lt 86400 ]; then  # 24 hours in seconds
+                DUPLICATE_FOUND=true
+                EXISTING_ISSUE_NUMBER=$ISSUE_NUMBER
+                break
+              fi
+            done < <(echo "$EXISTING_ISSUES" | jq -c '.[]')
+          fi
+          
+          echo "duplicate_found=$DUPLICATE_FOUND" >> $GITHUB_OUTPUT
+          echo "existing_issue=$EXISTING_ISSUE_NUMBER" >> $GITHUB_OUTPUT
+      
+      - name: Create or update issue
+        if: steps.check-duplicate.outputs.duplicate_found == 'false'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          # Read error logs
+          ERROR_SUMMARY=$(cat error_summary.txt | sed 's/"/\\"/g' | head -30)
+          
+          # Create issue body
+          cat > issue_body.md << EOF
+          ## 🚨 CI/CD Pipeline Failure Report
+          
+          **Workflow:** ${{ steps.run-details.outputs.workflow_name }}
+          **Branch:** \`${{ steps.run-details.outputs.branch }}\`
+          **Commit:** \`${{ steps.run-details.outputs.commit_short }}\`
+          **Failed at:** ${{ steps.run-details.outputs.failure_time }}
+          **Failed jobs:** ${{ steps.run-details.outputs.failed_jobs }}
+          
+          ### 📋 Failure Summary
+          
+          [View full workflow run](${{ steps.run-details.outputs.run_url }})
+          
+          ### 🔍 Error Logs (Excerpt)
+          
+          \`\`\`
+          $ERROR_SUMMARY
+          \`\`\`
+          
+          ### 🔧 Suggested Actions
+          
+          1. Review the error logs in the [workflow run](${{ steps.run-details.outputs.run_url }})
+          2. Check recent commits for potential issues
+          3. Verify environment variables and secrets are properly configured
+          4. Ensure all dependencies are up to date
+          
+          ### 🏷️ Labels
+          - \`ci/cd\`
+          - \`bug\`
+          - \`automated\`
+          
+          ---
+          *This issue was automatically created by the CI/CD Failure Tracker*
+          EOF
+          
+          # Create the issue
+          gh issue create \
+            --title "[CI/CD Failure] ${{ steps.run-details.outputs.workflow_name }} - ${{ steps.run-details.outputs.branch }}" \
+            --body-file issue_body.md \
+            --label "ci/cd,bug,automated" \
+            --assignee "${{ github.event.workflow_run.actor.login }}"
+      
+      - name: Comment on existing issue
+        if: steps.check-duplicate.outputs.duplicate_found == 'true'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          ISSUE_NUMBER=${{ steps.check-duplicate.outputs.existing_issue }}
+          
+          # Create comment body
+          cat > comment_body.md << EOF
+          ## 🔄 Another failure occurred
+          
+          **Time:** ${{ steps.run-details.outputs.failure_time }}
+          **Commit:** \`${{ steps.run-details.outputs.commit_short }}\`
+          **Failed jobs:** ${{ steps.run-details.outputs.failed_jobs }}
+          
+          [View workflow run](${{ steps.run-details.outputs.run_url }})
+          
+          This appears to be a recurring issue. Please prioritize fixing this.
+          EOF
+          
+          # Add comment to existing issue
+          gh issue comment $ISSUE_NUMBER --body-file comment_body.md
