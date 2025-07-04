@@ -25,10 +25,7 @@ jobs:
           # Login to registry
           echo "bingogo1" | docker login ${{ env.REGISTRY_URL }} -u "qws9411" --password-stdin
           
-          # Build image - Intentional failure for testing
-          echo "🧪 Testing CI/CD failure tracking..."
-          echo "ERROR: Simulating build failure!"
-          exit 1
+          # Build image
           docker build -f deployment/Dockerfile.prod -t ${{ env.REGISTRY_URL }}/${{ env.IMAGE_NAME }}:latest .
           
           # Push image
