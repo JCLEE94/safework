@@ -11,6 +11,7 @@ import { HealthEducation } from './components/HealthEducation';
 import { ChemicalSubstances } from './components/ChemicalSubstances';
 import { AccidentReports } from './components/AccidentReports';
 import { UnifiedDocuments } from './components/UnifiedDocuments';
+import IntegratedDocuments from './components/IntegratedDocuments';
 import { EnhancedReports } from './components/EnhancedReports';
 import { Settings } from './components/Settings';
 import ErrorBoundary from './components/ErrorBoundary';
@@ -37,6 +38,8 @@ function App() {
         return <AccidentReports />;
       case 'unified-documents':
         return <UnifiedDocuments />;
+      case 'integrated-documents':
+        return <IntegratedDocuments />;
       case 'reports':
         return <EnhancedReports />;
       case 'monitoring':

@@ -14,6 +14,9 @@ from ..services.cache import CacheService
 
 logger = logging.getLogger(__name__)
 
+from ..config.settings import get_settings
+
+settings = get_settings()
 router = APIRouter(prefix="/api/v1/pipeline", tags=["pipeline"])
 
 # In-memory storage for pipeline status (in production, use Redis)
@@ -247,7 +250,7 @@ async def monitor_deployment(commit: str):
             commit=commit,
             status="in_progress",
             environment="production",
-            url="http://192.168.50.215:3001",
+            url=settings.production_url,
             timestamp=datetime.utcnow().isoformat()
         )
         
