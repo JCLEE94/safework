@@ -35,7 +35,7 @@ env:
 jobs:
   test:
     name: Run Tests
-    runs-on: self-hosted
+    runs-on: [self-hosted, linux]
     if: ${{ !inputs.skip_tests }}
     
     services:
@@ -105,7 +105,7 @@ jobs:
 
   security-scan:
     name: Security Scan
-    runs-on: self-hosted
+    runs-on: [self-hosted, linux]
     needs: test
     if: github.event_name == 'push' || github.event_name == 'workflow_dispatch'
     
@@ -130,7 +130,7 @@ jobs:
 
   build-and-push:
     name: Build and Push Docker Image
-    runs-on: self-hosted
+    runs-on: [self-hosted, linux]
     needs: [test, security-scan]
     if: |
       always() && 
@@ -202,7 +202,7 @@ jobs:
 
   update-manifests:
     name: Update K8s Manifests
-    runs-on: self-hosted
+    runs-on: [self-hosted, linux]
     needs: build-and-push
     if: github.ref == 'refs/heads/main' && github.event_name == 'push'
     
@@ -250,7 +250,7 @@ jobs:
 
   notify-argocd:
     name: Notify ArgoCD
-    runs-on: self-hosted
+    runs-on: [self-hosted, linux]
     needs: [build-and-push, update-manifests]
     if: github.ref == 'refs/heads/main' && github.event_name == 'push'
     
@@ -274,7 +274,7 @@ jobs:
 
   verify-deployment:
     name: Verify Production Deployment
-    runs-on: self-hosted
+    runs-on: [self-hosted, linux]
     needs: notify-argocd
     if: github.ref == 'refs/heads/main' && github.event_name == 'push'
     
@@ -322,7 +322,7 @@ jobs:
 
   rollback-notification:
     name: Rollback Notification
-    runs-on: self-hosted
+    runs-on: [self-hosted, linux]
     needs: [build-and-push, update-manifests, notify-argocd, verify-deployment]
     if: failure() && github.ref == 'refs/heads/main'
     
