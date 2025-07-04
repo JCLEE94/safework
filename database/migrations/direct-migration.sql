@@ -206,7 +206,7 @@ CREATE TABLE special_material_usage (
     quantity_used NUMERIC(15, 3) NOT NULL,
     unit VARCHAR(20) NOT NULL,
     concentration NUMERIC(10, 6),
-    worker_id UUID REFERENCES workers(id) ON DELETE SET NULL,
+    worker_id UUID,
     worker_count INTEGER NOT NULL DEFAULT 1,
     exposure_duration_hours NUMERIC(5, 2),
     control_measures JSONB,
@@ -450,7 +450,7 @@ ALTER TABLE health_consultations ADD COLUMN IF NOT EXISTS follow_up_notes TEXT;
 
 CREATE TABLE health_consultation_follow_ups (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    consultation_id UUID NOT NULL REFERENCES health_consultations(id) ON DELETE CASCADE,
+    consultation_id UUID NOT NULL,
     follow_up_date TIMESTAMP NOT NULL,
     follow_up_type VARCHAR(50) NOT NULL,
     status VARCHAR(20) NOT NULL DEFAULT 'pending',
@@ -463,7 +463,7 @@ CREATE TABLE health_consultation_follow_ups (
 
 CREATE TABLE health_consultation_attachments (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    consultation_id UUID NOT NULL REFERENCES health_consultations(id) ON DELETE CASCADE,
+    consultation_id UUID NOT NULL,
     file_name VARCHAR(255) NOT NULL,
     file_path VARCHAR(500) NOT NULL,
     file_size INTEGER NOT NULL,
@@ -491,14 +491,12 @@ INSERT INTO system_settings (
     company_registration_number,
     workplace_name,
     total_employees,
-    construction_employees,
-    created_by
+    construction_employees
 ) VALUES (
     gen_random_uuid(),
     'SafeWork Pro',
     '000-00-00000',
     '건설현장',
     100,
-    50,
-    'system'
+    50
 ) ON CONFLICT DO NOTHING;
