@@ -47,7 +47,7 @@ async def get_dashboard_data(db: AsyncSession = Depends(get_db)):
     completed_this_month = completed_this_month_result.scalar()
     
     pending_exams_result = await db.execute(
-        select(func.count(HealthExam.id)).where(HealthExam.exam_result == "pending")
+        select(func.count(HealthExam.id)).where(HealthExam.exam_result.is_(None))
     )
     pending_exams = pending_exams_result.scalar()
     
