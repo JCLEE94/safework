@@ -32,11 +32,53 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  # ===== MCP 설정 검증 =====
+  validate-mcp:
+    name: Validate MCP Configuration
+    runs-on: ubuntu-latest
+    outputs:
+      mcp-valid: ${{ steps.validate.outputs.valid }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Validate MCP Configuration
+        id: validate
+        run: |
+          if [ -f ".mcp.json" ]; then
+            echo "🔍 Validating MCP configuration..."
+            
+            # JSON 구조 검증
+            if ! jq -e . .mcp.json > /dev/null 2>&1; then
+              echo "❌ Invalid JSON in .mcp.json"
+              echo "valid=false" >> $GITHUB_OUTPUT
+              exit 1
+            fi
+            
+            # 필수 구조 검증
+            if ! jq -e '.mcpServers' .mcp.json > /dev/null 2>&1; then
+              echo "❌ Missing mcpServers in .mcp.json"
+              echo "valid=false" >> $GITHUB_OUTPUT
+              exit 1
+            fi
+            
+            echo "✅ MCP configuration is valid"
+            echo "valid=true" >> $GITHUB_OUTPUT
+            
+            # MCP 서버 목록 출력
+            echo "📋 Configured MCP servers:"
+            jq -r '.mcpServers | keys[]' .mcp.json
+          else
+            echo "ℹ️ No MCP configuration found (optional)"
+            echo "valid=true" >> $GITHUB_OUTPUT
+          fi
+
   # ===== 테스트 단계 =====
   test:
     name: Test Suite
     runs-on: [self-hosted, linux]
-    if: ${{ !inputs.skip_tests }}
+    needs: [validate-mcp]
+    if: ${{ !inputs.skip_tests && needs.validate-mcp.outputs.mcp-valid == 'true' }}
     outputs:
       test-status: ${{ steps.test-summary.outputs.status }}
       coverage: ${{ steps.test-summary.outputs.coverage }}

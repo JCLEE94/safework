@@ -206,6 +206,20 @@ jobs:
           echo "### Diff Statistics:" >> diff-summary.txt
           gh pr diff ${{ steps.context.outputs.issue_number }} --stat >> diff-summary.txt
       
+      - name: Load MCP Configuration
+        id: mcp
+        run: |
+          if [ -f ".mcp.json" ]; then
+            echo "MCP configuration found"
+            MCP_CONFIG=$(cat .mcp.json | jq -c .)
+            echo "config<<EOF" >> $GITHUB_OUTPUT
+            echo "$MCP_CONFIG" >> $GITHUB_OUTPUT
+            echo "EOF" >> $GITHUB_OUTPUT
+          else
+            echo "No MCP configuration found"
+            echo "config={}" >> $GITHUB_OUTPUT
+          fi
+      
       - name: Run Claude AI Analysis
         uses: grll/claude-code-base-action@beta
         with:
@@ -214,9 +228,12 @@ jobs:
           claude_access_token: ${{ secrets.CLAUDE_ACCESS_TOKEN }}
           claude_refresh_token: ${{ secrets.CLAUDE_REFRESH_TOKEN }}
           claude_expires_at: ${{ secrets.CLAUDE_EXPIRES_AT }}
+          mcp_config: ${{ steps.mcp.outputs.config }}
           max_turns: 5
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          BRAVE_API_KEY: ${{ secrets.BRAVE_API_KEY }}
+          KUBECONFIG: ${{ secrets.KUBECONFIG }}
         continue-on-error: true
       
       - name: Post review results
