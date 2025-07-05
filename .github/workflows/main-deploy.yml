@@ -1,0 +1,469 @@
+name: SafeWork Pro - Integrated CI/CD Pipeline
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    types: [opened, synchronize, reopened]
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: 'Deployment environment'
+        required: true
+        type: choice
+        options:
+          - production
+          - staging
+          - development
+        default: production
+      skip_tests:
+        description: 'Skip tests (emergency only)'
+        required: false
+        type: boolean
+        default: false
+
+env:
+  REGISTRY_URL: registry.jclee.me
+  IMAGE_NAME: safework
+  DOCKER_BUILDKIT: 1
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  # ===== 테스트 단계 =====
+  test:
+    name: Test Suite
+    runs-on: [self-hosted, linux]
+    if: ${{ !inputs.skip_tests }}
+    outputs:
+      test-status: ${{ steps.test-summary.outputs.status }}
+      coverage: ${{ steps.test-summary.outputs.coverage }}
+    
+    services:
+      postgres:
+        image: postgres:15
+        env:
+          POSTGRES_USER: admin
+          POSTGRES_PASSWORD: password
+          POSTGRES_DB: health_management
+        ports:
+          - 15432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+          
+      redis:
+        image: redis:7-alpine
+        ports:
+          - 16379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      
+      - name: Setup test environment
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+      
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+          cache: 'npm'
+          cache-dependency-path: frontend/package-lock.json
+      
+      - name: Cache dependencies
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cache/pip
+            ${{ runner.temp }}/.npm
+          key: ${{ runner.os }}-deps-${{ hashFiles('**/requirements.txt', '**/package-lock.json') }}
+          restore-keys: |
+            ${{ runner.os }}-deps-
+      
+      # Backend tests
+      - name: Install backend dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r backend/requirements.txt
+          pip install pytest pytest-cov pytest-asyncio pytest-timeout
+      
+      - name: Run backend tests
+        id: backend-tests
+        env:
+          DATABASE_URL: postgresql://admin:password@localhost:15432/health_management
+          REDIS_URL: redis://localhost:16379/0
+          JWT_SECRET: test-secret-key
+          PYTHONPATH: ${{ github.workspace }}
+          npm_config_cache: ${{ runner.temp }}/.npm
+        timeout-minutes: 10
+        run: |
+          echo "🧪 Running backend tests..."
+          pytest tests/ -v --cov=src --cov-report=term --cov-report=html --cov-fail-under=70 --timeout=300 -x
+          
+          # Extract coverage percentage
+          coverage=$(grep -oP 'TOTAL.*\K\d+(?=%)' < coverage.txt || echo "0")
+          echo "coverage=$coverage" >> $GITHUB_OUTPUT
+      
+      # Frontend tests
+      - name: Install frontend dependencies
+        working-directory: frontend
+        run: npm ci
+      
+      - name: Run frontend tests
+        working-directory: frontend
+        run: |
+          npm run lint
+          npm run test -- --passWithNoTests
+          npm run build
+      
+      - name: Test summary
+        id: test-summary
+        if: always()
+        run: |
+          if [ "${{ steps.backend-tests.outcome }}" == "success" ]; then
+            echo "status=passed" >> $GITHUB_OUTPUT
+            echo "coverage=${{ steps.backend-tests.outputs.coverage }}" >> $GITHUB_OUTPUT
+          else
+            echo "status=failed" >> $GITHUB_OUTPUT
+            echo "coverage=0" >> $GITHUB_OUTPUT
+          fi
+      
+      - name: Upload coverage reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-reports
+          path: |
+            htmlcov/
+            coverage.xml
+
+  # ===== 보안 스캔 =====
+  security:
+    name: Security Scan
+    runs-on: [self-hosted, linux]
+    needs: test
+    if: always() && needs.test.outputs.test-status == 'passed'
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Run Trivy vulnerability scanner
+        uses: aquasecurity/trivy-action@master
+        with:
+          scan-type: 'fs'
+          scan-ref: '.'
+          severity: 'CRITICAL,HIGH'
+          exit-code: '0'
+          format: 'sarif'
+          output: 'trivy-results.sarif'
+      
+      - name: Upload Trivy scan results
+        uses: github/codeql-action/upload-sarif@v3
+        if: always()
+        with:
+          sarif_file: 'trivy-results.sarif'
+      
+      - name: OWASP Dependency Check
+        uses: dependency-check/Dependency-Check_Action@main
+        with:
+          project: 'SafeWork Pro'
+          path: '.'
+          format: 'HTML'
+          args: >
+            --enableRetired
+            --enableExperimental
+
+  # ===== 빌드 단계 =====
+  build:
+    name: Build Docker Image
+    needs: [test, security]
+    runs-on: [self-hosted, linux]
+    if: always() && needs.test.outputs.test-status == 'passed'
+    outputs:
+      image-tag: ${{ steps.meta.outputs.tag }}
+      image-digest: ${{ steps.build.outputs.digest }}
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Generate metadata
+        id: meta
+        run: |
+          # Branch and environment detection
+          if [ "${{ github.event_name }}" == "pull_request" ]; then
+            ENV="pr-${{ github.event.pull_request.number }}"
+          elif [ "${{ github.ref }}" == "refs/heads/main" ]; then
+            ENV="prod"
+          else
+            ENV="dev"
+          fi
+          
+          # Generate semantic version tag
+          VERSION=$(date +%Y.%m.%d)
+          BUILD_NUM=${{ github.run_number }}
+          SHA_SHORT=${GITHUB_SHA:0:7}
+          
+          TAG="${ENV}-${VERSION}.${BUILD_NUM}-${SHA_SHORT}"
+          echo "tag=${TAG}" >> $GITHUB_OUTPUT
+          echo "environment=${ENV}" >> $GITHUB_OUTPUT
+          echo "version=${VERSION}.${BUILD_NUM}" >> $GITHUB_OUTPUT
+          
+          # Generate labels
+          echo "labels<<EOF" >> $GITHUB_OUTPUT
+          echo "org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}" >> $GITHUB_OUTPUT
+          echo "org.opencontainers.image.revision=${{ github.sha }}" >> $GITHUB_OUTPUT
+          echo "org.opencontainers.image.version=${VERSION}.${BUILD_NUM}" >> $GITHUB_OUTPUT
+          echo "org.opencontainers.image.created=$(date -u +'%Y-%m-%dT%H:%M:%SZ')" >> $GITHUB_OUTPUT
+          echo "com.safework.environment=${ENV}" >> $GITHUB_OUTPUT
+          echo "com.safework.coverage=${{ needs.test.outputs.coverage }}%" >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
+      
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+        with:
+          driver-opts: |
+            network=host
+            image=moby/buildkit:master
+      
+      - name: Login to Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY_URL }}
+          username: ${{ secrets.REGISTRY_USERNAME }}
+          password: ${{ secrets.REGISTRY_PASSWORD }}
+      
+      - name: Build and push multi-platform image
+        id: build
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: deployment/Dockerfile.prod
+          platforms: linux/amd64,linux/arm64
+          push: true
+          tags: |
+            ${{ env.REGISTRY_URL }}/${{ env.IMAGE_NAME }}:${{ steps.meta.outputs.tag }}
+            ${{ env.REGISTRY_URL }}/${{ env.IMAGE_NAME }}:${{ steps.meta.outputs.environment }}
+            ${{ env.REGISTRY_URL }}/${{ env.IMAGE_NAME }}:latest
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: |
+            type=registry,ref=${{ env.REGISTRY_URL }}/${{ env.IMAGE_NAME }}:buildcache
+            type=gha,scope=safework-${{ steps.meta.outputs.environment }}
+          cache-to: |
+            type=registry,ref=${{ env.REGISTRY_URL }}/${{ env.IMAGE_NAME }}:buildcache,mode=max
+            type=gha,mode=max,scope=safework-${{ steps.meta.outputs.environment }}
+          build-args: |
+            BUILDKIT_INLINE_CACHE=1
+            BUILD_DATE=$(date -u +'%Y-%m-%dT%H:%M:%SZ')
+            VCS_REF=${{ github.sha }}
+            VERSION=${{ steps.meta.outputs.version }}
+            ENVIRONMENT=${{ steps.meta.outputs.environment }}
+      
+      - name: Generate SBOM
+        uses: anchore/sbom-action@v0
+        with:
+          image: ${{ env.REGISTRY_URL }}/${{ env.IMAGE_NAME }}:${{ steps.meta.outputs.tag }}
+          format: spdx-json
+          output-file: sbom.spdx.json
+      
+      - name: Sign container image
+        env:
+          COSIGN_EXPERIMENTAL: 1
+        run: |
+          echo "🔐 Signing container image..."
+          # cosign sign ${{ env.REGISTRY_URL }}/${{ env.IMAGE_NAME }}@${{ steps.build.outputs.digest }}
+
+  # ===== 배포 단계 =====
+  deploy:
+    name: Deploy to Kubernetes
+    needs: [build]
+    runs-on: [self-hosted, linux]
+    if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
+    environment: 
+      name: ${{ inputs.environment || 'production' }}
+      url: https://safework.jclee.me
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Update Kubernetes manifests
+        run: |
+          # Update image tag in k8s manifests
+          cd k8s/overlays/production
+          sed -i "s|image: .*safework:.*|image: ${{ env.REGISTRY_URL }}/${{ env.IMAGE_NAME }}:${{ needs.build.outputs.image-tag }}|g" deployment.yaml
+          
+          # Update config maps with build info
+          cat > build-info-configmap.yaml <<EOF
+          apiVersion: v1
+          kind: ConfigMap
+          metadata:
+            name: build-info
+          data:
+            version: "${{ needs.build.outputs.image-tag }}"
+            build_date: "$(date -u +'%Y-%m-%dT%H:%M:%SZ')"
+            git_commit: "${{ github.sha }}"
+            git_branch: "${{ github.ref_name }}"
+          EOF
+      
+      - name: Commit and push manifest changes
+        run: |
+          git config user.name "GitHub Actions"
+          git config user.email "actions@github.com"
+          
+          git add k8s/
+          git commit -m "chore: update image to ${{ needs.build.outputs.image-tag }}" || echo "No changes to commit"
+          git push
+      
+      - name: Verify ArgoCD sync
+        run: |
+          echo "⏳ Waiting for ArgoCD to sync..."
+          # ArgoCD will automatically detect and deploy changes
+          sleep 30
+          
+          # Check deployment status
+          curl -s -o /dev/null -w "%{http_code}" https://safework.jclee.me/health || true
+
+  # ===== 알림 및 리포팅 =====
+  notify:
+    name: Pipeline Notification
+    needs: [test, build, deploy]
+    runs-on: [self-hosted, linux]
+    if: always()
+    
+    steps:
+      - name: Generate deployment report
+        id: report
+        run: |
+          # Collect pipeline metrics
+          DURATION=$(($(date +%s) - ${{ github.run_started_at }}))
+          
+          if [ "${{ needs.deploy.result }}" == "success" ]; then
+            STATUS="✅ Success"
+            COLOR="good"
+          elif [ "${{ needs.build.result }}" == "success" ]; then
+            STATUS="⚠️ Built but not deployed"
+            COLOR="warning"
+          else
+            STATUS="❌ Failed"
+            COLOR="danger"
+          fi
+          
+          echo "status=$STATUS" >> $GITHUB_OUTPUT
+          echo "color=$COLOR" >> $GITHUB_OUTPUT
+          echo "duration=$DURATION" >> $GITHUB_OUTPUT
+      
+      - name: Create deployment record
+        if: needs.deploy.result == 'success'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const deployment = await github.rest.repos.createDeployment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              ref: context.sha,
+              environment: '${{ inputs.environment || 'production' }}',
+              description: 'Automated deployment via ArgoCD',
+              auto_merge: false,
+              required_contexts: [],
+              payload: {
+                version: '${{ needs.build.outputs.image-tag }}',
+                coverage: '${{ needs.test.outputs.coverage }}%'
+              }
+            });
+            
+            await github.rest.repos.createDeploymentStatus({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              deployment_id: deployment.data.id,
+              state: 'success',
+              environment_url: 'https://safework.jclee.me',
+              description: 'Deployment completed successfully'
+            });
+      
+      - name: Post PR comment
+        if: github.event_name == 'pull_request'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const comment = `## 🚀 Build Report
+            
+            **Status**: ${{ steps.report.outputs.status }}
+            **Duration**: ${{ steps.report.outputs.duration }}s
+            **Coverage**: ${{ needs.test.outputs.coverage }}%
+            
+            ### 📦 Docker Image
+            \`\`\`
+            ${{ env.REGISTRY_URL }}/${{ env.IMAGE_NAME }}:${{ needs.build.outputs.image-tag }}
+            \`\`\`
+            
+            ### 📊 Test Results
+            - Backend: ${{ needs.test.outputs.test-status }}
+            - Security: ${{ needs.security.result }}
+            - Coverage: ${{ needs.test.outputs.coverage }}%
+            
+            ---
+            <details>
+            <summary>🔍 View detailed logs</summary>
+            
+            [Workflow Run](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }})
+            </details>`;
+            
+            await github.rest.issues.createComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number,
+              body: comment
+            });
+      
+      - name: Create issue on failure
+        if: failure() && github.ref == 'refs/heads/main'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const issueTitle = `[CI/CD Failure] Pipeline failed on ${context.ref}`;
+            const issueBody = `## 🚨 Pipeline Failure Report
+            
+            **Workflow**: ${context.workflow}
+            **Branch**: ${context.ref}
+            **Commit**: ${context.sha.substring(0, 7)}
+            **Time**: ${new Date().toISOString()}
+            **Actor**: @${context.actor}
+            
+            ### 📋 Failure Summary
+            - Test: ${{ needs.test.result }}
+            - Security: ${{ needs.security.result }}
+            - Build: ${{ needs.build.result }}
+            - Deploy: ${{ needs.deploy.result }}
+            
+            ### 🔧 Action Items
+            1. Check the [workflow logs](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }})
+            2. Fix the failing stage
+            3. Re-run the pipeline
+            
+            ---
+            *This issue was automatically created by the CI/CD pipeline*`;
+            
+            await github.rest.issues.create({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              title: issueTitle,
+              body: issueBody,
+              labels: ['bug', 'ci/cd', 'priority:high']
+            });

@@ -1,0 +1,316 @@
+name: Reusable K8s Deployment
+
+on:
+  workflow_call:
+    inputs:
+      environment:
+        description: 'Deployment environment'
+        required: true
+        type: string
+      image-tag:
+        description: 'Docker image tag to deploy'
+        required: true
+        type: string
+      namespace:
+        description: 'Kubernetes namespace'
+        required: false
+        type: string
+        default: 'safework'
+      argocd-app:
+        description: 'ArgoCD application name'
+        required: false
+        type: string
+        default: 'safework'
+      deployment-type:
+        description: 'Deployment type (argocd or direct)'
+        required: false
+        type: string
+        default: 'argocd'
+    secrets:
+      KUBECONFIG:
+        required: false
+      ARGOCD_TOKEN:
+        required: false
+
+jobs:
+  deploy:
+    runs-on: [self-hosted, linux]
+    environment: 
+      name: ${{ inputs.environment }}
+      url: ${{ steps.deploy.outputs.app-url }}
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      # Kustomize 설정
+      - name: Setup Kustomize
+        run: |
+          curl -s "https://raw.githubusercontent.com/kubernetes-sigs/kustomize/master/hack/install_kustomize.sh" | bash
+          sudo mv kustomize /usr/local/bin/
+      
+      # Kubernetes 매니페스트 업데이트
+      - name: Update K8s manifests
+        run: |
+          cd k8s/overlays/${{ inputs.environment }}
+          
+          # Update image tag
+          cat > kustomization.yaml <<EOF
+          apiVersion: kustomize.config.k8s.io/v1beta1
+          kind: Kustomization
+          
+          namespace: ${{ inputs.namespace }}
+          
+          resources:
+            - ../../base
+          
+          images:
+            - name: registry.jclee.me/safework
+              newTag: ${{ inputs.image-tag }}
+          
+          replicas:
+            - name: safework
+              count: $([ "${{ inputs.environment }}" = "production" ] && echo 3 || echo 1)
+          
+          configMapGenerator:
+            - name: app-config
+              files:
+                - config.yaml
+              behavior: merge
+            - name: build-info
+              literals:
+                - version=${{ inputs.image-tag }}
+                - environment=${{ inputs.environment }}
+                - build_date=$(date -u +'%Y-%m-%dT%H:%M:%SZ')
+                - git_commit=${{ github.sha }}
+          
+          secretGenerator:
+            - name: app-secrets
+              envs:
+                - secrets.env
+              behavior: merge
+          
+          patches:
+            - target:
+                kind: Deployment
+                name: safework
+              patch: |-
+                - op: replace
+                  path: /spec/template/spec/containers/0/resources
+                  value:
+                    limits:
+                      cpu: $([ "${{ inputs.environment }}" = "production" ] && echo "2000m" || echo "500m")
+                      memory: $([ "${{ inputs.environment }}" = "production" ] && echo "4Gi" || echo "1Gi")
+                    requests:
+                      cpu: $([ "${{ inputs.environment }}" = "production" ] && echo "1000m" || echo "100m")
+                      memory: $([ "${{ inputs.environment }}" = "production" ] && echo "2Gi" || echo "256Mi")
+          EOF
+          
+          # Environment-specific config
+          cat > config.yaml <<EOF
+          environment: ${{ inputs.environment }}
+          database:
+            maxConnections: $([ "${{ inputs.environment }}" = "production" ] && echo 100 || echo 10)
+            connectionTimeout: 30000
+          redis:
+            maxConnections: $([ "${{ inputs.environment }}" = "production" ] && echo 50 || echo 5)
+          features:
+            debug: $([ "${{ inputs.environment }}" = "production" ] && echo "false" || echo "true")
+            monitoring: true
+            metrics: true
+          EOF
+          
+          # Generate manifests
+          kustomize build . > manifests.yaml
+          
+          echo "📋 Generated manifests:"
+          echo "Size: $(wc -l < manifests.yaml) lines"
+      
+      # ArgoCD 배포
+      - name: Deploy via ArgoCD
+        if: inputs.deployment-type == 'argocd'
+        id: argocd-deploy
+        run: |
+          # Commit manifest changes
+          git config user.name "GitHub Actions"
+          git config user.email "actions@github.com"
+          
+          git add k8s/overlays/${{ inputs.environment }}
+          git commit -m "chore(k8s): update ${{ inputs.environment }} to ${{ inputs.image-tag }}" || echo "No changes"
+          git push
+          
+          # ArgoCD sync
+          if [ -n "${{ secrets.ARGOCD_TOKEN }}" ]; then
+            echo "🔄 Triggering ArgoCD sync..."
+            curl -sSL -X POST \
+              https://argo.jclee.me/api/v1/applications/${{ inputs.argocd-app }}/sync \
+              -H "Authorization: Bearer ${{ secrets.ARGOCD_TOKEN }}" \
+              -H "Content-Type: application/json" \
+              -d '{
+                "revision": "${{ github.sha }}",
+                "prune": true,
+                "dryRun": false,
+                "strategy": {
+                  "hook": {
+                    "force": true
+                  }
+                }
+              }'
+          else
+            echo "⏳ ArgoCD will auto-sync within 3 minutes..."
+          fi
+          
+          # Set app URL
+          case "${{ inputs.environment }}" in
+            production)
+              echo "app-url=https://safework.jclee.me" >> $GITHUB_OUTPUT
+              ;;
+            staging)
+              echo "app-url=https://staging.safework.jclee.me" >> $GITHUB_OUTPUT
+              ;;
+            *)
+              echo "app-url=https://dev.safework.jclee.me" >> $GITHUB_OUTPUT
+              ;;
+          esac
+      
+      # Direct K8s 배포 (백업용)
+      - name: Deploy directly to K8s
+        if: inputs.deployment-type == 'direct' && secrets.KUBECONFIG
+        id: direct-deploy
+        run: |
+          # Setup kubeconfig
+          echo "${{ secrets.KUBECONFIG }}" | base64 -d > /tmp/kubeconfig
+          export KUBECONFIG=/tmp/kubeconfig
+          
+          # Apply manifests
+          cd k8s/overlays/${{ inputs.environment }}
+          kustomize build . | kubectl apply -f -
+          
+          # Wait for rollout
+          kubectl rollout status deployment/safework -n ${{ inputs.namespace }} --timeout=5m
+          
+          # Get service URL
+          SERVICE_URL=$(kubectl get ingress safework -n ${{ inputs.namespace }} -o jsonpath='{.spec.rules[0].host}')
+          echo "app-url=https://$SERVICE_URL" >> $GITHUB_OUTPUT
+          
+          # Cleanup
+          rm -f /tmp/kubeconfig
+      
+      # 배포 검증
+      - name: Verify deployment
+        id: verify
+        run: |
+          APP_URL="${{ steps.argocd-deploy.outputs.app-url || steps.direct-deploy.outputs.app-url }}"
+          echo "🔍 Verifying deployment at $APP_URL"
+          
+          # Wait for app to be ready
+          MAX_ATTEMPTS=30
+          ATTEMPT=0
+          
+          while [ $ATTEMPT -lt $MAX_ATTEMPTS ]; do
+            HTTP_STATUS=$(curl -s -o /dev/null -w "%{http_code}" "$APP_URL/health" || echo "000")
+            
+            if [ "$HTTP_STATUS" = "200" ]; then
+              echo "✅ Application is healthy!"
+              break
+            else
+              echo "⏳ Waiting for application... (attempt $((ATTEMPT + 1))/$MAX_ATTEMPTS, status: $HTTP_STATUS)"
+              sleep 10
+              ATTEMPT=$((ATTEMPT + 1))
+            fi
+          done
+          
+          if [ $ATTEMPT -eq $MAX_ATTEMPTS ]; then
+            echo "❌ Application health check failed after $MAX_ATTEMPTS attempts"
+            exit 1
+          fi
+          
+          # Additional checks
+          curl -s "$APP_URL/api/v1/version" | jq . || true
+      
+      # 배포 메트릭 수집
+      - name: Collect deployment metrics
+        if: always()
+        run: |
+          cat > deployment-metrics.json <<EOF
+          {
+            "environment": "${{ inputs.environment }}",
+            "image_tag": "${{ inputs.image-tag }}",
+            "deployment_type": "${{ inputs.deployment-type }}",
+            "timestamp": "$(date -u +'%Y-%m-%dT%H:%M:%SZ')",
+            "duration_seconds": $SECONDS,
+            "status": "${{ steps.verify.outcome }}",
+            "app_url": "${{ steps.argocd-deploy.outputs.app-url || steps.direct-deploy.outputs.app-url }}",
+            "git_commit": "${{ github.sha }}",
+            "triggered_by": "${{ github.actor }}"
+          }
+          EOF
+          
+          echo "📊 Deployment metrics:"
+          jq . deployment-metrics.json
+      
+      # Slack/Discord 알림
+      - name: Send deployment notification
+        if: always()
+        continue-on-error: true
+        run: |
+          STATUS_EMOJI=$([ "${{ steps.verify.outcome }}" = "success" ] && echo "✅" || echo "❌")
+          STATUS_TEXT=$([ "${{ steps.verify.outcome }}" = "success" ] && echo "succeeded" || echo "failed")
+          
+          # Slack webhook (if configured)
+          if [ -n "${{ secrets.SLACK_WEBHOOK }}" ]; then
+            curl -X POST "${{ secrets.SLACK_WEBHOOK }}" \
+              -H "Content-Type: application/json" \
+              -d "{
+                \"text\": \"$STATUS_EMOJI Deployment to ${{ inputs.environment }} $STATUS_TEXT\",
+                \"attachments\": [{
+                  \"color\": \"$([ "${{ steps.verify.outcome }}" = "success" ] && echo "good" || echo "danger")\",
+                  \"fields\": [
+                    {\"title\": \"Environment\", \"value\": \"${{ inputs.environment }}\", \"short\": true},
+                    {\"title\": \"Version\", \"value\": \"${{ inputs.image-tag }}\", \"short\": true},
+                    {\"title\": \"URL\", \"value\": \"${{ steps.argocd-deploy.outputs.app-url || steps.direct-deploy.outputs.app-url }}\"},
+                    {\"title\": \"Triggered by\", \"value\": \"${{ github.actor }}\", \"short\": true}
+                  ]
+                }]
+              }"
+          fi
+      
+      # 배포 기록 저장
+      - name: Save deployment record
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const deployment = await github.rest.repos.createDeployment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              ref: context.sha,
+              environment: '${{ inputs.environment }}',
+              description: 'Deployed via ${{ inputs.deployment-type }}',
+              auto_merge: false,
+              required_contexts: [],
+              payload: {
+                image_tag: '${{ inputs.image-tag }}',
+                namespace: '${{ inputs.namespace }}',
+                deployment_type: '${{ inputs.deployment-type }}'
+              }
+            });
+            
+            await github.rest.repos.createDeploymentStatus({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              deployment_id: deployment.data.id,
+              state: '${{ steps.verify.outcome }}',
+              environment_url: '${{ steps.argocd-deploy.outputs.app-url || steps.direct-deploy.outputs.app-url }}',
+              description: 'Deployment ${{ steps.verify.outcome }}'
+            });
+      
+      # 아티팩트 업로드
+      - name: Upload deployment artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: deployment-${{ inputs.environment }}-${{ github.run_id }}
+          path: |
+            k8s/overlays/${{ inputs.environment }}/manifests.yaml
+            deployment-metrics.json
+          retention-days: 30

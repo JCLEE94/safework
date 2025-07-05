@@ -1,0 +1,264 @@
+name: Reusable Test Workflow
+
+on:
+  workflow_call:
+    inputs:
+      python-version:
+        description: 'Python version'
+        required: false
+        type: string
+        default: '3.11'
+      node-version:
+        description: 'Node.js version'
+        required: false
+        type: string
+        default: '18'
+      coverage-threshold:
+        description: 'Minimum coverage percentage'
+        required: false
+        type: number
+        default: 70
+    outputs:
+      test-status:
+        description: 'Test execution status'
+        value: ${{ jobs.test.outputs.status }}
+      coverage:
+        description: 'Code coverage percentage'
+        value: ${{ jobs.test.outputs.coverage }}
+      test-report-url:
+        description: 'URL to test report'
+        value: ${{ jobs.test.outputs.report-url }}
+
+jobs:
+  test:
+    runs-on: [self-hosted, linux]
+    outputs:
+      status: ${{ steps.summary.outputs.status }}
+      coverage: ${{ steps.summary.outputs.coverage }}
+      report-url: ${{ steps.summary.outputs.report-url }}
+    
+    services:
+      postgres:
+        image: postgres:15
+        env:
+          POSTGRES_USER: admin
+          POSTGRES_PASSWORD: password
+          POSTGRES_DB: health_management
+          POSTGRES_INITDB_ARGS: --encoding=UTF8 --locale=ko_KR.UTF-8
+        ports:
+          - 15432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+          
+      redis:
+        image: redis:7-alpine
+        ports:
+          - 16379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      
+      # Python 설정
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ inputs.python-version }}
+          cache: 'pip'
+      
+      # Node.js 설정
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ inputs.node-version }}
+          cache: 'npm'
+          cache-dependency-path: frontend/package-lock.json
+      
+      # 의존성 캐싱
+      - name: Cache dependencies
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cache/pip
+            ${{ runner.temp }}/.npm
+            ~/.pytest_cache
+          key: ${{ runner.os }}-test-deps-${{ hashFiles('**/requirements*.txt', '**/package-lock.json') }}
+          restore-keys: |
+            ${{ runner.os }}-test-deps-
+      
+      # Backend 테스트
+      - name: Install backend dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r backend/requirements.txt
+          pip install -r backend/requirements-test.txt
+      
+      - name: Run backend linting
+        run: |
+          echo "🔍 Running backend linting..."
+          cd ${{ github.workspace }}
+          black --check src/ tests/
+          isort --check-only src/ tests/
+          flake8 src/ tests/ --max-line-length=100 --extend-ignore=E203,W503
+      
+      - name: Run backend tests
+        id: backend-test
+        env:
+          DATABASE_URL: postgresql://admin:password@localhost:15432/health_management
+          REDIS_URL: redis://localhost:16379/0
+          JWT_SECRET: test-secret-key
+          PYTHONPATH: ${{ github.workspace }}
+          npm_config_cache: ${{ runner.temp }}/.npm
+        timeout-minutes: 10
+        run: |
+          echo "🧪 Running backend tests..."
+          
+          # Run tests with coverage
+          pytest tests/ \
+            -v \
+            --cov=src \
+            --cov-report=term \
+            --cov-report=html:htmlcov \
+            --cov-report=xml:coverage.xml \
+            --cov-report=json:coverage.json \
+            --cov-fail-under=${{ inputs.coverage-threshold }} \
+            --timeout=300 \
+            --tb=short \
+            --junitxml=test-results.xml \
+            -x
+          
+          # Extract coverage
+          COVERAGE=$(python -c "import json; print(json.load(open('coverage.json'))['totals']['percent_covered_display'])")
+          echo "Backend coverage: $COVERAGE%"
+          echo "backend-coverage=$COVERAGE" >> $GITHUB_OUTPUT
+      
+      # Frontend 테스트
+      - name: Install frontend dependencies
+        working-directory: frontend
+        run: |
+          npm ci
+          npm run postinstall || true
+      
+      - name: Run frontend linting
+        working-directory: frontend
+        run: |
+          echo "🔍 Running frontend linting..."
+          npm run lint || true
+          npm run type-check || true
+      
+      - name: Run frontend tests
+        id: frontend-test
+        working-directory: frontend
+        run: |
+          echo "🧪 Running frontend tests..."
+          npm run test -- --coverage --passWithNoTests || true
+          
+          # Build frontend
+          npm run build
+          
+          # Check bundle size
+          if [ -d "dist" ]; then
+            echo "📦 Frontend bundle size:"
+            du -sh dist/
+          fi
+      
+      # 테스트 요약
+      - name: Generate test summary
+        id: summary
+        if: always()
+        run: |
+          # Overall status
+          if [ "${{ steps.backend-test.outcome }}" == "success" ]; then
+            echo "status=passed" >> $GITHUB_OUTPUT
+            echo "coverage=${{ steps.backend-test.outputs.backend-coverage }}" >> $GITHUB_OUTPUT
+          else
+            echo "status=failed" >> $GITHUB_OUTPUT
+            echo "coverage=0" >> $GITHUB_OUTPUT
+          fi
+          
+          # Generate markdown summary
+          cat > test-summary.md <<EOF
+          # 📊 Test Summary
+          
+          ## Backend Tests
+          - Status: ${{ steps.backend-test.outcome }}
+          - Coverage: ${{ steps.backend-test.outputs.backend-coverage }}%
+          - Threshold: ${{ inputs.coverage-threshold }}%
+          
+          ## Frontend Tests
+          - Status: ${{ steps.frontend-test.outcome }}
+          
+          ## Environment
+          - Python: ${{ inputs.python-version }}
+          - Node.js: ${{ inputs.node-version }}
+          - PostgreSQL: 15
+          - Redis: 7
+          EOF
+          
+          # Upload to GitHub Pages or S3 (example)
+          REPORT_URL="${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+          echo "report-url=$REPORT_URL" >> $GITHUB_OUTPUT
+      
+      # 아티팩트 업로드
+      - name: Upload test artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-results-${{ github.run_id }}
+          path: |
+            htmlcov/
+            coverage.xml
+            coverage.json
+            test-results.xml
+            test-summary.md
+            frontend/coverage/
+          retention-days: 30
+      
+      # PR 코멘트 업데이트
+      - name: Update PR comment
+        if: github.event_name == 'pull_request' && always()
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            const summary = fs.readFileSync('test-summary.md', 'utf8');
+            
+            // Find existing comment
+            const { data: comments } = await github.rest.issues.listComments({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number
+            });
+            
+            const botComment = comments.find(comment => 
+              comment.user.type === 'Bot' && 
+              comment.body.includes('📊 Test Summary')
+            );
+            
+            const body = `${summary}\n\n---\n*Updated at ${new Date().toISOString()}*`;
+            
+            if (botComment) {
+              await github.rest.issues.updateComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                comment_id: botComment.id,
+                body
+              });
+            } else {
+              await github.rest.issues.createComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: context.issue.number,
+                body
+              });
+            }

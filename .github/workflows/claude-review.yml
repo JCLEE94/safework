@@ -1,0 +1,389 @@
+name: Claude AI Code Review
+
+on:
+  # PR 코멘트에서 @claude 멘션
+  issue_comment:
+    types: [created]
+  pull_request_review_comment:
+    types: [created]
+  
+  # PR 생성/업데이트 시 자동 리뷰
+  pull_request:
+    types: [opened, synchronize, reopened]
+    paths:
+      - '**.py'
+      - '**.js'
+      - '**.ts'
+      - '**.jsx'
+      - '**.tsx'
+      - '**.yml'
+      - '**.yaml'
+      - 'Dockerfile*'
+  
+  # 수동 실행
+  workflow_dispatch:
+    inputs:
+      action:
+        description: 'Claude action to perform'
+        required: true
+        type: choice
+        options:
+          - code-review
+          - security-audit
+          - performance-check
+          - test-generation
+          - documentation
+          - refactor-suggestions
+        default: code-review
+      target:
+        description: 'Target files or directories'
+        required: false
+        type: string
+        default: '.'
+
+permissions:
+  contents: read
+  issues: write
+  pull-requests: write
+  security-events: write
+
+jobs:
+  claude-review:
+    name: Claude AI Review
+    runs-on: ubuntu-latest
+    # @claude 멘션이 있거나 PR 이벤트인 경우만 실행
+    if: |
+      github.event_name == 'workflow_dispatch' ||
+      github.event_name == 'pull_request' ||
+      (github.event.comment && contains(github.event.comment.body, '@claude'))
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      
+      - name: Setup review context
+        id: context
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const event = context.eventName;
+            let action = 'code-review';
+            let target = '.';
+            let issueNumber = null;
+            let prompt = '';
+            
+            // 이벤트별 컨텍스트 파악
+            if (event === 'workflow_dispatch') {
+              action = context.payload.inputs.action;
+              target = context.payload.inputs.target;
+            } else if (event === 'pull_request') {
+              issueNumber = context.payload.pull_request.number;
+              action = 'code-review';
+              
+              // PR 변경 파일 목록 가져오기
+              const { data: files } = await github.rest.pulls.listFiles({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                pull_number: issueNumber
+              });
+              
+              target = files.map(f => f.filename).join(' ');
+            } else if (event.includes('comment')) {
+              const comment = context.payload.comment.body;
+              issueNumber = context.payload.issue?.number || context.payload.pull_request?.number;
+              
+              // 코멘트에서 액션 파싱
+              if (comment.includes('security')) action = 'security-audit';
+              else if (comment.includes('performance')) action = 'performance-check';
+              else if (comment.includes('test')) action = 'test-generation';
+              else if (comment.includes('docs')) action = 'documentation';
+              else if (comment.includes('refactor')) action = 'refactor-suggestions';
+              
+              // 타겟 파일 추출
+              const targetMatch = comment.match(/@claude\s+(\S+)\s+(.+)/);
+              if (targetMatch) target = targetMatch[2];
+            }
+            
+            // 액션별 프롬프트 생성
+            switch(action) {
+              case 'code-review':
+                prompt = `Please perform a comprehensive code review focusing on:
+                1. Code quality and best practices
+                2. Potential bugs or logic errors
+                3. Performance implications
+                4. Security vulnerabilities
+                5. Maintainability and readability
+                6. Korean healthcare industry compliance (의료법, 개인정보보호법)
+                
+                Context: This is a healthcare management system for construction sites in Korea.`;
+                break;
+                
+              case 'security-audit':
+                prompt = `Conduct a thorough security audit examining:
+                1. SQL injection vulnerabilities
+                2. XSS and CSRF protection
+                3. Authentication/authorization issues
+                4. Sensitive data exposure
+                5. Korean privacy law compliance (개인정보보호법, 의료법)
+                6. API security best practices
+                
+                Pay special attention to medical data handling and worker privacy.`;
+                break;
+                
+              case 'performance-check':
+                prompt = `Analyze performance characteristics:
+                1. Database query optimization (N+1 queries, indexes)
+                2. Caching opportunities
+                3. Async/await usage
+                4. Memory leaks
+                5. API response times
+                6. Frontend bundle size and loading performance`;
+                break;
+                
+              case 'test-generation':
+                prompt = `Generate comprehensive tests:
+                1. Unit tests for business logic
+                2. Integration tests for API endpoints
+                3. Edge cases and error scenarios
+                4. Korean data validation (주민번호, 사업자번호 formats)
+                5. Async operation testing
+                Use pytest for Python and Jest for JavaScript.`;
+                break;
+                
+              case 'documentation':
+                prompt = `Create or improve documentation:
+                1. Function/class docstrings
+                2. API endpoint documentation
+                3. Complex logic explanations
+                4. Korean terminology explanations
+                5. Usage examples
+                Use Korean for user-facing docs, English for technical docs.`;
+                break;
+                
+              case 'refactor-suggestions':
+                prompt = `Suggest refactoring improvements:
+                1. Code duplication removal
+                2. Design pattern applications
+                3. SOLID principles adherence
+                4. Type safety improvements
+                5. Error handling enhancements
+                6. Korean naming convention compliance`;
+                break;
+            }
+            
+            core.setOutput('action', action);
+            core.setOutput('target', target);
+            core.setOutput('issue_number', issueNumber);
+            core.setOutput('prompt', prompt);
+      
+      - name: Get diff context for PR
+        if: github.event_name == 'pull_request'
+        id: diff
+        run: |
+          # Get PR diff
+          gh pr diff ${{ steps.context.outputs.issue_number }} > pr.diff
+          
+          # Get changed files summary
+          echo "### Changed Files:" > diff-summary.txt
+          gh pr diff ${{ steps.context.outputs.issue_number }} --name-only >> diff-summary.txt
+          
+          echo "### Diff Statistics:" >> diff-summary.txt
+          gh pr diff ${{ steps.context.outputs.issue_number }} --stat >> diff-summary.txt
+      
+      - name: Run Claude AI Analysis
+        id: claude
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.CLAUDE_API_KEY }}
+        run: |
+          # Prepare context files
+          CONTEXT=""
+          if [ -f "pr.diff" ]; then
+            CONTEXT="$CONTEXT\n\n### Pull Request Diff:\n$(cat pr.diff)"
+          fi
+          
+          if [ -f "diff-summary.txt" ]; then
+            CONTEXT="$CONTEXT\n\n$(cat diff-summary.txt)"
+          fi
+          
+          # Build the full prompt
+          FULL_PROMPT="${{ steps.context.outputs.prompt }}
+          
+          Target files: ${{ steps.context.outputs.target }}
+          $CONTEXT"
+          
+          # Call Claude API
+          RESPONSE=$(curl -s https://api.anthropic.com/v1/messages \
+            -H "Content-Type: application/json" \
+            -H "x-api-key: $ANTHROPIC_API_KEY" \
+            -H "anthropic-version: 2023-06-01" \
+            -d "{
+              \"model\": \"claude-3-opus-20240229\",
+              \"max_tokens\": 4096,
+              \"messages\": [{
+                \"role\": \"user\",
+                \"content\": \"$FULL_PROMPT\"
+              }]
+            }")
+          
+          # Extract response
+          CLAUDE_RESPONSE=$(echo "$RESPONSE" | jq -r '.content[0].text // "Error: Failed to get response"')
+          
+          # Save response
+          echo "$CLAUDE_RESPONSE" > claude-review.md
+          
+          # Create summary for PR comment
+          echo "## 🤖 Claude AI ${{ steps.context.outputs.action }} Report" > review-summary.md
+          echo "" >> review-summary.md
+          echo "$CLAUDE_RESPONSE" | head -n 50 >> review-summary.md
+          echo "" >> review-summary.md
+          echo "<details><summary>View full analysis</summary>" >> review-summary.md
+          echo "" >> review-summary.md
+          echo "$CLAUDE_RESPONSE" >> review-summary.md
+          echo "</details>" >> review-summary.md
+      
+      - name: Post review as PR comment
+        if: steps.context.outputs.issue_number
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            const review = fs.readFileSync('review-summary.md', 'utf8');
+            
+            await github.rest.issues.createComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: ${{ steps.context.outputs.issue_number }},
+              body: review
+            });
+      
+      - name: Create review annotations
+        if: github.event_name == 'pull_request' && steps.context.outputs.action == 'code-review'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            const review = fs.readFileSync('claude-review.md', 'utf8');
+            
+            // Parse Claude's response for specific issues
+            const issueRegex = /File: (.+), Line: (\d+): (.+)/g;
+            const annotations = [];
+            let match;
+            
+            while ((match = issueRegex.exec(review)) !== null) {
+              annotations.push({
+                path: match[1],
+                start_line: parseInt(match[2]),
+                end_line: parseInt(match[2]),
+                annotation_level: 'warning',
+                message: match[3]
+              });
+            }
+            
+            // Create check run with annotations
+            if (annotations.length > 0) {
+              const { data: checkRun } = await github.rest.checks.create({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                name: 'Claude AI Review',
+                head_sha: context.sha,
+                status: 'completed',
+                conclusion: 'neutral',
+                output: {
+                  title: 'Claude AI Code Review',
+                  summary: `Found ${annotations.length} items to review`,
+                  annotations: annotations.slice(0, 50) // GitHub limits to 50 annotations
+                }
+              });
+            }
+      
+      - name: Upload review artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: claude-review-${{ github.run_id }}
+          path: |
+            claude-review.md
+            review-summary.md
+            pr.diff
+            diff-summary.txt
+      
+      - name: Create SARIF output for security findings
+        if: steps.context.outputs.action == 'security-audit'
+        run: |
+          # Convert Claude's security findings to SARIF format
+          cat > claude-security.sarif <<EOF
+          {
+            "version": "2.1.0",
+            "runs": [{
+              "tool": {
+                "driver": {
+                  "name": "Claude AI Security Audit",
+                  "version": "1.0.0"
+                }
+              },
+              "results": []
+            }]
+          }
+          EOF
+      
+      - name: Upload SARIF results
+        if: steps.context.outputs.action == 'security-audit'
+        uses: github/codeql-action/upload-sarif@v3
+        with:
+          sarif_file: claude-security.sarif
+
+  # 리뷰 결과 요약 및 메트릭
+  review-summary:
+    name: Review Summary
+    needs: claude-review
+    runs-on: ubuntu-latest
+    if: always()
+    
+    steps:
+      - name: Download review artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: claude-review-${{ github.run_id }}
+      
+      - name: Generate metrics
+        id: metrics
+        run: |
+          # Count findings by category
+          if [ -f "claude-review.md" ]; then
+            CRITICAL=$(grep -c "🚨 Critical:" claude-review.md || echo 0)
+            WARNING=$(grep -c "⚠️ Warning:" claude-review.md || echo 0)
+            INFO=$(grep -c "ℹ️ Info:" claude-review.md || echo 0)
+            
+            echo "critical=$CRITICAL" >> $GITHUB_OUTPUT
+            echo "warning=$WARNING" >> $GITHUB_OUTPUT
+            echo "info=$INFO" >> $GITHUB_OUTPUT
+          fi
+      
+      - name: Update PR status
+        if: github.event_name == 'pull_request'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const critical = ${{ steps.metrics.outputs.critical || 0 }};
+            const warning = ${{ steps.metrics.outputs.warning || 0 }};
+            
+            let state = 'success';
+            let description = '✅ No critical issues found';
+            
+            if (critical > 0) {
+              state = 'failure';
+              description = `❌ ${critical} critical issues found`;
+            } else if (warning > 0) {
+              state = 'neutral';
+              description = `⚠️ ${warning} warnings found`;
+            }
+            
+            await github.rest.repos.createCommitStatus({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              sha: context.sha,
+              state: state,
+              description: description,
+              context: 'Claude AI Review'
+            });
