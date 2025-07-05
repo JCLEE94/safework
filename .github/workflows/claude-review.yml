@@ -214,7 +214,6 @@ jobs:
           claude_access_token: ${{ secrets.CLAUDE_ACCESS_TOKEN }}
           claude_refresh_token: ${{ secrets.CLAUDE_REFRESH_TOKEN }}
           claude_expires_at: ${{ secrets.CLAUDE_EXPIRES_AT }}
-          anthropic_model: claude-3-5-sonnet-20241022
           max_turns: 5
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
