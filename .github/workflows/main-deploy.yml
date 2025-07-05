@@ -289,9 +289,9 @@ jobs:
           echo "🔐 Signing container image..."
           # cosign sign ${{ env.REGISTRY_URL }}/${{ env.IMAGE_NAME }}@${{ steps.build.outputs.digest }}
 
-  # ===== 배포 단계 =====
-  deploy:
-    name: Deploy to Kubernetes
+  # ===== ArgoCD 배포 트리거 =====
+  trigger-argocd:
+    name: Trigger ArgoCD Deployment
     needs: [build]
     runs-on: [self-hosted, linux]
     if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
@@ -300,50 +300,66 @@ jobs:
       url: https://safework.jclee.me
     
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-      
-      - name: Update Kubernetes manifests
+      - name: Notify ArgoCD
         run: |
-          # Update image tag in k8s manifests
-          cd k8s/overlays/production
-          sed -i "s|image: .*safework:.*|image: ${{ env.REGISTRY_URL }}/${{ env.IMAGE_NAME }}:${{ needs.build.outputs.image-tag }}|g" deployment.yaml
+          echo "🚀 Docker image successfully pushed to private registry"
+          echo "📦 Image: ${{ env.REGISTRY_URL }}/${{ env.IMAGE_NAME }}:${{ needs.build.outputs.image-tag }}"
+          echo "🔄 ArgoCD Image Updater will automatically detect and deploy the new image"
           
-          # Update config maps with build info
-          cat > build-info-configmap.yaml <<EOF
-          apiVersion: v1
-          kind: ConfigMap
-          metadata:
-            name: build-info
-          data:
-            version: "${{ needs.build.outputs.image-tag }}"
-            build_date: "$(date -u +'%Y-%m-%dT%H:%M:%SZ')"
-            git_commit: "${{ github.sha }}"
-            git_branch: "${{ github.ref_name }}"
-          EOF
-      
-      - name: Commit and push manifest changes
+          # ArgoCD Image Updater 설정 확인
+          echo ""
+          echo "ArgoCD Application Configuration:"
+          echo "- Application: safework"
+          echo "- Image: ${{ env.REGISTRY_URL }}/${{ env.IMAGE_NAME }}"
+          echo "- Update Strategy: latest"
+          echo "- Auto Sync: Enabled"
+          
+      - name: Wait for ArgoCD sync
         run: |
-          git config user.name "GitHub Actions"
-          git config user.email "actions@github.com"
+          echo "⏳ Waiting for ArgoCD to detect new image..."
+          echo "ArgoCD typically syncs within 3 minutes"
           
-          git add k8s/
-          git commit -m "chore: update image to ${{ needs.build.outputs.image-tag }}" || echo "No changes to commit"
-          git push
-      
-      - name: Verify ArgoCD sync
+          # ArgoCD가 새 이미지를 감지하고 배포할 시간을 줍니다
+          sleep 180
+          
+      - name: Verify deployment
+        id: verify
         run: |
-          echo "⏳ Waiting for ArgoCD to sync..."
-          # ArgoCD will automatically detect and deploy changes
-          sleep 30
+          echo "🔍 Verifying deployment..."
           
-          # Check deployment status
-          curl -s -o /dev/null -w "%{http_code}" https://safework.jclee.me/health || true
+          # Health check
+          MAX_ATTEMPTS=10
+          ATTEMPT=0
+          
+          while [ $ATTEMPT -lt $MAX_ATTEMPTS ]; do
+            HTTP_STATUS=$(curl -s -o /dev/null -w "%{http_code}" https://safework.jclee.me/health || echo "000")
+            
+            if [ "$HTTP_STATUS" = "200" ]; then
+              echo "✅ Application is healthy!"
+              
+              # Get deployed version
+              DEPLOYED_VERSION=$(curl -s https://safework.jclee.me/api/v1/version | jq -r '.version' || echo "unknown")
+              echo "📌 Deployed version: $DEPLOYED_VERSION"
+              
+              echo "deployment-status=success" >> $GITHUB_OUTPUT
+              break
+            else
+              echo "⏳ Waiting for application... (attempt $((ATTEMPT + 1))/$MAX_ATTEMPTS, status: $HTTP_STATUS)"
+              sleep 30
+              ATTEMPT=$((ATTEMPT + 1))
+            fi
+          done
+          
+          if [ $ATTEMPT -eq $MAX_ATTEMPTS ]; then
+            echo "❌ Deployment verification failed after $MAX_ATTEMPTS attempts"
+            echo "deployment-status=failed" >> $GITHUB_OUTPUT
+            exit 1
+          fi
 
   # ===== 알림 및 리포팅 =====
   notify:
     name: Pipeline Notification
-    needs: [test, build, deploy]
+    needs: [test, build, trigger-argocd]
     runs-on: [self-hosted, linux]
     if: always()
     
@@ -354,11 +370,11 @@ jobs:
           # Collect pipeline metrics
           DURATION=$(($(date +%s) - ${{ github.run_started_at }}))
           
-          if [ "${{ needs.deploy.result }}" == "success" ]; then
+          if [ "${{ needs.trigger-argocd.result }}" == "success" ]; then
             STATUS="✅ Success"
             COLOR="good"
           elif [ "${{ needs.build.result }}" == "success" ]; then
-            STATUS="⚠️ Built but not deployed"
+            STATUS="⚠️ Built but ArgoCD sync pending"
             COLOR="warning"
           else
             STATUS="❌ Failed"
@@ -370,7 +386,7 @@ jobs:
           echo "duration=$DURATION" >> $GITHUB_OUTPUT
       
       - name: Create deployment record
-        if: needs.deploy.result == 'success'
+        if: needs.trigger-argocd.result == 'success'
         uses: actions/github-script@v7
         with:
           script: |
@@ -450,7 +466,7 @@ jobs:
             - Test: ${{ needs.test.result }}
             - Security: ${{ needs.security.result }}
             - Build: ${{ needs.build.result }}
-            - Deploy: ${{ needs.deploy.result }}
+            - ArgoCD Trigger: ${{ needs.trigger-argocd.result }}
             
             ### 🔧 Action Items
             1. Check the [workflow logs](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }})
