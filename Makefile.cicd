@@ -1,0 +1,118 @@
+# CI/CD Pipeline Testing Makefile
+# Run integration tests for SafeWork Pro CI/CD pipeline
+
+.PHONY: all test-local test-scripts test-workflows test-containers test-deployment clean help
+
+# Default target
+all: test-local
+
+# Help command
+help:
+	@echo "SafeWork Pro CI/CD Testing Commands:"
+	@echo "  make test-local      - Run all local CI/CD tests"
+	@echo "  make test-scripts    - Test shell scripts"
+	@echo "  make test-workflows  - Validate workflow files"
+	@echo "  make test-containers - Test service containers"
+	@echo "  make test-deployment - Test deployment verification"
+	@echo "  make test-pipeline   - Run full pipeline integration tests"
+	@echo "  make clean          - Clean up test artifacts"
+
+# Install test dependencies
+install-deps:
+	@echo "📦 Installing test dependencies..."
+	pip install pyyaml requests pytest pytest-cov
+
+# Make scripts executable
+prepare-scripts:
+	@echo "🔧 Preparing scripts..."
+	chmod +x .github/scripts/*.sh
+
+# Test all scripts
+test-scripts: prepare-scripts
+	@echo "🧪 Testing CI/CD scripts..."
+	@echo "Testing install-claude.sh..."
+	bash -n .github/scripts/install-claude.sh
+	@echo "Testing check-oauth.sh..."
+	bash -n .github/scripts/check-oauth.sh
+	@echo "Testing verify-deployment.sh..."
+	bash -n .github/scripts/verify-deployment.sh
+	@echo "✅ All scripts valid"
+
+# Validate workflow syntax
+test-workflows:
+	@echo "🧪 Validating workflow files..."
+	@python -c "from tests.cicd.test_pipeline_integration import PipelineIntegrationTest; \
+	           test = PipelineIntegrationTest(); \
+	           exit(0 if test.test_workflow_syntax_validation() else 1)"
+
+# Test service containers
+test-containers:
+	@echo "🧪 Testing service containers..."
+	@python -c "from tests.cicd.test_pipeline_integration import PipelineIntegrationTest; \
+	           test = PipelineIntegrationTest(); \
+	           test.test_github_actions_runner_prerequisites()"
+
+# Test deployment verification
+test-deployment: prepare-scripts
+	@echo "🧪 Testing deployment verification..."
+	DEPLOYMENT_URL=https://safework.jclee.me \
+	MAX_RETRIES=3 \
+	RETRY_DELAY=10 \
+	.github/scripts/verify-deployment.sh
+
+# Run local CI/CD tests
+test-local: install-deps test-scripts test-workflows
+	@echo "🧪 Running local CI/CD integration tests..."
+	python tests/cicd/test_pipeline_integration.py
+
+# Run full pipeline integration tests
+test-pipeline:
+	@echo "🚀 Running full pipeline integration tests..."
+	gh workflow run test-pipeline.yml --ref $$(git branch --show-current)
+	@echo "✅ Pipeline tests triggered. Check GitHub Actions for results."
+
+# Run doctests
+test-doctests:
+	@echo "📚 Running doctests..."
+	python tests/cicd/test_pipeline_integration.py --doctest
+
+# Clean up test artifacts
+clean:
+	@echo "🧹 Cleaning up test artifacts..."
+	docker ps -aq --filter "name=test-" | xargs -r docker rm -f
+	docker images -q "safework-test:*" | xargs -r docker rmi -f
+	find . -name "*.pyc" -delete
+	find . -name "__pycache__" -type d -exec rm -rf {} +
+	rm -f Dockerfile.test
+
+# Watch for changes and run tests
+watch:
+	@echo "👀 Watching for changes..."
+	@while true; do \
+		inotifywait -e modify -r .github/workflows .github/scripts tests/cicd; \
+		clear; \
+		make test-local; \
+	done
+
+# Generate test coverage report
+coverage:
+	@echo "📊 Generating coverage report..."
+	pytest tests/cicd/ --cov=.github/scripts --cov-report=html --cov-report=term
+
+# Lint shell scripts
+lint-scripts:
+	@echo "🔍 Linting shell scripts..."
+	@if command -v shellcheck >/dev/null 2>&1; then \
+		shellcheck .github/scripts/*.sh; \
+	else \
+		echo "⚠️ shellcheck not installed. Install with: apt-get install shellcheck"; \
+	fi
+
+# Security scan for CI/CD
+security-scan:
+	@echo "🔒 Running security scan on CI/CD..."
+	@if command -v trivy >/dev/null 2>&1; then \
+		trivy fs --security-checks vuln,config .github/; \
+	else \
+		echo "⚠️ Trivy not installed. Install from: https://github.com/aquasecurity/trivy"; \
+	fi
