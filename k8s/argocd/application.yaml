@@ -17,13 +17,9 @@ spec:
   source:
     repoURL: https://github.com/JCLEE94/safework.git
     targetRevision: main
-    path: k8s
+    path: k8s/safework
     directory:
       recurse: true
-      exclude: |
-        argocd/**
-        deploy.sh
-        README.md
   destination:
     server: https://kubernetes.default.svc
     namespace: safework
