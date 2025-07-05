@@ -17,10 +17,13 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  claude-review:
-    name: Claude AI Code Review
+  claude-analysis:
+    name: Claude AI MCP Analysis
     runs-on: ubuntu-latest
     if: github.event_name == 'push' || github.event_name == 'pull_request'
+    outputs:
+      review-status: ${{ steps.analysis.outputs.status }}
+      critical-issues: ${{ steps.analysis.outputs.critical }}
     
     steps:
       - name: Checkout code
@@ -28,18 +31,132 @@ jobs:
         with:
           fetch-depth: 0
       
-      - name: Run Claude Code Review
-        uses: anthropics/claude-code-review-action@v1
+      - name: Load MCP Configuration
+        id: mcp
+        run: |
+          if [ -f ".mcp.json" ]; then
+            echo "🔍 MCP configuration found"
+            MCP_CONFIG=$(cat .mcp.json | jq -c .)
+            echo "config<<EOF" >> $GITHUB_OUTPUT
+            echo "$MCP_CONFIG" >> $GITHUB_OUTPUT
+            echo "EOF" >> $GITHUB_OUTPUT
+          else
+            echo "config={}" >> $GITHUB_OUTPUT
+          fi
+      
+      - name: Prepare Claude Prompt
+        id: prompt
+        run: |
+          CHANGED_FILES=$(git diff --name-only HEAD~1 HEAD 2>/dev/null || echo "")
+          
+          cat > claude-prompt.txt <<'EOF'
+          SafeWork Pro MCP 분석 시스템을 실행합니다.
+          
+          🎯 SYSTEMATIC MCP-POWERED ANALYSIS:
+          
+          **STEP 1: Context Gathering with MCP Tools**
+          1. mcp__github__search_issues with "security"
+          2. mcp__github__search_pull_requests with "fix"  
+          3. mcp__memory__search_nodes with "safework review"
+          4. mcp__brave-search__brave_web_search for "Korean medical data protection law 2024"
+          5. mcp__sequential-thinking__sequentialthinking for analysis strategy
+          
+          **STEP 2: Code Pattern Analysis**
+          1. mcp__github__get_file_contents on each changed file
+          2. mcp__memory__create_entities for critical findings
+          3. mcp__sequential-thinking for security analysis
+          4. mcp__brave-search for Korean compliance:
+             - "의료법 개인정보보호 requirements 2024"
+             - "Korean healthcare data encryption standards"
+          
+          **STEP 3: Knowledge Graph Building**
+          1. Create entities for each vulnerability
+          2. Create relations between vulnerabilities and compliance
+          3. Add observations about fix recommendations
+          
+          **STEP 4: Comprehensive Security Review**
+          - SQL injection patterns
+          - XSS vulnerabilities  
+          - Authentication/authorization flaws
+          - Korean medical data compliance (의료법)
+          - Personal information protection (개인정보보호법)
+          - HTTPS/TLS configuration
+          - Input validation on medical data
+          - Audit logging for patient data access
+          
+          **STEP 5: Generate Report & Auto-Fix**
+          - Critical issues → GitHub Issues
+          - Auto-fix simple issues using MCP tools
+          - Warning issues → PR comments
+          - Korean law compliance status
+          
+          🔧 CHANGED FILES:
+EOF
+          echo "$CHANGED_FILES" >> claude-prompt.txt
+          
+          echo "prompt<<EOF" >> $GITHUB_OUTPUT
+          cat claude-prompt.txt >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
+      
+      - name: Run Claude MCP Analysis
+        id: analysis
+        uses: anthropics/claude-code-base-action@beta
         with:
-          api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+          mcp_config: ${{ steps.mcp.outputs.config }}
+          allowed_tools: "Bash(git:*),View,GlobTool,GrepTool,mcp__github__*,mcp__memory__*,mcp__sequential-thinking__*,mcp__brave-search__*,mcp__serena__*"
+          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
           github_token: ${{ secrets.GITHUB_TOKEN }}
-          review_level: 'comprehensive'
-          create_issues: true
-          focus_areas: |
-            - Korean healthcare compliance (의료법, 개인정보보호법)
-            - Security vulnerabilities
-            - Code quality and best practices
-            - Performance optimization
+          prompt: ${{ steps.prompt.outputs.prompt }}
+      
+      - name: Parse Analysis Results
+        id: parse
+        run: |
+          # Claude 분석 결과에서 중요도별 이슈 개수 추출
+          CRITICAL=$(echo "${{ steps.analysis.outputs.result }}" | grep -c "🚨 CRITICAL" || echo "0")
+          WARNING=$(echo "${{ steps.analysis.outputs.result }}" | grep -c "⚠️ WARNING" || echo "0")
+          INFO=$(echo "${{ steps.analysis.outputs.result }}" | grep -c "💡 INFO" || echo "0")
+          
+          echo "critical=$CRITICAL" >> $GITHUB_OUTPUT
+          echo "warning=$WARNING" >> $GITHUB_OUTPUT
+          echo "info=$INFO" >> $GITHUB_OUTPUT
+          
+          if [ "$CRITICAL" -gt 0 ]; then
+            echo "status=failed" >> $GITHUB_OUTPUT
+          elif [ "$WARNING" -gt 0 ]; then
+            echo "status=warning" >> $GITHUB_OUTPUT
+          else
+            echo "status=passed" >> $GITHUB_OUTPUT
+          fi
+      
+      - name: Create Issues for Critical Findings
+        if: steps.parse.outputs.critical > 0
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const result = `${{ steps.analysis.outputs.result }}`;
+            const criticalIssues = result.match(/🚨 CRITICAL:.*?(?=🚨|⚠️|💡|$)/gs) || [];
+            
+            for (const issue of criticalIssues) {
+              const title = issue.match(/🚨 CRITICAL: (.+)/)?.[1] || 'Critical Security Issue';
+              const body = `## 🚨 Claude AI가 발견한 중요 보안 이슈
+              
+${issue}
+
+**커밋**: ${context.sha.substring(0, 7)}
+**브랜치**: ${context.ref}
+**분석 시간**: ${new Date().toISOString()}
+
+---
+*이 이슈는 Claude AI MCP 분석 시스템에 의해 자동 생성되었습니다.*`;
+              
+              await github.rest.issues.create({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                title: `[Claude AI] ${title}`,
+                body: body,
+                labels: ['security', 'critical', 'claude-ai']
+              });
+            }
 
   test:
     name: Test Suite
