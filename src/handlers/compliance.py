@@ -10,7 +10,7 @@ from enum import Enum
 
 from fastapi import APIRouter, HTTPException, BackgroundTasks, Depends
 from pydantic import BaseModel, Field
-from sqlalchemy.orm import Session
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from ..config.database import get_db
 from ..services.cache import CacheService
@@ -163,7 +163,7 @@ COMPLIANCE_RULES = [
 class ComplianceMonitoringService:
     """법령 준수 모니터링 서비스"""
     
-    def __init__(self, db: Session):
+    def __init__(self, db: AsyncSession):
         self.db = db
         self.cache_service = CacheService()
     
@@ -511,7 +511,7 @@ class ComplianceMonitoringService:
 @router.get("/check-all")
 async def check_all_compliance(
     background_tasks: BackgroundTasks,
-    db: Session = Depends(get_db)
+    db: AsyncSession = Depends(get_db)
 ):
     """모든 법령 준수 사항 점검"""
     
@@ -554,7 +554,7 @@ async def get_compliance_rules():
 
 
 @router.get("/dashboard")
-async def get_compliance_dashboard(db: Session = Depends(get_db)):
+async def get_compliance_dashboard(db: AsyncSession = Depends(get_db)):
     """법령 준수 대시보드 데이터"""
     
     try:
