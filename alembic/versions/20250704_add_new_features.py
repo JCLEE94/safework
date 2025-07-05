@@ -205,7 +205,7 @@ def upgrade():
         sa.Column('quantity_used', sa.Numeric(precision=15, scale=3), nullable=False, comment='사용량'),
         sa.Column('unit', sa.String(length=20), nullable=False, comment='단위'),
         sa.Column('concentration', sa.Numeric(precision=10, scale=6), nullable=True, comment='농도(%)'),
-        sa.Column('worker_id', postgresql.UUID(as_uuid=True), nullable=True),
+        sa.Column('worker_id', sa.Integer(), nullable=True),
         sa.Column('worker_count', sa.Integer(), nullable=False, server_default='1', comment='작업자 수'),
         sa.Column('exposure_duration_hours', sa.Numeric(precision=5, scale=2), nullable=True, comment='노출 시간(시간)'),
         sa.Column('control_measures', postgresql.JSON(astext_type=sa.Text()), nullable=True, comment='관리 조치'),
