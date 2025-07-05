@@ -1,35 +1,18 @@
----
 apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
   name: safework-ingress
   namespace: safework
-  labels:
-    app: safework
-    component: ingress
   annotations:
     nginx.ingress.kubernetes.io/rewrite-target: /
-    nginx.ingress.kubernetes.io/proxy-connect-timeout: "600"
-    nginx.ingress.kubernetes.io/proxy-send-timeout: "600"
-    nginx.ingress.kubernetes.io/proxy-read-timeout: "600"
     nginx.ingress.kubernetes.io/proxy-body-size: "50m"
-    nginx.ingress.kubernetes.io/enable-cors: "true"
-    nginx.ingress.kubernetes.io/cors-allow-origin: "https://safework.jclee.me"
-    nginx.ingress.kubernetes.io/cors-allow-methods: "GET, POST, PUT, DELETE, OPTIONS"
-    nginx.ingress.kubernetes.io/cors-allow-headers: "DNT,Keep-Alive,User-Agent,X-Requested-With,If-Modified-Since,Cache-Control,Content-Type,Range,Authorization"
-    nginx.ingress.kubernetes.io/cors-allow-credentials: "true"
     nginx.ingress.kubernetes.io/ssl-redirect: "false"
 spec:
   ingressClassName: nginx
-  # tls:
-  # - hosts:
-  #   - safework.jclee.me
-  #   secretName: safework-tls
   rules:
   - host: safework.jclee.me
     http:
       paths:
-      # 모든 경로를 all-in-one safework 서비스로 라우팅
       - path: /
         pathType: Prefix
         backend:
@@ -37,23 +20,3 @@ spec:
             name: safework
             port:
               number: 3001
----
-# NodePort service for development/testing access
-apiVersion: v1
-kind: Service
-metadata:
-  name: safework-nodeport
-  namespace: safework
-  labels:
-    app: safework
-    component: nodeport
-spec:
-  type: NodePort
-  ports:
-    - port: 3001
-      targetPort: 3001
-      protocol: TCP
-      nodePort: 30301
-      name: http
-  selector:
-    app: safework
