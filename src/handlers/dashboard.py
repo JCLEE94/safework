@@ -5,8 +5,8 @@ Dashboard handler for SafeWork Pro
 
 from datetime import datetime, timedelta
 from fastapi import APIRouter, Depends
-from sqlalchemy.orm import Session
-from sqlalchemy import func
+from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy import func, select
 
 from src.config.database import get_db
 from src.models import (
@@ -17,7 +17,7 @@ from src.models import (
 router = APIRouter(prefix="/api/v1", tags=["Dashboard"])
 
 @router.get("/dashboard")
-async def get_dashboard_data(db: Session = Depends(get_db)):
+async def get_dashboard_data(db: AsyncSession = Depends(get_db)):
     """대시보드 데이터 조회"""
     
     # 현재 날짜
@@ -25,52 +25,73 @@ async def get_dashboard_data(db: Session = Depends(get_db)):
     thirty_days_ago = now - timedelta(days=30)
     
     # 근로자 통계
-    total_workers = db.query(Worker).count()
-    active_workers = db.query(Worker).filter(Worker.employment_status == "재직").count()
-    on_leave_workers = db.query(Worker).filter(Worker.employment_status == "휴직").count()
-    health_risk_workers = db.query(Worker).filter(Worker.health_status == "주의").count()
+    total_workers_result = await db.execute(select(func.count(Worker.id)))
+    total_workers = total_workers_result.scalar()
+    
+    active_workers_result = await db.execute(select(func.count(Worker.id)).where(Worker.employment_status == "재직"))
+    active_workers = active_workers_result.scalar()
+    
+    on_leave_workers_result = await db.execute(select(func.count(Worker.id)).where(Worker.employment_status == "휴직"))
+    on_leave_workers = on_leave_workers_result.scalar()
+    
+    health_risk_workers_result = await db.execute(select(func.count(Worker.id)).where(Worker.health_status == "주의"))
+    health_risk_workers = health_risk_workers_result.scalar()
     
     # 건강진단 통계
-    completed_this_month = db.query(HealthExam).filter(
-        HealthExam.exam_date >= thirty_days_ago,
-        HealthExam.exam_date <= now
-    ).count()
+    completed_this_month_result = await db.execute(
+        select(func.count(HealthExam.id)).where(
+            HealthExam.exam_date >= thirty_days_ago,
+            HealthExam.exam_date <= now
+        )
+    )
+    completed_this_month = completed_this_month_result.scalar()
     
-    pending_exams = db.query(HealthExam).filter(
-        HealthExam.exam_result == "pending"
-    ).count()
+    pending_exams_result = await db.execute(
+        select(func.count(HealthExam.id)).where(HealthExam.exam_result == "pending")
+    )
+    pending_exams = pending_exams_result.scalar()
     
-    overdue_exams = db.query(HealthExam).filter(
-        HealthExam.next_exam_date < now
-    ).count()
+    overdue_exams_result = await db.execute(
+        select(func.count(HealthExam.id)).where(HealthExam.next_exam_date < now)
+    )
+    overdue_exams = overdue_exams_result.scalar()
     
     # 다음 예정된 검진
-    next_exam = db.query(HealthExam).filter(
-        HealthExam.next_exam_date >= now
-    ).order_by(HealthExam.next_exam_date).first()
+    next_exam_result = await db.execute(
+        select(HealthExam).where(HealthExam.next_exam_date >= now).order_by(HealthExam.next_exam_date)
+    )
+    next_exam = next_exam_result.scalar_one_or_none()
     
     # 작업환경 측정
-    last_measurement = db.query(WorkEnvironment).order_by(
-        WorkEnvironment.measurement_date.desc()
-    ).first()
+    last_measurement_result = await db.execute(
+        select(WorkEnvironment).order_by(WorkEnvironment.measurement_date.desc())
+    )
+    last_measurement = last_measurement_result.scalar_one_or_none()
     
     # 교육 통계
-    total_education = db.query(HealthEducation).count()
-    completed_education = db.query(HealthEducation).filter(
-        HealthEducation.completion_status == True
-    ).count()
+    total_education_result = await db.execute(select(func.count(HealthEducation.id)))
+    total_education = total_education_result.scalar()
+    
+    completed_education_result = await db.execute(
+        select(func.count(HealthEducation.id)).where(HealthEducation.completion_status == True)
+    )
+    completed_education = completed_education_result.scalar()
     completion_rate = (completed_education / total_education * 100) if total_education > 0 else 0
     
     # 사고 통계
-    accidents_this_month = db.query(AccidentReport).filter(
-        AccidentReport.accident_date >= thirty_days_ago
-    ).count()
+    accidents_this_month_result = await db.execute(
+        select(func.count(AccidentReport.id)).where(AccidentReport.accident_datetime >= thirty_days_ago)
+    )
+    accidents_this_month = accidents_this_month_result.scalar()
     
     # 화학물질 통계
-    total_chemicals = db.query(ChemicalSubstance).count()
-    hazardous_chemicals = db.query(ChemicalSubstance).filter(
-        ChemicalSubstance.hazard_class.in_(["급성독성", "발암성"])
-    ).count()
+    total_chemicals_result = await db.execute(select(func.count(ChemicalSubstance.id)))
+    total_chemicals = total_chemicals_result.scalar()
+    
+    hazardous_chemicals_result = await db.execute(
+        select(func.count(ChemicalSubstance.id)).where(ChemicalSubstance.hazard_class.in_(["급성독성", "발암성"]))
+    )
+    hazardous_chemicals = hazardous_chemicals_result.scalar()
     
     return {
         "workers": {
