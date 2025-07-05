@@ -1,4 +1,4 @@
-name: SafeWork Pro - Integrated Pipeline with Claude
+name: SafeWork Pro - CI/CD Pipeline
 
 on:
   push:
@@ -6,17 +6,6 @@ on:
   pull_request:
     types: [opened, synchronize, reopened]
   workflow_dispatch:
-    inputs:
-      skip_tests:
-        description: 'Skip tests (emergency only)'
-        required: false
-        type: boolean
-        default: false
-      skip_claude:
-        description: 'Skip Claude review'
-        required: false
-        type: boolean
-        default: false
 
 env:
   REGISTRY_URL: registry.jclee.me
@@ -28,493 +17,9 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  # ===== 0단계: 중복 실행 취소 =====
-  cancel-previous:
-    name: Cancel Previous Runs
-    runs-on: ubuntu-latest
-    steps:
-      - name: Cancel Previous Runs
-        uses: styfle/cancel-workflow-action@0.12.1
-        with:
-          access_token: ${{ github.token }}
-          workflow_id: ${{ github.workflow }}
-          ignore_sha: true
-          all_but_latest: true
-
-  # ===== 1단계: Claude AI 코드 분석 =====
-  claude-analysis:
-    name: Claude AI Analysis
-    runs-on: ubuntu-latest
-    needs: [cancel-previous]
-    if: ${{ !inputs.skip_claude }}
-    outputs:
-      review-status: ${{ steps.analysis.outputs.status }}
-      critical-issues: ${{ steps.analysis.outputs.critical }}
-    
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-      
-      - name: Load MCP Configuration
-        id: mcp
-        run: |
-          if [ -f ".mcp.json" ]; then
-            echo "🔍 MCP configuration found"
-            MCP_CONFIG=$(cat .mcp.json | jq -c .)
-            echo "config<<EOF" >> $GITHUB_OUTPUT
-            echo "$MCP_CONFIG" >> $GITHUB_OUTPUT
-            echo "EOF" >> $GITHUB_OUTPUT
-          else
-            echo "config={}" >> $GITHUB_OUTPUT
-          fi
-      
-      - name: Prepare Claude Prompt
-        id: prompt
-        run: |
-          # 변경된 파일 목록
-          CHANGED_FILES=$(git diff --name-only HEAD~1 HEAD 2>/dev/null || echo "")
-          
-          # PR인 경우 diff 가져오기
-          if [ "${{ github.event_name }}" == "pull_request" ]; then
-            DIFF=$(gh pr diff ${{ github.event.pull_request.number }} || echo "")
-          else
-            DIFF=$(git diff HEAD~1 HEAD || echo "")
-          fi
-          
-          # 프롬프트 생성
-          cat > claude-prompt.txt <<EOF
-          You are reviewing SafeWork Pro, a Korean construction site health management system.
-          
-          🎯 SYSTEMATIC MCP-POWERED ANALYSIS WORKFLOW:
-          
-          **STEP 1: Context Gathering with MCP Tools**
-          1. Use mcp__github__search_issues with "security" to find similar security issues
-          2. Use mcp__github__search_pull_requests with "fix" to see previous fixes
-          3. Use mcp__memory__search_nodes with "safework review" to recall patterns
-          4. Use mcp__brave-search__brave_web_search for "Korean medical data protection law 2024"
-          5. Use mcp__sequential-thinking__sequentialthinking to plan analysis strategy
-          
-          **STEP 2: Code Pattern Analysis**
-          1. Use mcp__github__get_file_contents on each changed file
-          2. Use mcp__memory__create_entities for each critical finding
-          3. Use mcp__sequential-thinking for complex security analysis
-          4. Use mcp__brave-search for Korean compliance verification:
-             - "의료법 개인정보보호 requirements 2024"
-             - "Korean healthcare data encryption standards"
-             - "개인정보보호법 medical records compliance"
-          
-          **STEP 3: Knowledge Graph Building**
-          1. Create entities for each code vulnerability found
-          2. Create relations between vulnerabilities and compliance issues
-          3. Add observations about fix recommendations
-          4. Build memory for future reviews
-          
-          **STEP 4: Comprehensive Security Review**
-          Focus on:
-          - SQL injection patterns in database queries
-          - XSS vulnerabilities in web endpoints
-          - Authentication/authorization flaws
-          - Korean medical data handling compliance (의료법)
-          - Personal information protection (개인정보보호법)
-          - HTTPS/TLS configuration
-          - Input validation on medical data
-          - Audit logging for patient data access
-          
-          **STEP 5: Generate Structured Report**
-          Use findings to create:
-          - Critical issues that block deployment
-          - Warning issues for future improvement
-          - Info recommendations for best practices
-          - Korean law compliance status
-          
-          🔧 CHANGED FILES TO ANALYZE:
-          $CHANGED_FILES
-          
-          📋 RECENT CHANGES:
-          \`\`\`diff
-          $(echo "$DIFF" | head -n 500)
-          \`\`\`
-          
-          🚀 START NOW:
-          1. Search GitHub for similar security issues in medical systems
-          2. Check memory for previous SafeWork review patterns
-          3. Search Korean healthcare regulations
-          4. Analyze each file systematically using sequential thinking
-          5. Build knowledge graph of findings
-          6. Generate final security assessment
-          
-          ⚠️ CRITICAL: Use ALL MCP tools extensively. This is a medical system handling sensitive Korean patient data.
-          EOF
-          
-          PROMPT=$(cat claude-prompt.txt)
-          echo "prompt<<EOF" >> $GITHUB_OUTPUT
-          echo "$PROMPT" >> $GITHUB_OUTPUT
-          echo "EOF" >> $GITHUB_OUTPUT
-      
-      - name: Run Claude Analysis
-        id: analysis
-        uses: anthropics/claude-code-base-action@beta
-        with:
-          prompt: ${{ steps.prompt.outputs.prompt }}
-          mcp_config: ${{ steps.mcp.outputs.config }}
-          allowed_tools: "Bash(git:*),View,GlobTool,GrepTool,mcp__github__*,mcp__memory__*,mcp__sequential-thinking__*,mcp__brave-search__*"
-          max_turns: 5
-          timeout_minutes: 8
-          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
-          claude_env: |
-            GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-            BRAVE_API_KEY: ${{ secrets.BRAVE_API_KEY }}
-            PROJECT_NAME: SafeWork Pro
-            ANALYSIS_MODE: security_review
-        continue-on-error: true
-      
-      - name: Parse Claude Results
-        id: parse
-        if: always()
-        run: |
-          echo "🔍 Claude Analysis Results:"
-          echo "Outcome: ${{ steps.analysis.outcome }}"
-          
-          # Claude action의 실제 출력 확인
-          if [ "${{ steps.analysis.outcome }}" == "success" ]; then
-            echo "status=reviewed" >> $GITHUB_OUTPUT
-            
-            # Claude 출력에서 critical issues 추출 시도
-            CLAUDE_OUTPUT="${{ steps.analysis.outputs.result || '' }}"
-            echo "Claude Output: $CLAUDE_OUTPUT"
-            
-            # Critical/Error/CRITICAL 키워드로 중요 이슈 카운트
-            CRITICAL_COUNT=$(echo "$CLAUDE_OUTPUT" | grep -i -c "critical\|error\|security.*issue\|must.*fix" || echo "0")
-            echo "Found $CRITICAL_COUNT critical issues"
-            echo "critical=$CRITICAL_COUNT" >> $GITHUB_OUTPUT
-            
-            # 추천 결과 추출
-            if echo "$CLAUDE_OUTPUT" | grep -i "reject\|needs.*fix\|critical.*issue" > /dev/null; then
-              RECOMMENDATION="needs-fixes"
-            elif echo "$CLAUDE_OUTPUT" | grep -i "approve\|looks.*good\|no.*issue" > /dev/null; then
-              RECOMMENDATION="approved"
-            else
-              RECOMMENDATION="reviewed"
-            fi
-            echo "recommendation=$RECOMMENDATION" >> $GITHUB_OUTPUT
-            
-          else
-            echo "status=skipped" >> $GITHUB_OUTPUT
-            echo "critical=0" >> $GITHUB_OUTPUT
-            echo "recommendation=skipped" >> $GITHUB_OUTPUT
-          fi
-          
-          # 상세한 결과 요약
-          echo "## 🤖 Claude AI Review Summary" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          if [ "${{ steps.analysis.outcome }}" == "success" ]; then
-            echo "✅ **Code review completed**" >> $GITHUB_STEP_SUMMARY
-            echo "" >> $GITHUB_STEP_SUMMARY
-            echo "**Analysis Result:**" >> $GITHUB_STEP_SUMMARY
-            echo '```' >> $GITHUB_STEP_SUMMARY
-            echo "${{ steps.analysis.outputs.result || 'No detailed output available' }}" >> $GITHUB_STEP_SUMMARY
-            echo '```' >> $GITHUB_STEP_SUMMARY
-            echo "" >> $GITHUB_STEP_SUMMARY
-            echo "**Key Findings:**" >> $GITHUB_STEP_SUMMARY
-            echo "- Critical Issues: $CRITICAL_COUNT" >> $GITHUB_STEP_SUMMARY
-            echo "- Recommendation: $RECOMMENDATION" >> $GITHUB_STEP_SUMMARY
-          else
-            echo "⚠️ **Code review skipped or failed**" >> $GITHUB_STEP_SUMMARY
-            echo "" >> $GITHUB_STEP_SUMMARY
-            echo "**Reason:** ${{ steps.analysis.outputs.error || 'Unknown error' }}" >> $GITHUB_STEP_SUMMARY
-          fi
-      
-      - name: Create Issues for Critical Findings
-        if: steps.parse.outputs.critical != '0' && steps.parse.outputs.status == 'reviewed'
-        uses: actions/github-script@v7
-        with:
-          script: |
-            const claudeOutput = `${{ steps.analysis.outputs.result || '' }}`;
-            const criticalCount = ${{ steps.parse.outputs.critical || 0 }};
-            const recommendation = `${{ steps.parse.outputs.recommendation }}`;
-            
-            if (criticalCount > 0) {
-              const issueTitle = `🤖 Claude AI가 발견한 중요 코드 이슈 (${criticalCount}개)`;
-              const issueBody = `## 🚨 Claude AI 코드 리뷰 결과
-              
-**커밋**: ${context.sha.substring(0, 7)}
-**브랜치**: ${context.ref}
-**분석 시간**: ${new Date().toISOString()}
-**추천사항**: ${recommendation}
-
-## 📋 상세 분석 결과
-
-\`\`\`
-${claudeOutput}
-\`\`\`
-
-## 🔧 해결 방법
-
-1. 위에서 지적된 critical 이슈들을 우선적으로 수정
-2. 보안 관련 이슈는 즉시 대응 필요
-3. 한국 의료법/개인정보보호법 관련 이슈는 법적 검토 필요
-
-## 📊 통계
-- **Critical Issues**: ${criticalCount}개
-- **MCP 도구 활용**: GitHub, Memory, Sequential-thinking, Brave-search
-
----
-*이 이슈는 Claude AI가 자동으로 생성했습니다.*
-*워크플로우: [${context.workflow}](${context.server_url}/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId})*`;
-
-              await github.rest.issues.create({
-                owner: context.repo.owner,
-                repo: context.repo.repo,
-                title: issueTitle,
-                body: issueBody,
-                labels: ['claude-ai', 'code-review', 'priority:high', 'security']
-              });
-              
-              console.log(`✅ Created issue for ${criticalCount} critical findings`);
-            }
-      
-      - name: Add PR Review Comment
-        if: github.event_name == 'pull_request' && steps.parse.outputs.status == 'reviewed'
-        uses: actions/github-script@v7
-        with:
-          script: |
-            const claudeOutput = `${{ steps.analysis.outputs.result || '' }}`;
-            const criticalCount = ${{ steps.parse.outputs.critical || 0 }};
-            const recommendation = `${{ steps.parse.outputs.recommendation }}`;
-            
-            let reviewComment = `## 🤖 Claude AI 코드 리뷰 결과\n\n`;
-            
-            if (criticalCount > 0) {
-              reviewComment += `⚠️ **${criticalCount}개의 중요 이슈가 발견되었습니다!**\n\n`;
-              reviewComment += `**추천사항**: ${recommendation}\n\n`;
-              reviewComment += `### 📋 상세 분석\n\`\`\`\n${claudeOutput}\n\`\`\`\n\n`;
-              reviewComment += `### 🚨 조치 필요\n`;
-              reviewComment += `- Critical 이슈들을 수정 후 재검토 요청\n`;
-              reviewComment += `- 보안 관련 이슈는 우선 처리 필요\n`;
-            } else {
-              reviewComment += `✅ **코드 리뷰 완료 - 중요 이슈 없음**\n\n`;
-              reviewComment += `**추천사항**: ${recommendation}\n\n`;
-              reviewComment += `### 📋 분석 결과\n\`\`\`\n${claudeOutput}\n\`\`\`\n`;
-            }
-            
-            reviewComment += `\n---\n*MCP 도구 활용: GitHub, Memory, Sequential-thinking, Brave-search*`;
-            
-            await github.rest.issues.createComment({
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              issue_number: context.issue.number,
-              body: reviewComment
-            });
-
-  # ===== 자동 수정 단계 =====
-  auto-fix:
-    name: Claude Auto-Fix Issues
-    runs-on: ubuntu-latest
-    needs: [claude-analysis]
-    if: needs.claude-analysis.outputs.critical-issues != '0' && needs.claude-analysis.outputs.review-status == 'reviewed'
-    
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-          token: ${{ secrets.GITHUB_TOKEN }}
-      
-      - name: Setup Git
-        run: |
-          git config --local user.email "action@github.com"
-          git config --local user.name "Claude Auto-Fix Bot"
-      
-      - name: Load MCP Configuration
-        id: mcp
-        run: |
-          if [ -f ".mcp.json" ]; then
-            MCP_CONFIG=$(cat .mcp.json | jq -c .)
-            echo "config<<EOF" >> $GITHUB_OUTPUT
-            echo "$MCP_CONFIG" >> $GITHUB_OUTPUT
-            echo "EOF" >> $GITHUB_OUTPUT
-          else
-            echo "config={}" >> $GITHUB_OUTPUT
-          fi
-      
-      - name: Prepare Auto-Fix Prompt
-        id: fix-prompt
-        run: |
-          # 이전 분석 결과 가져오기
-          ANALYSIS_RESULT="${{ needs.claude-analysis.outputs.critical-issues }}"
-          
-          # 수정용 프롬프트 생성
-          cat > claude-fix-prompt.txt <<EOF
-          You are Claude Code Auto-Fix Bot for SafeWork Pro (건설업 보건관리 시스템).
-          
-          Previous analysis found critical issues that need to be fixed automatically.
-          
-          🚀 STEP-BY-STEP SERENA MCP USAGE:
-          
-          1. **Activate Serena Project**:
-             Use: mcp__serena__activate_project with "." (current directory)
-             
-          2. **Get Project Overview**:
-             Use: mcp__serena__get_symbols_overview with "src/" to understand codebase structure
-             
-          3. **Find Security Issues**:
-             Use: mcp__serena__search_for_pattern to find:
-             - SQL injection patterns: "execute.*%s|format.*query"
-             - XSS vulnerabilities: "innerHTML|dangerouslySetInnerHTML"
-             - Hardcoded secrets: "password.*=|secret.*=|key.*="
-             - Missing input validation: "request\\..*without.*validation"
-             
-          4. **Analyze Critical Files**:
-             Use: mcp__serena__find_symbol to examine:
-             - Authentication handlers: "auth|login|token"
-             - Database operations: "query|execute|cursor"
-             - API endpoints: "route|endpoint|handler"
-             - Data validation: "validate|sanitize|clean"
-             
-          5. **Apply Automatic Fixes**:
-             For each security issue found, use:
-             - mcp__serena__replace_symbol_body: Fix function implementations
-             - mcp__serena__insert_after_symbol: Add security validations
-             - mcp__serena__replace_regex: Fix patterns across multiple files
-             
-          6. **Korean Compliance Fixes**:
-             - Add personal data encryption for medical records
-             - Implement data retention policies (의료법 준수)
-             - Add audit logging for all data access
-             - Ensure HTTPS and secure headers
-          
-          🎯 SPECIFIC FIXES TO APPLY:
-          
-          **Security Enhancements**:
-          - Replace string formatting in SQL with parameterized queries
-          - Add input validation decorators to all API endpoints
-          - Implement rate limiting on authentication endpoints
-          - Add CSRF tokens to all forms
-          - Sanitize all user inputs before database storage
-          
-          **Korean Law Compliance**:
-          - Add 개인정보보호법 compliant data handling
-          - Implement medical data encryption (의료법 Article 21)
-          - Add data access logging and audit trails
-          - Ensure proper consent management
-          
-          **Error Handling**:
-          - Add try-catch blocks around database operations
-          - Implement proper logging without exposing sensitive data
-          - Add graceful error responses for API endpoints
-          
-          💡 SERENA MCP TOOLS TO USE:
-          - mcp__serena__activate_project: "."
-          - mcp__serena__get_symbols_overview: "src/"
-          - mcp__serena__find_symbol: Find specific functions/classes
-          - mcp__serena__search_for_pattern: Find security patterns
-          - mcp__serena__replace_symbol_body: Fix entire functions
-          - mcp__serena__insert_before_symbol: Add imports/decorators
-          - mcp__serena__insert_after_symbol: Add new security functions
-          - mcp__serena__replace_regex: Fix patterns across files
-          
-          🔧 EXAMPLE SERENA WORKFLOW:
-          1. activate_project(".")
-          2. get_symbols_overview("src/")
-          3. search_for_pattern("execute.*%s", restrict_search_to_code_files=true)
-          4. find_symbol("login", relative_path="src/handlers/")
-          5. replace_symbol_body("login", "src/handlers/auth.py", "secure_login_implementation")
-          6. insert_after_symbol("login", "src/handlers/auth.py", "rate_limiting_decorator")
-          
-          ⚠️ CRITICAL: Use Serena MCP tools extensively. Do NOT just analyze - actively modify code files using Serena's editing capabilities.
-          
-          Start NOW by activating Serena project and systematically fixing all security issues.
-          EOF
-          
-          PROMPT=$(cat claude-fix-prompt.txt)
-          echo "prompt<<EOF" >> $GITHUB_OUTPUT
-          echo "$PROMPT" >> $GITHUB_OUTPUT
-          echo "EOF" >> $GITHUB_OUTPUT
-      
-      - name: Run Claude Auto-Fix
-        id: auto-fix
-        uses: anthropics/claude-code-base-action@beta
-        with:
-          prompt: ${{ steps.fix-prompt.outputs.prompt }}
-          mcp_config: ${{ steps.mcp.outputs.config }}
-          allowed_tools: "Bash(git:*),View,GlobTool,GrepTool,Write,mcp__serena__*,mcp__github__*,mcp__memory__*,mcp__sequential-thinking__*,mcp__brave-search__*"
-          max_turns: 15
-          timeout_minutes: 20
-          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
-          claude_env: |
-            GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-            BRAVE_API_KEY: ${{ secrets.BRAVE_API_KEY }}
-            PROJECT_NAME: SafeWork Pro
-            ANALYSIS_MODE: auto_fix
-            SERENA_WORKSPACE: ${{ github.workspace }}
-        continue-on-error: true
-      
-      - name: Check for Changes
-        id: changes
-        run: |
-          if [ -n "$(git status --porcelain)" ]; then
-            echo "has_changes=true" >> $GITHUB_OUTPUT
-            echo "✅ Claude made automatic fixes!"
-            git status --short
-          else
-            echo "has_changes=false" >> $GITHUB_OUTPUT
-            echo "ℹ️ No automatic fixes were applied"
-          fi
-      
-      - name: Commit Auto-Fixes
-        if: steps.changes.outputs.has_changes == 'true'
-        run: |
-          git add .
-          git commit -m "🤖 Claude Auto-Fix: 보안 및 컴플라이언스 이슈 자동 수정
-
-          - Claude AI가 발견한 critical 이슈들 자동 수정
-          - 보안 취약점 패치 (SQL injection, XSS 등)
-          - 한국 의료법/개인정보보호법 준수 강화
-          - 입력 검증 및 에러 핸들링 개선
-          - 기존 기능 유지하면서 보안 강화
-          
-          🤖 Generated with Claude Code Auto-Fix
-          Co-Authored-By: Claude <noreply@anthropic.com>"
-          
-          # 현재 브랜치에 푸시
-          git push origin HEAD
-      
-      - name: Auto-Fix Summary
-        if: always()
-        run: |
-          echo "## 🤖 Claude Auto-Fix 결과" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          if [ "${{ steps.auto-fix.outcome }}" == "success" ]; then
-            echo "✅ **자동 수정 완료**" >> $GITHUB_STEP_SUMMARY
-            echo "" >> $GITHUB_STEP_SUMMARY
-            if [ "${{ steps.changes.outputs.has_changes }}" == "true" ]; then
-              echo "**변경사항**: 코드가 자동으로 수정되었습니다" >> $GITHUB_STEP_SUMMARY
-              echo "**커밋**: 새로운 수정 커밋이 생성되었습니다" >> $GITHUB_STEP_SUMMARY
-            else
-              echo "**변경사항**: 수정이 필요한 이슈가 발견되지 않았습니다" >> $GITHUB_STEP_SUMMARY
-            fi
-            echo "" >> $GITHUB_STEP_SUMMARY
-            echo "**수정 세부사항**:" >> $GITHUB_STEP_SUMMARY
-            echo '```' >> $GITHUB_STEP_SUMMARY
-            echo "${{ steps.auto-fix.outputs.result || 'No detailed output available' }}" >> $GITHUB_STEP_SUMMARY
-            echo '```' >> $GITHUB_STEP_SUMMARY
-          else
-            echo "⚠️ **자동 수정 실패 또는 스킵**" >> $GITHUB_STEP_SUMMARY
-            echo "" >> $GITHUB_STEP_SUMMARY
-            echo "**사유**: ${{ steps.auto-fix.outputs.error || 'Unknown error' }}" >> $GITHUB_STEP_SUMMARY
-          fi
-
-  # ===== 2단계: 병렬 실행 (테스트 + 자동수정) =====
-  backend-test:
-    name: Backend Tests
+  test:
+    name: Test Suite
     runs-on: [self-hosted, linux]
-    needs: [cancel-previous, claude-analysis, auto-fix]
-    if: ${{ !inputs.skip_tests && (needs.claude-analysis.result == 'success' || needs.claude-analysis.result == 'skipped') }}
-    outputs:
-      test-status: ${{ steps.test-summary.outputs.status }}
-      coverage: ${{ steps.backend-tests.outputs.backend-coverage }}
     
     services:
       postgres:
@@ -544,158 +49,14 @@ ${claudeOutput}
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
       
       - name: Setup Python
         uses: actions/setup-python@v5
         with:
           python-version: '3.11'
           cache: 'pip'
-      
-      - name: Load MCP Configuration for Testing
-        id: test-mcp
-        run: |
-          if [ -f ".mcp.json" ]; then
-            MCP_CONFIG=$(cat .mcp.json | jq -c .)
-            echo "config<<EOF" >> $GITHUB_OUTPUT
-            echo "$MCP_CONFIG" >> $GITHUB_OUTPUT
-            echo "EOF" >> $GITHUB_OUTPUT
-          else
-            echo "config={}" >> $GITHUB_OUTPUT
-          fi
-      
-      - name: Prepare Test Analysis Prompt
-        id: test-prompt
-        run: |
-          cat > test-analysis-prompt.txt <<EOF
-          You are Claude Test Analyst for SafeWork Pro backend testing.
-          
-          🎯 MCP-POWERED TEST ANALYSIS:
-          
-          **STEP 1: Pre-Test Analysis**
-          1. Use mcp__serena__activate_project "."
-          2. Use mcp__serena__get_symbols_overview "tests/" to understand test structure
-          3. Use mcp__github__search_issues "test fail" to check known test issues
-          4. Use mcp__memory__search_nodes "test patterns" for previous test insights
-          
-          **STEP 2: Test Coverage Analysis**
-          1. Use mcp__serena__find_symbol "test_" to find all test functions
-          2. Use mcp__serena__search_for_pattern "assert.*" to analyze assertions
-          3. Use mcp__brave-search "pytest best practices medical systems"
-          4. Create memory entities for test coverage gaps
-          
-          **STEP 3: Security Test Verification**
-          Focus on:
-          - Authentication tests for medical data access
-          - Authorization tests for patient records
-          - Input validation tests for Korean characters
-          - Database security tests
-          - API endpoint security tests
-          
-          **STEP 4: Korean Compliance Testing**
-          1. Search for "Korean medical software testing standards"
-          2. Verify personal data handling in tests
-          3. Check test data anonymization
-          4. Ensure GDPR/Korean privacy law compliance in test data
-          
-          **TASK**: Analyze the testing approach and suggest improvements before running tests.
-          EOF
-          
-          PROMPT=$(cat test-analysis-prompt.txt)
-          echo "prompt<<EOF" >> $GITHUB_OUTPUT
-          echo "$PROMPT" >> $GITHUB_OUTPUT
-          echo "EOF" >> $GITHUB_OUTPUT
-      
-      - name: Analyze Tests with Claude
-        id: test-analysis
-        uses: anthropics/claude-code-base-action@beta
-        with:
-          prompt: ${{ steps.test-prompt.outputs.prompt }}
-          mcp_config: ${{ steps.test-mcp.outputs.config }}
-          allowed_tools: "Bash(pytest:*),View,GlobTool,GrepTool,mcp__serena__*,mcp__github__*,mcp__memory__*,mcp__brave-search__*"
-          max_turns: 5
-          timeout_minutes: 10
-          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
-          claude_env: |
-            GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-            BRAVE_API_KEY: ${{ secrets.BRAVE_API_KEY }}
-            PROJECT_NAME: SafeWork Pro
-            ANALYSIS_MODE: test_analysis
-            SERENA_WORKSPACE: ${{ github.workspace }}
-        continue-on-error: true
-      
-      - name: Run Backend Tests
-        id: backend-tests
-        env:
-          DATABASE_URL: postgresql://admin:password@localhost:25432/health_management
-          REDIS_URL: redis://localhost:26379/0
-          JWT_SECRET: test-secret-key
-          PYTHONPATH: ${{ github.workspace }}
-          npm_config_cache: ${{ runner.temp }}/.npm
-        timeout-minutes: 10
-        run: |
-          echo "🧪 Running backend tests..."
-          echo "📋 Pre-test analysis completed: ${{ steps.test-analysis.outcome }}"
-          
-          python -m pip install --upgrade pip
-          pip install -r backend/requirements.txt
-          pytest tests/ -v --cov=src --cov-report=term --cov-report=html --cov-fail-under=70 --timeout=300 -x | tee test-output.txt
-          
-          # Coverage 추출
-          coverage=$(grep -oP 'TOTAL.*\K\d+(?=%)' test-output.txt || echo "0")
-          echo "backend-coverage=$coverage" >> $GITHUB_OUTPUT
-      
-      - name: Analyze Test Results with MCP
-        if: always()
-        uses: anthropics/claude-code-base-action@beta
-        with:
-          prompt: |
-            Analyze the test results and coverage for SafeWork Pro backend.
-            
-            🎯 MCP ANALYSIS WORKFLOW:
-            1. Use mcp__memory__create_entities for test failures and coverage gaps
-            2. Use mcp__github__search_issues to check if failures are known issues  
-            3. Use mcp__sequential-thinking__sequentialthinking for root cause analysis
-            4. Use mcp__brave-search__brave_web_search for Korean medical testing standards
-            5. Use mcp__serena__search_for_pattern to find test-related code issues
-            
-            📊 TEST RESULTS:
-            - Test outcome: ${{ steps.backend-tests.outcome }}
-            - Coverage: ${{ steps.backend-tests.outputs.backend-coverage }}%
-            
-            Focus on Korean healthcare compliance testing and medical data security.
-          mcp_config: ${{ steps.test-mcp.outputs.config }}
-          allowed_tools: "View,GrepTool,mcp__memory__*,mcp__github__*,mcp__sequential-thinking__*,mcp__brave-search__*,mcp__serena__*"
-          max_turns: 5
-          timeout_minutes: 8
-          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
-          claude_env: |
-            GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-            BRAVE_API_KEY: ${{ secrets.BRAVE_API_KEY }}
-            PROJECT_NAME: SafeWork Pro
-            ANALYSIS_MODE: test_result_analysis
-        continue-on-error: true
-      
-      - name: Test Summary
-        id: test-summary
-        if: always()
-        run: |
-          if [ "${{ steps.backend-tests.outcome }}" == "success" ]; then
-            echo "status=passed" >> $GITHUB_OUTPUT
-          else
-            echo "status=failed" >> $GITHUB_OUTPUT
-          fi
-
-  frontend-test:
-    name: Frontend Tests
-    runs-on: [self-hosted, linux]
-    needs: [cancel-previous, claude-analysis, auto-fix]
-    if: ${{ !inputs.skip_tests && (needs.claude-analysis.result == 'success' || needs.claude-analysis.result == 'skipped') }}
-    outputs:
-      test-status: ${{ steps.test-summary.outputs.status }}
-    
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
       
       - name: Setup Node.js
         uses: actions/setup-node@v4
@@ -704,155 +65,39 @@ ${claudeOutput}
           cache: 'npm'
           cache-dependency-path: frontend/package-lock.json
       
-      - name: Run Frontend Tests
+      - name: Install backend dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r backend/requirements.txt
+          pip install pytest pytest-cov pytest-asyncio pytest-timeout
+      
+      - name: Run backend tests
+        env:
+          DATABASE_URL: postgresql://admin:password@localhost:25432/health_management
+          REDIS_URL: redis://localhost:26379/0
+          JWT_SECRET: test-secret-key
+          PYTHONPATH: ${{ github.workspace }}
+        timeout-minutes: 10
+        run: |
+          echo "🧪 Running backend tests..."
+          pytest tests/ -v --cov=src --cov-report=term --cov-fail-under=70 --timeout=300 -x
+      
+      - name: Install frontend dependencies
+        working-directory: frontend
+        run: npm ci
+      
+      - name: Run frontend tests
         working-directory: frontend
         run: |
-          npm ci
-          npm run lint || true
-          npm run test -- --passWithNoTests || true
+          npm run lint
+          npm run test -- --passWithNoTests
           npm run build
-      
-      - name: Test Summary
-        id: test-summary
-        if: always()
-        run: |
-          echo "status=passed" >> $GITHUB_OUTPUT
 
-  # ===== 3단계: 보안 스캔 (병렬) =====
-  security-scan:
-    name: Security Scan with MCP Analysis
+  build:
+    name: Build Docker Image
+    needs: [test]
     runs-on: [self-hosted, linux]
-    needs: [cancel-previous, claude-analysis, auto-fix]
-    if: ${{ (needs.claude-analysis.result == 'success' || needs.claude-analysis.result == 'skipped') }}
-    continue-on-error: true
-    
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-      
-      - name: Load MCP Configuration
-        id: security-mcp
-        run: |
-          if [ -f ".mcp.json" ]; then
-            MCP_CONFIG=$(cat .mcp.json | jq -c .)
-            echo "config<<EOF" >> $GITHUB_OUTPUT
-            echo "$MCP_CONFIG" >> $GITHUB_OUTPUT
-            echo "EOF" >> $GITHUB_OUTPUT
-          else
-            echo "config={}" >> $GITHUB_OUTPUT
-          fi
-      
-      - name: Pre-Scan Security Analysis
-        id: pre-scan
-        uses: anthropics/claude-code-base-action@beta
-        with:
-          prompt: |
-            Perform comprehensive security analysis for SafeWork Pro before Trivy scan.
-            
-            🎯 MCP SECURITY ANALYSIS:
-            1. Use mcp__serena__activate_project "."
-            2. Use mcp__serena__search_for_pattern for security patterns:
-               - "password.*=|secret.*=|key.*=" (hardcoded secrets)
-               - "sql.*format|execute.*%" (SQL injection)
-               - "innerHTML|eval|exec" (XSS/code injection)
-               - "import.*os|subprocess|shell" (command injection)
-            3. Use mcp__brave-search__brave_web_search for Korean medical security standards
-            4. Use mcp__github__search_issues "security vulnerability" to check known issues
-            5. Use mcp__memory__create_entities for found vulnerabilities
-            
-            Focus on Korean healthcare data protection and medical record security.
-          mcp_config: ${{ steps.security-mcp.outputs.config }}
-          allowed_tools: "View,GlobTool,GrepTool,mcp__serena__*,mcp__github__*,mcp__memory__*,mcp__brave-search__*"
-          max_turns: 8
-          timeout_minutes: 12
-          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
-          claude_env: |
-            GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-            BRAVE_API_KEY: ${{ secrets.BRAVE_API_KEY }}
-            PROJECT_NAME: SafeWork Pro
-            ANALYSIS_MODE: security_pre_scan
-            SERENA_WORKSPACE: ${{ github.workspace }}
-        continue-on-error: true
-      
-      - name: Run Trivy Scanner
-        id: trivy-scan
-        uses: aquasecurity/trivy-action@master
-        with:
-          scan-type: 'fs'
-          scan-ref: '.'
-          severity: 'CRITICAL,HIGH'
-          exit-code: '0'
-          format: 'json'
-          output: 'trivy-results.json'
-      
-      - name: Analyze Trivy Results with MCP
-        if: always()
-        uses: anthropics/claude-code-base-action@beta
-        with:
-          prompt: |
-            Analyze Trivy security scan results for SafeWork Pro medical system.
-            
-            🎯 MCP POST-SCAN ANALYSIS:
-            1. Use View to read trivy-results.json
-            2. Use mcp__memory__create_entities for each vulnerability found
-            3. Use mcp__memory__create_relations between vulnerabilities and affected components
-            4. Use mcp__brave-search__brave_web_search for Korean medical compliance requirements
-            5. Use mcp__sequential-thinking__sequentialthinking for risk assessment
-            6. Use mcp__github__search_issues to check if vulnerabilities are known
-            
-            🏥 KOREAN MEDICAL COMPLIANCE FOCUS:
-            - 의료법 compliance for patient data
-            - 개인정보보호법 requirements
-            - Medical record encryption standards
-            - Healthcare system security guidelines
-            
-            Generate prioritized remediation plan for Korean healthcare environment.
-          mcp_config: ${{ steps.security-mcp.outputs.config }}
-          allowed_tools: "View,GlobTool,GrepTool,mcp__memory__*,mcp__github__*,mcp__sequential-thinking__*,mcp__brave-search__*"
-          max_turns: 6
-          timeout_minutes: 10
-          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
-          claude_env: |
-            GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-            BRAVE_API_KEY: ${{ secrets.BRAVE_API_KEY }}
-            PROJECT_NAME: SafeWork Pro
-            ANALYSIS_MODE: security_post_scan
-        continue-on-error: true
-
-  # ===== 통합 테스트 결과 =====
-  test:
-    name: Test Results Summary
-    runs-on: ubuntu-latest
-    needs: [backend-test, frontend-test]
-    outputs:
-      test-status: ${{ steps.summary.outputs.status }}
-      coverage: ${{ needs.backend-test.outputs.coverage }}
-    
-    steps:
-      - name: Combine Test Results
-        id: summary
-        run: |
-          BACKEND_STATUS="${{ needs.backend-test.outputs.test-status }}"
-          FRONTEND_STATUS="${{ needs.frontend-test.outputs.test-status }}"
-          
-          if [ "$BACKEND_STATUS" == "passed" ] && [ "$FRONTEND_STATUS" == "passed" ]; then
-            echo "status=passed" >> $GITHUB_OUTPUT
-            echo "✅ All tests passed!"
-          else
-            echo "status=failed" >> $GITHUB_OUTPUT
-            echo "❌ Some tests failed!"
-            echo "Backend: $BACKEND_STATUS, Frontend: $FRONTEND_STATUS"
-          fi
-
-  # ===== 4단계: Docker 빌드 및 푸시 =====
-  build-and-push:
-    name: Build & Push Docker Image
-    needs: [test, security-scan]
-    runs-on: [self-hosted, linux]
-    if: needs.test.outputs.test-status == 'passed'
-    outputs:
-      image-tag: ${{ steps.meta.outputs.tag }}
-      image-digest: ${{ steps.build.outputs.digest }}
+    if: github.ref == 'refs/heads/main'
     
     steps:
       - name: Checkout code
@@ -861,23 +106,14 @@ ${claudeOutput}
       - name: Generate metadata
         id: meta
         run: |
-          # 환경별 태그 생성
-          if [ "${{ github.event_name }}" == "pull_request" ]; then
-            ENV="pr-${{ github.event.pull_request.number }}"
-          elif [ "${{ github.ref }}" == "refs/heads/main" ]; then
-            ENV="prod"
-          else
-            ENV="dev"
-          fi
-          
-          TAG="${ENV}-$(date +%Y%m%d)-${GITHUB_SHA:0:7}"
+          VERSION=$(date +%Y.%m.%d)
+          BUILD_NUM=${{ github.run_number }}
+          SHA_SHORT=${GITHUB_SHA:0:7}
+          TAG="prod-${VERSION}.${BUILD_NUM}-${SHA_SHORT}"
           echo "tag=${TAG}" >> $GITHUB_OUTPUT
-          echo "environment=${ENV}" >> $GITHUB_OUTPUT
       
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
-        with:
-          driver-opts: network=host
       
       - name: Login to Registry
         uses: docker/login-action@v3
@@ -886,8 +122,7 @@ ${claudeOutput}
           username: ${{ secrets.REGISTRY_USERNAME }}
           password: ${{ secrets.REGISTRY_PASSWORD }}
       
-      - name: Build and push
-        id: build
+      - name: Build and push image
         uses: docker/build-push-action@v5
         with:
           context: .
@@ -896,99 +131,37 @@ ${claudeOutput}
           tags: |
             ${{ env.REGISTRY_URL }}/${{ env.IMAGE_NAME }}:${{ steps.meta.outputs.tag }}
             ${{ env.REGISTRY_URL }}/${{ env.IMAGE_NAME }}:latest
-          cache-from: type=registry,ref=${{ env.REGISTRY_URL }}/${{ env.IMAGE_NAME }}:buildcache
-          cache-to: type=registry,ref=${{ env.REGISTRY_URL }}/${{ env.IMAGE_NAME }}:buildcache,mode=max
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
 
-  # ===== 5단계: ArgoCD 배포 트리거 =====
   deploy:
-    name: Deploy via ArgoCD
-    needs: [build-and-push]
+    name: Deploy to Production
+    needs: [build]
     runs-on: [self-hosted, linux]
-    if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
-    environment: 
+    if: github.ref == 'refs/heads/main'
+    environment:
       name: production
       url: https://safework.jclee.me
     
     steps:
-      - name: Notify ArgoCD
+      - name: Notify deployment
         run: |
-          echo "🚀 Deployment triggered!"
-          echo "📦 New image: ${{ env.REGISTRY_URL }}/${{ env.IMAGE_NAME }}:${{ needs.build-and-push.outputs.image-tag }}"
-          echo "🔄 ArgoCD will automatically sync within 3 minutes"
-          
-      - name: Wait and Verify
+          echo "🚀 Docker image pushed to registry"
+          echo "📦 Image: ${{ env.REGISTRY_URL }}/${{ env.IMAGE_NAME }}:latest"
+          echo "🔄 ArgoCD will automatically sync the deployment"
+      
+      - name: Verify deployment
         run: |
           echo "⏳ Waiting for ArgoCD sync..."
-          sleep 180
+          sleep 60
           
-          # Health check
-          MAX_ATTEMPTS=10
-          for i in $(seq 1 $MAX_ATTEMPTS); do
-            if curl -s -o /dev/null -w "%{http_code}" https://safework.jclee.me/health | grep -q "200"; then
-              echo "✅ Deployment successful!"
-              exit 0
+          for i in {1..10}; do
+            HTTP_STATUS=$(curl -s -o /dev/null -w "%{http_code}" https://safework.jclee.me/health || echo "000")
+            if [ "$HTTP_STATUS" = "200" ]; then
+              echo "✅ Application is healthy!"
+              break
+            else
+              echo "⏳ Waiting for application... (attempt $i/10, status: $HTTP_STATUS)"
+              sleep 30
             fi
-            echo "Attempt $i/$MAX_ATTEMPTS..."
-            sleep 30
           done
-          
-          echo "❌ Deployment verification failed"
-          exit 1
-
-  # ===== 최종: 결과 알림 =====
-  notify:
-    name: Pipeline Summary
-    needs: [claude-analysis, auto-fix, backend-test, frontend-test, test, security-scan, build-and-push, deploy]
-    runs-on: ubuntu-latest
-    if: always()
-    
-    steps:
-      - name: Generate Summary
-        run: |
-          cat >> $GITHUB_STEP_SUMMARY <<EOF
-          # 🚀 SafeWork Pro Pipeline Summary
-          
-          ## 📊 Results
-          - 🤖 Claude Review: ${{ needs.claude-analysis.outputs.review-status || 'skipped' }}
-          - 🔧 Auto-Fix: ${{ needs.auto-fix.result || 'skipped' }}
-          - 🧪 Backend Tests: ${{ needs.backend-test.outputs.test-status || 'skipped' }} (Coverage: ${{ needs.backend-test.outputs.coverage || 'N/A' }}%)
-          - 🎨 Frontend Tests: ${{ needs.frontend-test.outputs.test-status || 'skipped' }}
-          - 🔒 Security Scan: ${{ needs.security-scan.result || 'skipped' }}
-          - 🏗️ Build: ${{ needs.build-and-push.result }}
-          - 🚢 Deploy: ${{ needs.deploy.result }}
-          
-          ## 📦 Deployment Info
-          - Image: \`${{ env.REGISTRY_URL }}/${{ env.IMAGE_NAME }}:${{ needs.build-and-push.outputs.image-tag || 'N/A' }}\`
-          - Environment: Production
-          - URL: https://safework.jclee.me
-          
-          ---
-          Generated at $(date -u +'%Y-%m-%d %H:%M:%S UTC')
-          EOF
-      
-      - name: Post PR Comment
-        if: github.event_name == 'pull_request'
-        uses: actions/github-script@v7
-        with:
-          script: |
-            const summary = `## 🚀 Pipeline Results
-            
-            | Stage | Status |
-            |-------|--------|
-            | 🤖 Claude Review | ${{ needs.claude-analysis.outputs.review-status || '⏭️ skipped' }} |
-            | 🔧 Auto-Fix | ${{ needs.auto-fix.result || '⏭️ skipped' }} |
-            | 🧪 Backend Tests | ${{ needs.backend-test.outputs.test-status || '⏭️ skipped' }} |
-            | 🎨 Frontend Tests | ${{ needs.frontend-test.outputs.test-status || '⏭️ skipped' }} |
-            | 🔒 Security Scan | ${{ needs.security-scan.result || '⏭️ skipped' }} |
-            | 📦 Build | ${{ needs.build-and-push.result }} |
-            | 🚢 Deploy | ${{ needs.deploy.result || 'N/A' }} |
-            
-            **Coverage**: ${{ needs.backend-test.outputs.coverage || 'N/A' }}%
-            `;
-            
-            await github.rest.issues.createComment({
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              issue_number: context.issue.number,
-              body: summary
-            });
