@@ -20,7 +20,7 @@ jobs:
   claude-analysis:
     name: Claude AI MCP Analysis
     runs-on: ubuntu-latest
-    if: github.event_name == 'push' || github.event_name == 'pull_request'
+    if: (github.event_name == 'push' || github.event_name == 'pull_request') && secrets.ANTHROPIC_API_KEY != ''
     
     steps:
       - name: Checkout code
@@ -160,7 +160,7 @@ jobs:
     name: Build Docker Image
     needs: [backend-test, frontend-test, security-scan]
     runs-on: [self-hosted, linux]
-    if: github.ref == 'refs/heads/main'
+    if: github.ref == 'refs/heads/main' && (success() || failure())
     
     steps:
       - name: Checkout code

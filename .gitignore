@@ -86,6 +86,7 @@ health-app.tar.gz
 *.crt
 *.p12
 *.pfx
+setup-github-secrets.sh
 
 # OS
 Thumbs.db

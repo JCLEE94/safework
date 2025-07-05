@@ -68,6 +68,9 @@ async def init_db():
 
 async def get_db() -> AsyncSession:
     """데이터베이스 세션 의존성"""
+    if AsyncSessionLocal is None:
+        await init_db()
+    
     async with AsyncSessionLocal() as session:
         try:
             yield session
