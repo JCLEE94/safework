@@ -13,6 +13,8 @@ from src.models import (
     Worker, HealthExam, WorkEnvironment, 
     HealthEducation, AccidentReport, ChemicalSubstance
 )
+from src.models.health_education import HealthEducationAttendance, EducationStatus
+from src.models.chemical_substance import HazardClass
 
 router = APIRouter(prefix="/api/v1", tags=["Dashboard"])
 
@@ -73,7 +75,7 @@ async def get_dashboard_data(db: AsyncSession = Depends(get_db)):
     total_education = total_education_result.scalar()
     
     completed_education_result = await db.execute(
-        select(func.count(HealthEducation.id)).where(HealthEducation.completion_status == True)
+        select(func.count(HealthEducationAttendance.id)).where(HealthEducationAttendance.status == EducationStatus.COMPLETED)
     )
     completed_education = completed_education_result.scalar()
     completion_rate = (completed_education / total_education * 100) if total_education > 0 else 0
@@ -89,7 +91,7 @@ async def get_dashboard_data(db: AsyncSession = Depends(get_db)):
     total_chemicals = total_chemicals_result.scalar()
     
     hazardous_chemicals_result = await db.execute(
-        select(func.count(ChemicalSubstance.id)).where(ChemicalSubstance.hazard_class.in_(["급성독성", "발암성"]))
+        select(func.count(ChemicalSubstance.id)).where(ChemicalSubstance.hazard_class.in_([HazardClass.TOXIC, HazardClass.CARCINOGENIC]))
     )
     hazardous_chemicals = hazardous_chemicals_result.scalar()
     
