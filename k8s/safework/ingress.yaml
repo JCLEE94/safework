@@ -54,21 +54,22 @@ spec:
 #         ingress:
 #           class: nginx
 ---
-# Alternative LoadBalancer service for direct access (optional)
+# NodePort service for development/testing access
 apiVersion: v1
 kind: Service
 metadata:
-  name: safework-loadbalancer
+  name: safework-nodeport
   namespace: safework
   labels:
     app: safework
-    component: loadbalancer
+    component: nodeport
 spec:
-  type: LoadBalancer
+  type: NodePort
   ports:
-    - port: 33301
+    - port: 3001
       targetPort: 3001
       protocol: TCP
-      name: safework
+      nodePort: 30301
+      name: http
   selector:
     app: safework
