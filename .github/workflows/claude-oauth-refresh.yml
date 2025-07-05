@@ -1,0 +1,69 @@
+name: Claude Code OAuth Token Refresh
+
+on:
+  schedule:
+    - cron: '0 0 * * *'  # 매일 자정 UTC에 실행
+  workflow_call:
+    inputs:
+      check_expiry:
+        description: 'Check token expiry'
+        required: false
+        type: boolean
+        default: true
+  workflow_dispatch:
+
+jobs:
+  check-and-refresh:
+    name: Check and Refresh OAuth Token
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Check OAuth Token Status
+        id: token_check
+        run: |
+          echo "🔍 Claude Code OAuth 토큰 상태 확인..."
+          
+          # Check if token exists
+          if [ ! -f ~/.claude/oauth_token ]; then
+            echo "❌ OAuth 토큰이 없습니다"
+            echo "token_exists=false" >> $GITHUB_OUTPUT
+            echo "needs_refresh=true" >> $GITHUB_OUTPUT
+            exit 0
+          fi
+          
+          echo "✅ OAuth 토큰 파일 발견"
+          echo "token_exists=true" >> $GITHUB_OUTPUT
+          
+          # Check token expiry (if applicable)
+          # This is a placeholder - actual expiry check depends on token format
+          echo "🔍 토큰 만료 여부 확인..."
+          echo "needs_refresh=false" >> $GITHUB_OUTPUT
+      
+      - name: Refresh OAuth Token
+        if: steps.token_check.outputs.needs_refresh == 'true'
+        uses: grll/claude-code-login@v1
+        with:
+          force: true
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+      
+      - name: Verify Refreshed Token
+        if: steps.token_check.outputs.needs_refresh == 'true'
+        run: |
+          if [ -f ~/.claude/oauth_token ]; then
+            echo "✅ Claude Code OAuth 토큰 갱신 완료"
+            echo "📅 갱신 시간: $(date)"
+          else
+            echo "❌ OAuth 토큰 갱신 실패"
+            exit 1
+          fi
+      
+      - name: Token Status Summary
+        run: |
+          echo "📊 Claude Code OAuth 상태 요약"
+          echo "================================"
+          echo "토큰 존재: ${{ steps.token_check.outputs.token_exists }}"
+          echo "갱신 필요: ${{ steps.token_check.outputs.needs_refresh }}"
+          echo "마지막 확인: $(date)"
