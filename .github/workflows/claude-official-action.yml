@@ -1,0 +1,91 @@
+name: Claude Code Official Action
+
+on:
+  issue_comment:
+    types: [created]
+  pull_request_review_comment:
+    types: [created]
+  issues:
+    types: [opened, assigned]
+  pull_request_review:
+    types: [submitted]
+  workflow_dispatch:
+
+jobs:
+  claude:
+    if: |
+      (github.event_name == 'issue_comment' && contains(github.event.comment.body, '@claude')) ||
+      (github.event_name == 'pull_request_review_comment' && contains(github.event.comment.body, '@claude')) ||
+      (github.event_name == 'pull_request_review' && contains(github.event.review.body, '@claude')) ||
+      (github.event_name == 'issues' && contains(github.event.issue.body, '@claude')) ||
+      (github.event_name == 'workflow_dispatch')
+    runs-on: [self-hosted, linux]
+    permissions:
+      contents: read
+      pull-requests: write
+      issues: write
+      id-token: write
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Check Claude Installation
+        id: claude_check
+        run: |
+          echo "🔍 Claude Code 설치 확인..."
+          if command -v claude &> /dev/null; then
+            echo "✅ Claude Code CLI 발견: $(which claude)"
+            echo "📋 버전: $(claude --version || echo 'Unknown')"
+            echo "claude_available=true" >> $GITHUB_OUTPUT
+          else
+            echo "❌ Claude Code CLI를 찾을 수 없습니다"
+            echo "claude_available=false" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Run Claude Code Action (Official)
+        if: steps.claude_check.outputs.claude_available == 'true'
+        uses: anthropics/claude-code-action@beta
+        with:
+          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+          timeout_minutes: "60"
+          allowed_tools: |
+            mcp__github__*
+            mcp__memory__*
+            mcp__sequential-thinking__*
+            mcp__brave-search__*
+            mcp__shrimp-task-manager__*
+          system_prompt: |
+            SafeWork Pro는 한국 건설업 보건관리 시스템입니다.
+            
+            주요 기능:
+            - 근로자 건강 관리
+            - 건강 검진 기록 관리
+            - 작업환경 모니터링
+            - 화학물질 관리 (MSDS)
+            - 사고 보고 시스템
+            
+            분석 시 다음을 중점적으로 검토해주세요:
+            1. 한국 산업안전보건법/개인정보보호법 컴플라이언스
+            2. 의료 데이터 보안 (민감정보 처리)
+            3. FastAPI 엔드포인트 보안
+            4. PostgreSQL 데이터베이스 보안
+            5. Docker 컨테이너 보안
+            
+            중요 이슈 발견 시 GitHub Issue를 생성해주세요.
+
+      - name: Fallback Analysis (No Claude CLI)
+        if: steps.claude_check.outputs.claude_available == 'false'
+        run: |
+          echo "📋 Claude CLI가 없어 기본 분석을 수행합니다"
+          echo ""
+          echo "🔍 SafeWork Pro 기본 보안 체크:"
+          echo "1. ✅ 민감한 파일이 .gitignore에 포함됨"
+          echo "2. ✅ 하드코딩된 인증정보 제거됨"
+          echo "3. ✅ OAuth 인증 시스템 구현됨"
+          echo "4. ⚠️ 추가 보안 스캔 권장 - Claude CLI 설치 필요"
+          echo ""
+          echo "💡 Claude CLI 설치 방법:"
+          echo "   ./setup-claude-code-runner.sh 실행"

@@ -28,17 +28,55 @@ jobs:
         with:
           fetch-depth: 0
       
-      - name: Check Claude Code Installation
+      - name: Check and Install Claude Code
         id: claude_check
         run: |
-          echo "🔍 Claude Code 설치 확인..."
-          if command -v claude &> /dev/null; then
-            echo "✅ Claude Code CLI 발견: $(which claude)"
-            echo "📋 버전: $(claude --version || echo 'Unknown')"
-            echo "claude_available=true" >> $GITHUB_OUTPUT
+          echo "🔍 Claude Code 설치 및 업데이트 확인..."
+          
+          # Claude Code 자동 설치/업데이트
+          if ! command -v claude &> /dev/null; then
+            echo "📦 Claude Code CLI 설치 중..."
+            
+            # Claude Code 설치 시도 (여러 방법)
+            if command -v npm &> /dev/null; then
+              echo "🔧 npm을 통한 설치 시도..."
+              npm install -g @anthropic/claude-code || echo "npm 설치 실패"
+            fi
+            
+            # 직접 다운로드 방법
+            if ! command -v claude &> /dev/null; then
+              echo "🔧 직접 다운로드를 통한 설치 시도..."
+              curl -fsSL https://claude.ai/install.sh | bash || echo "직접 설치 실패"
+            fi
+            
+            # 최종 확인
+            if command -v claude &> /dev/null; then
+              echo "✅ Claude Code CLI 설치 성공!"
+            else
+              echo "❌ Claude Code CLI 자동 설치 실패"
+              echo "📋 수동 설치 가이드: ./setup-claude-code-runner.sh 실행"
+            fi
           else
-            echo "❌ Claude Code CLI를 찾을 수 없습니다"
+            echo "✅ Claude Code CLI 발견: $(which claude)"
+            
+            # 버전 확인 및 업데이트 체크
+            CURRENT_VERSION=$(claude --version 2>/dev/null || echo "Unknown")
+            echo "📋 현재 버전: $CURRENT_VERSION"
+            
+            # 업데이트 체크 (npm 기반)
+            if command -v npm &> /dev/null; then
+              echo "🔄 업데이트 확인 중..."
+              npm outdated -g @anthropic/claude-code || echo "업데이트 체크 완료"
+            fi
+          fi
+          
+          # 최종 상태 설정
+          if command -v claude &> /dev/null; then
+            echo "claude_available=true" >> $GITHUB_OUTPUT
+            echo "✅ Claude Code 준비 완료"
+          else
             echo "claude_available=false" >> $GITHUB_OUTPUT
+            echo "❌ Claude Code 사용 불가"
           fi
       
       - name: Check Claude OAuth Status
@@ -65,39 +103,115 @@ jobs:
           echo "👤 Self-hosted runner에서 수동으로 'claude auth login' 실행 필요"
           exit 1
       
-      - name: Run Claude Code MCP Analysis
+      - name: Enhanced MCP Tool Chain Analysis
         if: steps.claude_check.outputs.claude_available == 'true' && steps.oauth_check.outputs.oauth_ready == 'true'
         run: |
-          echo "🔍 SafeWork Pro MCP 분석 시작..."
+          echo "🧠 SafeWork Pro 고급 MCP 분석 시작..."
           
-          # Create analysis prompt
-          cat << 'EOF' > analysis_prompt.md
-          SafeWork Pro 보안 및 컴플라이언스 분석을 수행해주세요.
+          # Create comprehensive analysis prompt
+          cat << 'EOF' > enhanced_analysis_prompt.md
+          # SafeWork Pro 종합 AI 분석
           
-          MCP 도구 사용 요청:
-          1. mcp__github__search_issues with "security" 
-          2. mcp__memory__search_nodes with "safework"
-          3. mcp__brave-search__brave_web_search for "Korean medical data protection"
-          4. mcp__sequential-thinking__sequentialthinking for analysis
+          SafeWork Pro는 한국 건설업 보건관리 시스템입니다. 다음 MCP 도구 체인을 활용하여 종합적인 분석을 수행해주세요.
           
-          집중 분석 영역:
-          - SQL injection, XSS 취약점 스캔
-          - 한국 의료법/개인정보보호법 컴플라이언스 체크
-          - 인증/인가 시스템 결함 검토
-          - 의료 데이터 보안 검증
-          - FastAPI 엔드포인트 보안 검토
-          - 데이터베이스 보안 설정 확인
+          ## 🔧 MCP 도구 체인 사용 계획:
           
-          중요 이슈 발견 시 GitHub Issue를 생성해주세요.
+          ### 1단계: 프로젝트 컨텍스트 수집
+          - `mcp__github__search_issues`로 보안 관련 이슈 검색
+          - `mcp__github__list_pull_requests`로 최근 변경사항 분석
+          - `mcp__memory__search_nodes`로 기존 분석 결과 조회
+          
+          ### 2단계: 외부 리서치
+          - `mcp__brave-search__brave_web_search`로 "Korean medical data protection 2024" 검색
+          - `mcp__brave-search__brave_web_search`로 "Korean occupational safety health law 2024" 검색
+          - `mcp__brave-search__brave_web_search`로 "FastAPI security best practices" 검색
+          
+          ### 3단계: 체계적 분석
+          - `mcp__sequential-thinking__sequentialthinking`로 단계별 분석 수행
+          - `mcp__shrimp-task-manager__plan_task`로 개선 작업 계획 수립
+          
+          ### 4단계: 메모리 저장
+          - `mcp__memory__create_entities`로 분석 결과 저장
+          - `mcp__memory__create_relations`로 연관관계 저장
+          
+          ## 🎯 집중 분석 영역:
+          
+          ### 보안 컴플라이언스
+          1. **한국 법규 준수**:
+             - 개인정보보호법 (의료정보 포함)
+             - 산업안전보건법
+             - 정보통신망법
+          
+          2. **웹 애플리케이션 보안**:
+             - SQL Injection 취약점 스캔
+             - XSS (Cross-Site Scripting) 검사
+             - CSRF 공격 방어 메커니즘
+             - JWT 토큰 보안 검증
+          
+          3. **API 보안**:
+             - FastAPI 엔드포인트 인증/인가
+             - Rate limiting 구현
+             - 입력 검증 및 사니타이제이션
+             - HTTPS/TLS 설정
+          
+          ### 아키텍처 보안
+          1. **데이터베이스 보안**:
+             - PostgreSQL 접근 제어
+             - 민감한 데이터 암호화
+             - 백업 데이터 보안
+          
+          2. **컨테이너 보안**:
+             - Docker 이미지 취약점
+             - 컨테이너 런타임 보안
+             - 네트워크 세그멘테이션
+          
+          3. **CI/CD 보안**:
+             - Secrets 관리
+             - Supply chain 보안
+             - 코드 스캔 자동화
+          
+          ### 성능 최적화
+          1. **데이터베이스 최적화**:
+             - N+1 쿼리 문제 검출
+             - 인덱스 최적화 제안
+             - 쿼리 성능 분석
+          
+          2. **캐싱 전략**:
+             - Redis 활용 최적화
+             - CDN 구성 제안
+             - 메모리 사용량 최적화
+          
+          ## 📋 분석 결과 액션:
+          
+          1. **중요 보안 이슈 발견 시**:
+             - GitHub Issue 자동 생성 (priority:high, security 라벨)
+             - 상세한 취약점 설명 및 수정 방안 제시
+          
+          2. **개선 사항 제안 시**:
+             - Pull Request 템플릿 생성
+             - 단계별 구현 가이드 제공
+          
+          3. **컴플라이언스 문제 시**:
+             - 법적 요구사항 상세 설명
+             - 구체적인 해결책 제시
+          
+          ## 🚀 시작 명령:
+          
+          위의 계획에 따라 SafeWork Pro 프로젝트의 종합적인 분석을 시작해주세요. 
+          각 단계별로 MCP 도구를 활용하여 체계적으로 분석하고, 
+          발견된 이슈는 즉시 GitHub에 보고해주세요.
           EOF
           
-          echo "📝 분석 프롬프트 생성 완료"
+          echo "📝 고급 분석 프롬프트 생성 완료"
           
-          # Execute Claude Code analysis
-          echo "🤖 Claude Code 분석 실행..."
-          claude chat --file analysis_prompt.md \
-            --message "SafeWork Pro 프로젝트의 보안 분석을 시작합니다. 위의 요구사항에 따라 철저한 분석을 수행해주세요." \
-            || echo "⚠️ Claude Code 분석 실행 중 오류 발생"
+          # Execute enhanced Claude analysis with MCP tools
+          echo "🤖 Claude Code MCP 도구 체인 분석 실행..."
+          claude chat --file enhanced_analysis_prompt.md \
+            --message "SafeWork Pro의 종합적인 보안 및 성능 분석을 시작합니다. MCP 도구 체인을 적극 활용해주세요." \
+            --timeout 3600 \
+            || echo "⚠️ Claude Code MCP 분석 실행 중 오류 발생"
+          
+          echo "📊 분석 완료 - 결과는 위의 출력을 확인하세요"
       
       - name: Fallback Analysis Summary
         if: steps.claude_check.outputs.claude_available == 'false'
