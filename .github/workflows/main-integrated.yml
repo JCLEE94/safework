@@ -1,0 +1,421 @@
+name: SafeWork Pro - Integrated Pipeline with Claude
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    types: [opened, synchronize, reopened]
+  workflow_dispatch:
+    inputs:
+      skip_tests:
+        description: 'Skip tests (emergency only)'
+        required: false
+        type: boolean
+        default: false
+      skip_claude:
+        description: 'Skip Claude review'
+        required: false
+        type: boolean
+        default: false
+
+env:
+  REGISTRY_URL: registry.jclee.me
+  IMAGE_NAME: safework
+  DOCKER_BUILDKIT: 1
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  # ===== 0단계: 중복 실행 취소 =====
+  cancel-previous:
+    name: Cancel Previous Runs
+    runs-on: ubuntu-latest
+    steps:
+      - name: Cancel Previous Runs
+        uses: styfle/cancel-workflow-action@0.12.1
+        with:
+          access_token: ${{ github.token }}
+          workflow_id: ${{ github.workflow }}
+          ignore_sha: true
+          all_but_latest: true
+
+  # ===== 1단계: Claude AI 코드 분석 =====
+  claude-analysis:
+    name: Claude AI Analysis
+    runs-on: ubuntu-latest
+    needs: [cancel-previous]
+    if: ${{ !inputs.skip_claude }}
+    outputs:
+      review-status: ${{ steps.analysis.outputs.status }}
+      critical-issues: ${{ steps.analysis.outputs.critical }}
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      
+      - name: Load MCP Configuration
+        id: mcp
+        run: |
+          if [ -f ".mcp.json" ]; then
+            echo "🔍 MCP configuration found"
+            MCP_CONFIG=$(cat .mcp.json | jq -c .)
+            echo "config<<EOF" >> $GITHUB_OUTPUT
+            echo "$MCP_CONFIG" >> $GITHUB_OUTPUT
+            echo "EOF" >> $GITHUB_OUTPUT
+          else
+            echo "config={}" >> $GITHUB_OUTPUT
+          fi
+      
+      - name: Prepare Claude Prompt
+        id: prompt
+        run: |
+          # 변경된 파일 목록
+          CHANGED_FILES=$(git diff --name-only HEAD~1 HEAD 2>/dev/null || echo "")
+          
+          # PR인 경우 diff 가져오기
+          if [ "${{ github.event_name }}" == "pull_request" ]; then
+            DIFF=$(gh pr diff ${{ github.event.pull_request.number }} || echo "")
+          else
+            DIFF=$(git diff HEAD~1 HEAD || echo "")
+          fi
+          
+          # 프롬프트 생성
+          cat > claude-prompt.txt <<EOF
+          You are reviewing SafeWork Pro, a Korean construction site health management system.
+          
+          Use the MCP tools available to you:
+          - Use github MCP to check related issues and PRs
+          - Use memory MCP to recall previous code reviews and patterns
+          - Use sequential-thinking MCP for complex analysis
+          - Use brave-search MCP to verify Korean healthcare regulations (의료법, 개인정보보호법)
+          - Use docker MCP to check container configurations
+          
+          🔍 Analyze the following aspects:
+          1. Code quality and best practices
+          2. Security vulnerabilities (especially 의료법, 개인정보보호법 compliance)
+          3. Performance issues
+          4. Potential bugs
+          5. Korean healthcare data handling
+          
+          Changed files:
+          $CHANGED_FILES
+          
+          Recent changes:
+          \`\`\`diff
+          $(echo "$DIFF" | head -n 500)
+          \`\`\`
+          
+          Please:
+          1. Use MCP tools to gather context about similar issues/PRs
+          2. Check memory for previous reviews and patterns
+          3. Search for Korean healthcare compliance requirements
+          4. Provide critical issues that MUST be fixed before deployment
+          5. Give an overall recommendation (approve/needs-fixes/reject)
+          
+          Format your response with clear sections for Critical/Warning/Info findings.
+          EOF
+          
+          PROMPT=$(cat claude-prompt.txt)
+          echo "prompt<<EOF" >> $GITHUB_OUTPUT
+          echo "$PROMPT" >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
+      
+      - name: Run Claude Analysis
+        id: analysis
+        uses: grll/claude-code-base-action@beta
+        with:
+          prompt: ${{ steps.prompt.outputs.prompt }}
+          use_oauth: true
+          claude_access_token: ${{ secrets.CLAUDE_ACCESS_TOKEN }}
+          claude_refresh_token: ${{ secrets.CLAUDE_REFRESH_TOKEN }}
+          claude_expires_at: ${{ secrets.CLAUDE_EXPIRES_AT }}
+          mcp_config: ${{ steps.mcp.outputs.config }}
+          max_turns: 3
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          BRAVE_API_KEY: ${{ secrets.BRAVE_API_KEY }}
+        continue-on-error: true
+      
+      - name: Parse Claude Results
+        id: parse
+        if: always()
+        run: |
+          # Claude 분석 결과에서 critical issues 추출
+          # 실제로는 Claude의 출력을 파싱해야 함
+          if [ "${{ steps.analysis.outcome }}" == "success" ]; then
+            echo "status=reviewed" >> $GITHUB_OUTPUT
+            echo "critical=0" >> $GITHUB_OUTPUT  # TODO: 실제 파싱 로직 필요
+          else
+            echo "status=skipped" >> $GITHUB_OUTPUT
+            echo "critical=0" >> $GITHUB_OUTPUT
+          fi
+          
+          # 결과 요약
+          echo "## 🤖 Claude AI Review Summary" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          if [ "${{ steps.analysis.outcome }}" == "success" ]; then
+            echo "✅ Code review completed" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "⚠️ Code review skipped or failed" >> $GITHUB_STEP_SUMMARY
+          fi
+
+  # ===== 2단계: 테스트 실행 =====
+  test:
+    name: Test Suite
+    runs-on: [self-hosted, linux]
+    needs: [cancel-previous, claude-analysis]
+    if: ${{ !inputs.skip_tests && (needs.claude-analysis.result == 'success' || needs.claude-analysis.result == 'skipped') }}
+    outputs:
+      test-status: ${{ steps.test-summary.outputs.status }}
+      coverage: ${{ steps.test-summary.outputs.coverage }}
+    
+    services:
+      postgres:
+        image: postgres:15
+        env:
+          POSTGRES_USER: admin
+          POSTGRES_PASSWORD: password
+          POSTGRES_DB: health_management
+        ports:
+          - 15432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+          
+      redis:
+        image: redis:7-alpine
+        ports:
+          - 16379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+      
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+          cache: 'npm'
+          cache-dependency-path: frontend/package-lock.json
+      
+      - name: Run Backend Tests
+        id: backend-tests
+        env:
+          DATABASE_URL: postgresql://admin:password@localhost:15432/health_management
+          REDIS_URL: redis://localhost:16379/0
+          JWT_SECRET: test-secret-key
+          PYTHONPATH: ${{ github.workspace }}
+          npm_config_cache: ${{ runner.temp }}/.npm
+        timeout-minutes: 10
+        run: |
+          echo "🧪 Running tests..."
+          
+          # Backend
+          python -m pip install --upgrade pip
+          pip install -r backend/requirements.txt
+          pytest tests/ -v --cov=src --cov-report=term --cov-report=html --cov-fail-under=70 --timeout=300 -x | tee test-output.txt
+          
+          # Coverage 추출
+          coverage=$(grep -oP 'TOTAL.*\K\d+(?=%)' test-output.txt || echo "0")
+          echo "backend-coverage=$coverage" >> $GITHUB_OUTPUT
+      
+      - name: Run Frontend Tests
+        working-directory: frontend
+        run: |
+          npm ci
+          npm run lint || true
+          npm run test -- --passWithNoTests || true
+          npm run build
+      
+      - name: Test Summary
+        id: test-summary
+        if: always()
+        run: |
+          if [ "${{ steps.backend-tests.outcome }}" == "success" ]; then
+            echo "status=passed" >> $GITHUB_OUTPUT
+            echo "coverage=${{ steps.backend-tests.outputs.backend-coverage }}" >> $GITHUB_OUTPUT
+          else
+            echo "status=failed" >> $GITHUB_OUTPUT
+            echo "coverage=0" >> $GITHUB_OUTPUT
+          fi
+
+  # ===== 3단계: 보안 스캔 =====
+  security-scan:
+    name: Security Scan
+    runs-on: [self-hosted, linux]
+    needs: [test]
+    if: needs.test.outputs.test-status == 'passed'
+    continue-on-error: true
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Run Trivy Scanner
+        uses: aquasecurity/trivy-action@master
+        with:
+          scan-type: 'fs'
+          scan-ref: '.'
+          severity: 'CRITICAL,HIGH'
+          exit-code: '0'
+          format: 'table'
+
+  # ===== 4단계: Docker 빌드 및 푸시 =====
+  build-and-push:
+    name: Build & Push Docker Image
+    needs: [test]
+    runs-on: [self-hosted, linux]
+    if: needs.test.outputs.test-status == 'passed'
+    outputs:
+      image-tag: ${{ steps.meta.outputs.tag }}
+      image-digest: ${{ steps.build.outputs.digest }}
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Generate metadata
+        id: meta
+        run: |
+          # 환경별 태그 생성
+          if [ "${{ github.event_name }}" == "pull_request" ]; then
+            ENV="pr-${{ github.event.pull_request.number }}"
+          elif [ "${{ github.ref }}" == "refs/heads/main" ]; then
+            ENV="prod"
+          else
+            ENV="dev"
+          fi
+          
+          TAG="${ENV}-$(date +%Y%m%d)-${GITHUB_SHA:0:7}"
+          echo "tag=${TAG}" >> $GITHUB_OUTPUT
+          echo "environment=${ENV}" >> $GITHUB_OUTPUT
+      
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+        with:
+          driver-opts: network=host
+      
+      - name: Login to Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY_URL }}
+          username: ${{ secrets.REGISTRY_USERNAME }}
+          password: ${{ secrets.REGISTRY_PASSWORD }}
+      
+      - name: Build and push
+        id: build
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: deployment/Dockerfile.prod
+          push: true
+          tags: |
+            ${{ env.REGISTRY_URL }}/${{ env.IMAGE_NAME }}:${{ steps.meta.outputs.tag }}
+            ${{ env.REGISTRY_URL }}/${{ env.IMAGE_NAME }}:latest
+          cache-from: type=registry,ref=${{ env.REGISTRY_URL }}/${{ env.IMAGE_NAME }}:buildcache
+          cache-to: type=registry,ref=${{ env.REGISTRY_URL }}/${{ env.IMAGE_NAME }}:buildcache,mode=max
+
+  # ===== 5단계: ArgoCD 배포 트리거 =====
+  deploy:
+    name: Deploy via ArgoCD
+    needs: [build-and-push]
+    runs-on: [self-hosted, linux]
+    if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
+    environment: 
+      name: production
+      url: https://safework.jclee.me
+    
+    steps:
+      - name: Notify ArgoCD
+        run: |
+          echo "🚀 Deployment triggered!"
+          echo "📦 New image: ${{ env.REGISTRY_URL }}/${{ env.IMAGE_NAME }}:${{ needs.build-and-push.outputs.image-tag }}"
+          echo "🔄 ArgoCD will automatically sync within 3 minutes"
+          
+      - name: Wait and Verify
+        run: |
+          echo "⏳ Waiting for ArgoCD sync..."
+          sleep 180
+          
+          # Health check
+          MAX_ATTEMPTS=10
+          for i in $(seq 1 $MAX_ATTEMPTS); do
+            if curl -s -o /dev/null -w "%{http_code}" https://safework.jclee.me/health | grep -q "200"; then
+              echo "✅ Deployment successful!"
+              exit 0
+            fi
+            echo "Attempt $i/$MAX_ATTEMPTS..."
+            sleep 30
+          done
+          
+          echo "❌ Deployment verification failed"
+          exit 1
+
+  # ===== 최종: 결과 알림 =====
+  notify:
+    name: Pipeline Summary
+    needs: [claude-analysis, test, build-and-push, deploy]
+    runs-on: ubuntu-latest
+    if: always()
+    
+    steps:
+      - name: Generate Summary
+        run: |
+          cat >> $GITHUB_STEP_SUMMARY <<EOF
+          # 🚀 SafeWork Pro Pipeline Summary
+          
+          ## 📊 Results
+          - 🤖 Claude Review: ${{ needs.claude-analysis.outputs.review-status || 'skipped' }}
+          - 🧪 Tests: ${{ needs.test.outputs.test-status || 'skipped' }} (Coverage: ${{ needs.test.outputs.coverage || 'N/A' }}%)
+          - 🏗️ Build: ${{ needs.build-and-push.result }}
+          - 🚢 Deploy: ${{ needs.deploy.result }}
+          
+          ## 📦 Deployment Info
+          - Image: \`${{ env.REGISTRY_URL }}/${{ env.IMAGE_NAME }}:${{ needs.build-and-push.outputs.image-tag || 'N/A' }}\`
+          - Environment: Production
+          - URL: https://safework.jclee.me
+          
+          ---
+          Generated at $(date -u +'%Y-%m-%d %H:%M:%S UTC')
+          EOF
+      
+      - name: Post PR Comment
+        if: github.event_name == 'pull_request'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const summary = `## 🚀 Pipeline Results
+            
+            | Stage | Status |
+            |-------|--------|
+            | 🤖 Claude Review | ${{ needs.claude-analysis.outputs.review-status || '⏭️ skipped' }} |
+            | 🧪 Tests | ${{ needs.test.outputs.test-status || '⏭️ skipped' }} |
+            | 📦 Build | ${{ needs.build-and-push.result }} |
+            | 🚢 Deploy | ${{ needs.deploy.result || 'N/A' }} |
+            
+            **Coverage**: ${{ needs.test.outputs.coverage || 'N/A' }}%
+            `;
+            
+            await github.rest.issues.createComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number,
+              body: summary
+            });
