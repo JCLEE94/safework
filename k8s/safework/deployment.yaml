@@ -64,5 +64,6 @@ spec:
   ports:
   - port: 3001
     targetPort: 3001
+    nodePort: 33301
     name: http
-  type: ClusterIP
+  type: NodePort
