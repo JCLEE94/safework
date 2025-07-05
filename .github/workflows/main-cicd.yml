@@ -70,66 +70,86 @@ jobs:
           fi
           echo "✅ All backend tests passed"
       
-      - name: Claude Code Analysis
+      - name: Claude AI Code Review
+        continue-on-error: true
         env:
-          CLAUDE_ACCESS_TOKEN: ${{ secrets.CLAUDE_ACCESS_TOKEN }}
+          ANTHROPIC_API_KEY: ${{ secrets.CLAUDE_ACCESS_TOKEN }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          echo "🤖 Running Claude AI code analysis..."
+          echo "🤖 Claude AI Code Review 시작..."
           
-          # Create analysis prompt
-          cat > analysis_prompt.txt << 'EOF'
-          이 SafeWork Pro 건설업 보건관리 시스템의 코드베이스를 분석해주세요:
-
-          ## 분석 요청 사항:
-          1. 🔒 보안 취약점 분석 (SQL Injection, XSS, CSRF 등)
-          2. 📊 코드 품질 및 베스트 프랙티스 검토
-          3. ⚡ 성능 최적화 제안사항
-          4. 🐛 버그 및 잠재적 문제점 식별
-          5. 📝 한국어 주석 및 문서화 개선 제안
-          6. 🏗️ FastAPI + React + PostgreSQL 아키텍처 최적화
-          7. 🦺 건설업 보건관리 특화 데이터 처리 검토
-
-          ## 코드베이스 구조:
-          - Backend: FastAPI (Python)
-          - Frontend: React (TypeScript)  
-          - Database: PostgreSQL
-          - Cache: Redis
-          - Deployment: Docker + Kubernetes + ArgoCD
-
-          분석 결과를 Issue로 생성하여 개발팀이 검토할 수 있도록 해주세요.
-          EOF
+          # 변경된 파일들 분석
+          CHANGED_FILES=$(git diff --name-only HEAD~1 HEAD | grep -E '\.(py|tsx?|js|yaml|yml)$' | head -10)
+          echo "📂 변경된 파일들: $CHANGED_FILES"
           
-          # Get recent changes for focused analysis
-          echo "📂 Recent code changes:"
-          git log --oneline -5
-          echo ""
+          if [ -z "$CHANGED_FILES" ]; then
+            echo "🔍 변경된 코드 파일이 없습니다. 스킵합니다."
+            exit 0
+          fi
           
-          # Get file statistics
-          echo "📊 Codebase statistics:"
-          find . -name "*.py" -o -name "*.tsx" -o -name "*.ts" | grep -v node_modules | grep -v __pycache__ | wc -l
-          echo "Python files:" $(find . -name "*.py" | grep -v __pycache__ | wc -l)
-          echo "TypeScript/React files:" $(find . -name "*.tsx" -o -name "*.ts" | grep -v node_modules | wc -l)
+          # 변경된 파일 내용 수집 (보안을 위해 일부만)
+          CODE_CONTEXT=""
+          for file in $CHANGED_FILES; do
+            if [ -f "$file" ] && [ $(wc -l < "$file") -lt 200 ]; then
+              echo "🔍 분석 중: $file"
+              CODE_CONTEXT="$CODE_CONTEXT\n\n### $file:\n$(head -50 "$file")"
+            fi
+          done
           
-          # API call to Claude (simplified for CI/CD)
-          curl -X POST "https://api.anthropic.com/v1/messages" \
+          # Claude API 호출
+          REVIEW_PROMPT="SafeWork Pro 건설업 보건관리 시스템의 코드 변경사항을 검토해주세요.
+          
+          ## 최근 변경 파일들:
+          $CHANGED_FILES
+          
+          ## 검토 요청사항:
+          1. 보안 이슈 (SQL Injection, XSS, 인증/인가)
+          2. 성능 문제점
+          3. 코드 품질 (가독성, 유지보수성)
+          4. 버그 가능성
+          5. 건설업 보건관리 도메인 특화 이슈
+          
+          ## 컨텍스트:
+          - FastAPI + React + PostgreSQL 스택
+          - 근로자 건강정보, MSDS, 사고보고 처리
+          - 한국 산업안전보건법 준수 필요
+          
+          간결하고 실행 가능한 피드백을 제공해주세요."
+          
+          # API 호출 및 결과 처리
+          curl -s -X POST "https://api.anthropic.com/v1/messages" \
             -H "Content-Type: application/json" \
-            -H "x-api-key: $CLAUDE_ACCESS_TOKEN" \
+            -H "x-api-key: $ANTHROPIC_API_KEY" \
             -H "anthropic-version: 2023-06-01" \
-            -d '{
-              "model": "claude-3-sonnet-20240229",
-              "max_tokens": 4000,
-              "messages": [
-                {
-                  "role": "user", 
-                  "content": "SafeWork Pro 건설업 보건관리 시스템 코드 분석을 요청합니다. 주요 보안, 성능, 코드 품질 이슈를 간단히 요약해주세요."
-                }
-              ]
-            }' > claude_analysis.json || echo "⚠️ Claude API call failed, continuing pipeline..."
+            -d "{
+              \"model\": \"claude-3-haiku-20240307\",
+              \"max_tokens\": 2000,
+              \"messages\": [{
+                \"role\": \"user\",
+                \"content\": $(echo "$REVIEW_PROMPT" | jq -Rs .)
+              }]
+            }" > claude_review.json
           
-          # Extract and display results if successful
-          if [ -f claude_analysis.json ]; then
-            echo "✅ Claude analysis completed"
-            cat claude_analysis.json | jq -r '.content[0].text' 2>/dev/null || echo "📄 Analysis saved to claude_analysis.json"
+          # 결과 확인 및 출력
+          if [ -f claude_review.json ] && jq -e '.content[0].text' claude_review.json >/dev/null 2>&1; then
+            echo "✅ Claude 코드 리뷰 완료"
+            echo "📋 리뷰 결과:"
+            echo "================================================"
+            jq -r '.content[0].text' claude_review.json
+            echo "================================================"
+            
+            # GitHub 코멘트로 결과 추가 (선택적)
+            REVIEW_TEXT=$(jq -r '.content[0].text' claude_review.json)
+            if [ ${#REVIEW_TEXT} -lt 65000 ]; then
+              curl -s -X POST \
+                -H "Authorization: token $GITHUB_TOKEN" \
+                -H "Content-Type: application/json" \
+                "https://api.github.com/repos/$GITHUB_REPOSITORY/commits/$GITHUB_SHA/comments" \
+                -d "{\"body\": \"## 🤖 Claude AI 코드 리뷰\n\n$REVIEW_TEXT\"}" || true
+            fi
+          else
+            echo "⚠️ Claude API 호출 실패 또는 응답 오류"
+            cat claude_review.json 2>/dev/null || echo "응답 파일 없음"
           fi
       
       - name: Security Scan
