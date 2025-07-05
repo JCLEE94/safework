@@ -1,4 +1,4 @@
-name: Claude AI Pull Request Review
+name: Claude Max PR Review
 
 on:
   pull_request:
@@ -17,134 +17,91 @@ jobs:
         with:
           fetch-depth: 0
           
-      - name: Claude AI Pull Request Review
-        env:
-          ANTHROPIC_API_KEY: ${{ secrets.CLAUDE_ACCESS_TOKEN }}
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          PR_NUMBER: ${{ github.event.pull_request.number || github.event.issue.number }}
-        run: |
-          echo "🤖 Claude AI PR 리뷰 시작..."
-          
-          # PR 정보 가져오기
-          if [ "${{ github.event_name }}" = "pull_request" ]; then
-            PR_NUMBER="${{ github.event.pull_request.number }}"
-            BASE_SHA="${{ github.event.pull_request.base.sha }}"
-            HEAD_SHA="${{ github.event.pull_request.head.sha }}"
-          else
-            PR_NUMBER="${{ github.event.issue.number }}"
-            # Issue comment에서 PR 정보 가져오기
-            PR_INFO=$(curl -s -H "Authorization: token $GITHUB_TOKEN" \
-              "https://api.github.com/repos/$GITHUB_REPOSITORY/pulls/$PR_NUMBER")
-            BASE_SHA=$(echo "$PR_INFO" | jq -r '.base.sha')
-            HEAD_SHA=$(echo "$PR_INFO" | jq -r '.head.sha')
-          fi
-          
-          echo "📊 PR #$PR_NUMBER 분석 중..."
-          echo "Base: $BASE_SHA"
-          echo "Head: $HEAD_SHA"
-          
-          # 변경된 파일들 분석
-          git fetch origin
-          CHANGED_FILES=$(git diff --name-only $BASE_SHA $HEAD_SHA | grep -E '\.(py|tsx?|js|yaml|yml|json)$' | head -15)
-          
-          if [ -z "$CHANGED_FILES" ]; then
-            echo "🔍 변경된 코드 파일이 없습니다."
-            exit 0
-          fi
-          
-          echo "📂 변경된 파일들:"
-          echo "$CHANGED_FILES"
-          
-          # 변경사항 분석
-          DIFF_CONTENT=""
-          for file in $CHANGED_FILES; do
-            echo "🔍 분석 중: $file"
-            FILE_DIFF=$(git diff $BASE_SHA $HEAD_SHA -- "$file" | head -100)
-            if [ ! -z "$FILE_DIFF" ]; then
-              DIFF_CONTENT="$DIFF_CONTENT\n\n### $file 변경사항:\n\`\`\`diff\n$FILE_DIFF\n\`\`\`"
-            fi
-          done
-          
-          # PR 제목과 설명 가져오기
-          PR_TITLE="${{ github.event.pull_request.title }}"
-          PR_BODY="${{ github.event.pull_request.body }}"
-          
-          # Claude API 호출 프롬프트
-          REVIEW_PROMPT="SafeWork Pro 건설업 보건관리 시스템의 Pull Request를 검토해주세요.
-          
-          ## PR 정보:
-          - 제목: $PR_TITLE
-          - 설명: $PR_BODY
-          
-          ## 변경된 파일들:
-          $CHANGED_FILES
-          
-          ## 상세 변경사항:
-          $DIFF_CONTENT
-          
-          ## 검토 기준:
-          1. 🔒 보안: SQL Injection, XSS, 인증/인가, 개인정보 보호
-          2. 🏗️ 아키텍처: FastAPI 패턴, React 컴포넌트 구조, DB 스키마
-          3. 🐛 버그: 로직 오류, 예외처리, 경계값 검사
-          4. 📊 성능: 쿼리 최적화, 캐싱, 불필요한 호출
-          5. 🦺 도메인: 건설업 보건관리, 산업안전보건법 준수
-          6. 🧹 코드 품질: 가독성, 유지보수성, 테스트
-          
-          ## 응답 형식:
-          ### ✅ 좋은 점
-          - 구체적인 개선사항들...
-          
-          ### ⚠️ 개선 필요사항
-          - 우선순위별 이슈들...
-          
-          ### 🚀 제안사항
-          - 추가 개선 아이디어들...
-          
-          간결하고 실행 가능한 피드백을 한국어로 제공해주세요."
-          
-          # Claude API 호출
-          echo "🔄 Claude AI 분석 중..."
-          curl -s -X POST "https://api.anthropic.com/v1/messages" \
-            -H "Content-Type: application/json" \
-            -H "x-api-key: $ANTHROPIC_API_KEY" \
-            -H "anthropic-version: 2023-06-01" \
-            -d "{
-              \"model\": \"claude-3-haiku-20240307\",
-              \"max_tokens\": 3000,
-              \"messages\": [{
-                \"role\": \"user\",
-                \"content\": $(echo "$REVIEW_PROMPT" | jq -Rs .)
-              }]
-            }" > claude_pr_review.json
-          
-          # 결과 처리
-          if [ -f claude_pr_review.json ] && jq -e '.content[0].text' claude_pr_review.json >/dev/null 2>&1; then
-            echo "✅ Claude PR 리뷰 완료"
+      - name: Claude Max Pull Request Review
+        uses: grll/claude-code-base-action@beta
+        continue-on-error: true
+        with:
+          prompt: |
+            🔍 **SafeWork Pro Pull Request 전문 검토**
             
-            REVIEW_TEXT=$(jq -r '.content[0].text' claude_pr_review.json)
+            ## 📋 검토 대상 PR 정보:
+            - **제목**: ${{ github.event.pull_request.title }}
+            - **작성자**: ${{ github.event.pull_request.user.login }}
+            - **브랜치**: ${{ github.event.pull_request.head.ref }} → ${{ github.event.pull_request.base.ref }}
             
-            # PR에 리뷰 코멘트 추가
-            COMMENT_BODY="## 🤖 Claude AI Code Review
+            ## 🎯 프로젝트 컨텍스트:
+            - **시스템**: 건설업 산업안전보건 관리 플랫폼
+            - **스택**: FastAPI + React + PostgreSQL + Redis + Kubernetes
+            - **규정**: 한국 산업안전보건법, 개인정보보호법 준수
+            - **민감데이터**: 근로자 건강정보, 의료기록, 화학물질 정보
             
-            > SafeWork Pro 건설업 보건관리 시스템 전문 리뷰
+            ## 🔍 상세 검토 기준:
             
-            $REVIEW_TEXT
+            ### 1. 🛡️ 보안 검토 (Critical)
+            - SQL Injection, XSS, CSRF 취약점 분석
+            - JWT 토큰 및 세션 관리 보안성
+            - 근로자 개인정보 접근 제어 및 암호화
+            - API 엔드포인트 인증/인가 체계
+            - 민감정보 로깅 및 노출 방지
+            - 파일 업로드 보안 (MSDS, 의료기록)
             
-            ---
-            *이 리뷰는 Claude AI에 의해 자동으로 생성되었습니다. 참고용으로 사용하시고 최종 검토는 개발팀에서 진행해주세요.*"
+            ### 2. 📊 성능 및 확장성
+            - 데이터베이스 쿼리 최적화
+            - Redis 캐싱 전략 효율성
+            - API 응답시간 및 처리량
+            - N+1 쿼리 문제 식별
+            - 대용량 데이터 처리 최적화
             
-            # GitHub PR 코멘트 추가
-            curl -s -X POST \
-              -H "Authorization: token $GITHUB_TOKEN" \
-              -H "Content-Type: application/json" \
-              "https://api.github.com/repos/$GITHUB_REPOSITORY/issues/$PR_NUMBER/comments" \
-              -d "{\"body\": $(echo "$COMMENT_BODY" | jq -Rs .)}"
+            ### 3. 🏗️ 아키텍처 및 코드 품질
+            - FastAPI 라우터 구조 및 의존성 주입
+            - React 컴포넌트 재사용성 및 상태관리
+            - TypeScript 타입 안전성
+            - 에러 핸들링 및 예외 처리
+            - 테스트 커버리지 및 품질
             
-            echo "📝 PR 코멘트가 추가되었습니다."
-          else
-            echo "⚠️ Claude API 호출 실패"
-            if [ -f claude_pr_review.json ]; then
-              echo "응답 내용:"
-              cat claude_pr_review.json
-            fi
-          fi
+            ### 4. 🦺 도메인 특화 검토
+            - 건강검진 데이터 무결성 및 정확성
+            - MSDS 화학물질 분류 및 관리 규정 준수
+            - 사고보고 프로세스 및 법적 요구사항
+            - 산업안전보건법 교육 관리 기능
+            - 작업환경 측정 데이터 검증
+            
+            ### 5. 🌐 사용자 경험 및 접근성
+            - 한국어 UI/UX 최적화
+            - 모바일 반응형 디자인
+            - 접근성 표준 준수
+            - 사용자 워크플로우 개선
+            
+            ## 📋 검토 결과 구조:
+            
+            ### ✅ **우수한 구현 사항**
+            - 잘 설계된 부분들과 그 이유
+            - 보안/성능/품질 측면의 장점
+            
+            ### ⚠️ **개선 필요 사항**
+            - **🔴 Critical**: 즉시 수정 필요한 보안/기능 이슈
+            - **🟠 High**: 우선적으로 개선해야 할 사항
+            - **🟡 Medium**: 다음 스프린트에서 고려할 사항
+            - **🟢 Low**: 장기적 개선 아이디어
+            
+            ### 🚀 **추가 제안사항**
+            - 성능 최적화 아이디어
+            - 보안 강화 방안
+            - 사용자 경험 개선
+            - 코드 구조 리팩토링
+            
+            ### 🧪 **테스트 추천사항**
+            - 필요한 단위 테스트
+            - 통합 테스트 시나리오
+            - 보안 테스트 케이스
+            
+            **변경된 파일들을 중심으로 상세히 분석하되, 전체 시스템과의 일관성도 검토해주세요.**
+            **한국어로 구체적이고 실행가능한 피드백을 제공해주세요.**
+            **중요도에 따라 우선순위를 명시해주세요.**
+          
+          use_oauth: "true"
+          claude_access_token: ${{ secrets.CLAUDE_ACCESS_TOKEN }}
+          claude_refresh_token: ${{ secrets.CLAUDE_REFRESH_TOKEN }}
+          claude_expires_at: ${{ secrets.CLAUDE_EXPIRES_AT }}
+          model: "claude-3-sonnet-20240229"
+          allowed_tools: "mcp__github__add_issue_comment,mcp__github__create_pull_request_review,mcp__github__get_pull_request_files"
