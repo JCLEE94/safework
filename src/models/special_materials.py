@@ -135,7 +135,7 @@ class SpecialMaterialUsage(Base):
     concentration = Column(Numeric(10, 6), nullable=True, comment="농도(%)")
     
     # 작업자 정보
-    worker_id = Column(UUID(as_uuid=True), ForeignKey("workers.id"), nullable=True)
+    worker_id = Column(Integer, ForeignKey("workers.id"), nullable=True)
     worker_count = Column(Integer, nullable=False, default=1, comment="작업자 수")
     exposure_duration_hours = Column(Numeric(5, 2), nullable=True, comment="노출 시간(시간)")
     
@@ -156,6 +156,7 @@ class SpecialMaterialUsage(Base):
     
     # 관계
     material = relationship("SpecialMaterial", back_populates="usage_records")
+    worker = relationship("Worker", foreign_keys=[worker_id])
 
     def __repr__(self):
         return f"<SpecialMaterialUsage(id={self.id}, material_id={self.material_id})>"
