@@ -113,10 +113,10 @@ jobs:
         timeout-minutes: 10
         run: |
           echo "🧪 Running backend tests..."
-          pytest tests/ -v --cov=src --cov-report=term --cov-report=html --cov-fail-under=70 --timeout=300 -x
+          pytest tests/ -v --cov=src --cov-report=term --cov-report=html --cov-fail-under=70 --timeout=300 -x | tee test-output.txt
           
-          # Extract coverage percentage
-          coverage=$(grep -oP 'TOTAL.*\K\d+(?=%)' < coverage.txt || echo "0")
+          # Extract coverage percentage from terminal output
+          coverage=$(grep -oP 'TOTAL.*\K\d+(?=%)' test-output.txt || echo "0")
           echo "coverage=$coverage" >> $GITHUB_OUTPUT
       
       # Frontend tests

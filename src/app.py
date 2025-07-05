@@ -176,7 +176,7 @@ def create_app() -> FastAPI:
         return {
             "status": "healthy",
             "service": "건설업 보건관리 시스템",
-            "version": "1.0.0",
+            "version": settings.app_version,
             "timestamp": datetime.now().isoformat(),
             "timezone": "Asia/Seoul (KST)",
             "components": {
