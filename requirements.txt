@@ -1,0 +1,5 @@
+# Test requirements for CI/CD pipeline testing
+# This file is used by the Docker build test
+pytest==7.4.3
+pyyaml==6.0.1
+requests==2.31.0

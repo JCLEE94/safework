@@ -98,27 +98,29 @@ jobs:
         uses: actions/github-script@v7
         with:
           script: |
-            const message = `## 🔐 Claude OAuth 인증 필요
-
-❌ Claude Code OAuth 토큰이 없거나 만료되었습니다.
-
-### 📋 인증 설정 방법:
-
-1. **OAuth 워크플로우 실행**:
-   • [Claude OAuth 인증 실행](https://github.com/${{ github.repository }}/actions/workflows/claude-oauth-onetime.yml)
-   • "Run workflow" 클릭 (코드는 비워두세요)
-
-2. **Claude 로그인**:
-   • 워크플로우에서 제공되는 URL로 이동
-   • Claude 계정으로 로그인
-   • 인증 코드 복사
-
-3. **토큰 저장**:
-   • 워크플로우를 다시 실행
-   • 'code' 필드에 인증 코드 입력
-   • "Run workflow" 클릭
-
-설정 완료 후 다시 @claude를 멘션해주세요! 🤖`;
+            const message = [
+              '## 🔐 Claude OAuth 인증 필요',
+              '',
+              '❌ Claude Code OAuth 토큰이 없거나 만료되었습니다.',
+              '',
+              '### 📋 인증 설정 방법:',
+              '',
+              '1. **OAuth 워크플로우 실행**:',
+              '   • [Claude OAuth 인증 실행](https://github.com/${{ github.repository }}/actions/workflows/claude-oauth-onetime.yml)',
+              '   • "Run workflow" 클릭 (코드는 비워두세요)',
+              '',
+              '2. **Claude 로그인**:',
+              '   • 워크플로우에서 제공되는 URL로 이동',
+              '   • Claude 계정으로 로그인',
+              '   • 인증 코드 복사',
+              '',
+              '3. **토큰 저장**:',
+              '   • 워크플로우를 다시 실행',
+              '   • \'code\' 필드에 인증 코드 입력',
+              '   • "Run workflow" 클릭',
+              '',
+              '설정 완료 후 다시 @claude를 멘션해주세요! 🤖'
+            ].join('\n');
 
             // 코멘트가 있는 경우 해당 이슈/PR에 응답
             if (context.payload.issue) {
