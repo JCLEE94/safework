@@ -17,6 +17,30 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  claude-review:
+    name: Claude AI Code Review
+    runs-on: ubuntu-latest
+    if: github.event_name == 'push' || github.event_name == 'pull_request'
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      
+      - name: Run Claude Code Review
+        uses: anthropics/claude-code-review-action@v1
+        with:
+          api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          review_level: 'comprehensive'
+          create_issues: true
+          focus_areas: |
+            - Korean healthcare compliance (의료법, 개인정보보호법)
+            - Security vulnerabilities
+            - Code quality and best practices
+            - Performance optimization
+
   test:
     name: Test Suite
     runs-on: [self-hosted, linux]
