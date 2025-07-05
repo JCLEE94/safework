@@ -70,6 +70,24 @@ jobs:
           fi
           echo "✅ All backend tests passed"
       
+      - name: Claude Code Analysis
+        uses: 13point5/claude-max-code-base-action@v1
+        with:
+          claude_access_token: ${{ secrets.CLAUDE_ACCESS_TOKEN }}
+          claude_refresh_token: ${{ secrets.CLAUDE_REFRESH_TOKEN }}
+          claude_expires_at: ${{ secrets.CLAUDE_EXPIRES_AT }}
+          admin_pat: ${{ secrets.SECRETS_ADMIN_PAT }}
+          prompt: |
+            이 코드베이스를 분석하고 다음 사항들을 검토해주세요:
+            1. 보안 취약점 분석
+            2. 코드 품질 및 베스트 프랙티스 검토
+            3. 성능 최적화 제안
+            4. 버그 및 잠재적 문제점 식별
+            5. 한국어 주석 및 문서화 개선 제안
+            
+            특히 FastAPI + React + PostgreSQL 구조에서 주의해야 할 보안 사항과 
+            건설업 보건관리 시스템의 데이터 처리 관련 이슈를 중점적으로 검토해주세요.
+      
       - name: Security Scan
         uses: aquasecurity/trivy-action@master
         with:
