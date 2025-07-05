@@ -28,13 +28,13 @@ async def get_dashboard_data(db: AsyncSession = Depends(get_db)):
     total_workers_result = await db.execute(select(func.count(Worker.id)))
     total_workers = total_workers_result.scalar()
     
-    active_workers_result = await db.execute(select(func.count(Worker.id)).where(Worker.employment_status == "재직"))
+    active_workers_result = await db.execute(select(func.count(Worker.id)).where(Worker.is_active == True))
     active_workers = active_workers_result.scalar()
     
-    on_leave_workers_result = await db.execute(select(func.count(Worker.id)).where(Worker.employment_status == "휴직"))
+    on_leave_workers_result = await db.execute(select(func.count(Worker.id)).where(Worker.is_active == False))
     on_leave_workers = on_leave_workers_result.scalar()
     
-    health_risk_workers_result = await db.execute(select(func.count(Worker.id)).where(Worker.health_status == "주의"))
+    health_risk_workers_result = await db.execute(select(func.count(Worker.id)).where(Worker.health_status == "caution"))
     health_risk_workers = health_risk_workers_result.scalar()
     
     # 건강진단 통계
