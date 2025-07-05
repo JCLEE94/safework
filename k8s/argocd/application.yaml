@@ -33,12 +33,13 @@ spec:
       - PrunePropagationPolicy=foreground
       - PruneLast=true
       - ApplyOutOfSyncOnly=true
+      - RespectIgnoreDifferences=true
     retry:
-      limit: 5
+      limit: 3
       backoff:
-        duration: 5s
+        duration: 10s
         factor: 2
-        maxDuration: 3m
+        maxDuration: 2m
   revisionHistoryLimit: 10
   ignoreDifferences:
     - group: apps

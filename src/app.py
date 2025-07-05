@@ -209,7 +209,7 @@ def create_app() -> FastAPI:
     from .handlers.special_materials import router as special_materials_router
     from .handlers.error_reporting import router as error_reporting_router
     from .handlers.document_editor import router as document_editor_router
-    from .handlers.integrated_documents import router as integrated_documents_router
+    # from .handlers.integrated_documents import router as integrated_documents_router  # Temporarily disabled due to import issue
     
     app.include_router(workers_router, prefix="/api/v1/workers", tags=["근로자관리"])
     app.include_router(health_exams_router, tags=["건강진단"])
@@ -235,7 +235,7 @@ def create_app() -> FastAPI:
     app.include_router(special_materials_router, tags=["특별관리물질"])
     app.include_router(error_reporting_router, tags=["에러리포팅"])
     app.include_router(document_editor_router, tags=["문서편집"])
-    app.include_router(integrated_documents_router, tags=["통합문서관리"])
+    # app.include_router(integrated_documents_router, tags=["통합문서관리"])  # Temporarily disabled
     
     # 정적 파일 서빙 (React 빌드된 파일들) - Mount after all API routes
     try:

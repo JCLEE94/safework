@@ -133,6 +133,13 @@ class CacheService:
 cache_service = CacheService()
 
 
+async def get_cache_service() -> CacheService:
+    """FastAPI 의존성 주입용 캐시 서비스 팩토리"""
+    if not cache_service._connected:
+        await cache_service.connect()
+    return cache_service
+
+
 # 캐시 TTL 상수
 class CacheTTL:
     """캐시 TTL 설정"""

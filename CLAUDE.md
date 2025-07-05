@@ -31,10 +31,10 @@ black src/ tests/
 isort src/ tests/
 flake8 src/ tests/
 
-# Frontend development
-npm run dev          # Start Vite dev server (port 5173)
-npm run build        # Build for production
-npm run preview      # Preview production build
+# Frontend development (run from frontend/ directory)
+cd frontend && npm run dev          # Start Vite dev server (port 5173)
+cd frontend && npm run build        # Build for production
+cd frontend && npm run preview      # Preview production build
 ```
 
 ### Testing Configuration
@@ -115,12 +115,12 @@ docker exec safework psql -U admin -d health_management -c "\dt"
 - `utils/` - Helper functions and utilities
 - `config/` - Database configuration and settings
 
-#### Frontend (`src/`)
-- `App.tsx` - Main React application with sidebar navigation
-- `components/` - Reusable UI components
-- `pages/` - Feature-specific page components
-- `api/` - Backend API integration layer
-- Uses Vite for bundling, Tailwind for styling
+#### Frontend (`frontend/`)
+- `src/App.tsx` - Main React application with sidebar navigation
+- `src/components/` - Reusable UI components
+- `src/pages/` - Feature-specific page components
+- `src/api/` - Backend API integration layer
+- Uses Vite for bundling, TypeScript, Tailwind for styling
 
 #### Key Middleware Stack (Order matters!)
 1. **CORS**: Allow frontend communication
@@ -416,7 +416,7 @@ REDIS_URL=redis://localhost:16379/0
 ```
 
 ---
-**Version**: 3.1.0  
-**Updated**: 2025-07-01  
+**Version**: 3.2.0  
+**Updated**: 2025-07-05  
 **Maintainer**: SafeWork Pro Development Team  
-**CI/CD Status**: ✅ Active (Self-hosted runner + Watchtower)
+**CI/CD Status**: ✅ Active (Self-hosted runner + ArgoCD)
