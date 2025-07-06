@@ -336,6 +336,9 @@ jobs:
     runs-on: [self-hosted, linux]
     if: github.ref == 'refs/heads/main' && (success() || failure())
     
+    outputs:
+      tag: ${{ steps.meta.outputs.tag }}
+    
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -372,7 +375,7 @@ jobs:
           cache-to: type=gha,mode=max
 
   deploy:
-    name: Deploy to Production
+    name: Deploy to Production via ArgoCD
     needs: [build]
     runs-on: [self-hosted, linux]
     if: github.ref == 'refs/heads/main'
@@ -381,21 +384,39 @@ jobs:
       url: https://safework.jclee.me
     
     steps:
-      - name: Notify deployment
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+      
+      - name: Update K8s manifest
         run: |
-          echo "🚀 Docker image pushed to registry"
-          echo "📦 Image: ${{ env.REGISTRY_URL }}/${{ env.IMAGE_NAME }}:latest"
+          echo "📝 Updating deployment manifest..."
+          IMAGE_TAG="${{ needs.build.outputs.tag }}"
+          sed -i "s|image: registry.jclee.me/safework:.*|image: registry.jclee.me/safework:${IMAGE_TAG}|g" k8s/safework/deployment.yaml
+          
+          git config --local user.email "action@github.com"
+          git config --local user.name "GitHub Action"
+          git add k8s/safework/deployment.yaml
+          git commit -m "chore: update image to ${IMAGE_TAG} [skip ci]"
+          git push
+      
+      - name: Trigger ArgoCD sync
+        run: |
           echo "🔄 ArgoCD will automatically sync the deployment"
+          echo "📦 Image: ${{ env.REGISTRY_URL }}/${{ env.IMAGE_NAME }}:${{ needs.build.outputs.tag }}"
+          echo "🔗 ArgoCD: https://argo.jclee.me/applications/safework"
       
       - name: Verify deployment
         run: |
           echo "⏳ Waiting for ArgoCD sync..."
-          sleep 60
+          sleep 90
           
           for i in {1..10}; do
             HTTP_STATUS=$(curl -s -o /dev/null -w "%{http_code}" https://safework.jclee.me/health || echo "000")
             if [ "$HTTP_STATUS" = "200" ]; then
               echo "✅ Application is healthy!"
+              curl -s https://safework.jclee.me/health | jq .
               break
             else
               echo "⏳ Waiting for application... (attempt $i/10, status: $HTTP_STATUS)"
