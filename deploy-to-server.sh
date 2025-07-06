@@ -42,7 +42,7 @@ cd /home/jclee/app/safework
 
 # Docker 이미지 빌드
 log "Docker 이미지 빌드 중..."
-docker build -t safework:latest .
+docker build -f deployment/Dockerfile.prod -t safework:latest .
 
 # 이미지 태그
 docker tag safework:latest registry.jclee.me/safework:latest
