@@ -10,6 +10,7 @@ metadata:
     argocd-image-updater.argoproj.io/image-list: safework=registry.jclee.me/safework:latest
     argocd-image-updater.argoproj.io/write-back-method: git
     argocd-image-updater.argoproj.io/git-branch: main
+    argocd.argoproj.io/refresh: "true"
   finalizers:
     - resources-finalizer.argocd.argoproj.io
 spec:
