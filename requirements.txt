@@ -1,5 +1,48 @@
-# Test requirements for CI/CD pipeline testing
-# This file is used by the Docker build test
+# Production dependencies
+fastapi==0.104.1
+uvicorn[standard]==0.24.0
+pydantic==2.5.2
+pydantic-settings==2.1.0
+sqlalchemy==2.0.23
+asyncpg==0.29.0
+psycopg2-binary==2.9.9
+alembic==1.13.1
+redis==5.0.1
+PyJWT==2.8.0
+passlib[bcrypt]==1.7.4
+python-multipart==0.0.6
+httpx==0.25.2
+reportlab==4.0.8
+Pillow==10.1.0
+openpyxl==3.1.2
+pandas==2.1.4
+numpy==1.26.2
+matplotlib==3.8.2
+seaborn==0.13.0
+python-jose[cryptography]==3.3.0
+starlette==0.27.0
+aiofiles==23.2.1
+email-validator==2.1.0
+python-dateutil==2.8.2
+pytz==2023.3.post1
+
+# Test requirements
 pytest==7.4.3
-pyyaml==6.0.1
-requests==2.31.0
+pytest-asyncio==0.21.1
+pytest-cov==4.1.0
+pytest-timeout==2.2.0
+coverage==7.3.2
+httpx==0.25.2
+
+# Development requirements
+black==23.12.1
+isort==5.13.2
+flake8==7.0.0
+mypy==1.8.0
+pre-commit==3.6.0
+
+# Additional dependencies for specific features
+qrcode==7.4.2
+boto3==1.34.14  # For S3 file storage if needed
+celery==5.3.4  # For background tasks if needed
+flower==2.0.1  # For Celery monitoring if needed
