@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
+import { apiUrl, wsUrl } from '../../config/api';
 import { Line, Doughnut, Bar } from 'react-chartjs-2';
 import {
   Chart as ChartJS,
@@ -83,7 +84,7 @@ export const MonitoringDashboard: React.FC = () => {
 
   const fetchCurrentMetrics = async () => {
     try {
-      const response = await fetch('/api/v1/monitoring/metrics/current');
+      const response = await fetch(apiUrl('/monitoring/metrics/current'));
       const data = await response.json();
       if (data.system) {
         setMetrics(data.system);
@@ -95,7 +96,7 @@ export const MonitoringDashboard: React.FC = () => {
 
   const fetchAlerts = async () => {
     try {
-      const response = await fetch('/api/v1/monitoring/alerts');
+      const response = await fetch(apiUrl('/monitoring/alerts'));
       const data = await response.json();
       setAlerts(data.latest || []);
     } catch (error) {
@@ -105,7 +106,7 @@ export const MonitoringDashboard: React.FC = () => {
 
   const fetchHealthStatus = async () => {
     try {
-      const response = await fetch('/api/v1/monitoring/health');
+      const response = await fetch(apiUrl('/monitoring/health'));
       const data = await response.json();
       setHealthStatus(data.status || 'healthy');
     } catch (error) {
@@ -114,8 +115,8 @@ export const MonitoringDashboard: React.FC = () => {
   };
 
   const connectWebSocket = () => {
-    const wsUrl = `ws://${window.location.host}/api/v1/monitoring/ws`;
-    const ws = new WebSocket(wsUrl);
+    const wsUrlPath = wsUrl('/monitoring/ws');
+    const ws = new WebSocket(wsUrlPath);
 
     ws.onopen = () => {
       console.log('WebSocket 연결됨');

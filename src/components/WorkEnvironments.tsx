@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { apiUrl } from '../config/api';
 
 interface WorkEnvironment {
   id: number;
@@ -59,7 +60,7 @@ export const WorkEnvironments: React.FC = () => {
   const fetchEnvironments = async () => {
     setLoading(true);
     try {
-      const response = await fetch('/api/v1/work-environments/');
+      const response = await fetch(apiUrl('/work-environments/'));
       if (response.ok) {
         const data = await response.json();
         setEnvironments(data.items || []);
@@ -73,7 +74,7 @@ export const WorkEnvironments: React.FC = () => {
 
   const fetchStatistics = async () => {
     try {
-      const response = await fetch('/api/v1/work-environments/statistics');
+      const response = await fetch(apiUrl('/work-environments/statistics'));
       if (response.ok) {
         const data = await response.json();
         setStatistics(data);
@@ -88,7 +89,7 @@ export const WorkEnvironments: React.FC = () => {
     setLoading(true);
 
     try {
-      const response = await fetch('/api/v1/work-environments/', {
+      const response = await fetch(apiUrl('/work-environments/'), {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

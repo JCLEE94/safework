@@ -7,6 +7,7 @@
  */
 
 import React, { useState, useEffect } from 'react';
+import { apiUrl } from '../../config/api';
 import { 
   FileText, FolderOpen, Plus, Download, Upload, Search, 
   Filter, Edit, Eye, Trash2, Settings, FileEdit, File,
@@ -101,7 +102,7 @@ export function UnifiedDocuments() {
 
   const loadFiles = async () => {
     try {
-      const data = await fetchApi('/api/v1/documents/files');
+      const data = await fetchApi(apiUrl('/documents/files'));
       setFiles(data || []);
     } catch (error) {
       console.error('Failed to load files:', error);
@@ -111,7 +112,7 @@ export function UnifiedDocuments() {
 
   const loadPDFForms = async () => {
     try {
-      const data = await fetchApi('/api/v1/documents/pdf-forms');
+      const data = await fetchApi(apiUrl('/documents/pdf-forms'));
       // API returns { forms: [...] } structure
       setPdfForms(data?.forms || []);
     } catch (error) {
@@ -122,7 +123,7 @@ export function UnifiedDocuments() {
 
   const loadCategories = async () => {
     try {
-      const data = await fetchApi('/api/v1/documents/categories');
+      const data = await fetchApi(apiUrl('/documents/categories'));
       setCategories(data || DOCUMENT_CATEGORIES.map(cat => ({
         ...cat,
         file_count: 0,

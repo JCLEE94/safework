@@ -4,6 +4,7 @@
  */
 
 import React, { useState, useEffect } from 'react';
+import { apiUrl } from '../../config/api';
 import { 
   Activity, AlertTriangle, CheckCircle, Clock, TrendingUp, 
   Users, Heart, Shield, FileText, Zap, RefreshCw, Settings,
@@ -96,7 +97,7 @@ export function AdvancedMonitoring() {
 
   const loadSystemMetrics = async () => {
     try {
-      const data = await fetchApi('/api/v1/monitoring/system-metrics');
+      const data = await fetchApi(apiUrl('/monitoring/system-metrics'));
       setSystemMetrics(data || []);
     } catch (error) {
       console.error('Failed to load system metrics:', error);
@@ -105,7 +106,7 @@ export function AdvancedMonitoring() {
 
   const loadComplianceStatus = async () => {
     try {
-      const data = await fetchApi('/api/v1/compliance/dashboard');
+      const data = await fetchApi(apiUrl('/compliance/dashboard'));
       setComplianceStatus(data?.category_analysis ? 
         Object.entries(data.category_analysis).map(([category, stats]: [string, any]) => ({
           category,
@@ -121,7 +122,7 @@ export function AdvancedMonitoring() {
 
   const loadRealTimeAlerts = async () => {
     try {
-      const data = await fetchApi('/api/v1/monitoring/alerts');
+      const data = await fetchApi(apiUrl('/monitoring/alerts'));
       setRealTimeAlerts(data || []);
     } catch (error) {
       console.error('Failed to load alerts:', error);

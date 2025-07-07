@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { apiUrl } from '../../config/api';
 import { 
   Upload, Download, FileText, Trash2, Eye, Search, Filter, 
   FolderOpen, File, AlertCircle, CheckCircle, Clock, RefreshCw 
@@ -102,7 +103,7 @@ export function FileManagement() {
         });
       }, 200);
 
-      const response = await fetch('/api/v1/documents/upload', {
+      const response = await fetch(apiUrl('/documents/upload'), {
         method: 'POST',
         body: formData
       });
@@ -140,7 +141,7 @@ export function FileManagement() {
     try {
       if (!selectedCategory) return;
 
-      const response = await fetch(`/api/v1/documents/download/${selectedCategory}/${filename}`);
+      const response = await fetch(apiUrl(`/documents/download/${selectedCategory}/${filename}`));
       
       if (response.ok) {
         const blob = await response.blob();

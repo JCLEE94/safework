@@ -3,7 +3,7 @@
  * Frontend error reporting service
  */
 
-import { API_BASE_URL } from '../config/api';
+import { apiUrl } from '../config/api';
 
 interface ErrorReport {
   message: string;
@@ -159,7 +159,7 @@ class ErrorReportingService {
    */
   async submitManualReport(reportData: ManualReport): Promise<boolean> {
     try {
-      const response = await fetch(`${API_BASE_URL}/api/v1/error-reporting/manual-report`, {
+      const response = await fetch(apiUrl('/error-reporting/manual-report'), {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -219,7 +219,7 @@ class ErrorReportingService {
    * 실제 리포트 전송
    */
   private async sendReport(report: ErrorReport): Promise<void> {
-    const response = await fetch(`${API_BASE_URL}/api/v1/error-reporting/frontend-error`, {
+    const response = await fetch(apiUrl('/error-reporting/frontend-error'), {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -295,7 +295,7 @@ class ErrorReportingService {
    */
   async getStatus(): Promise<any> {
     try {
-      const response = await fetch(`${API_BASE_URL}/api/v1/error-reporting/status`);
+      const response = await fetch(apiUrl('/error-reporting/status'));
       if (response.ok) {
         return await response.json();
       }

@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
+import { apiUrl } from '../../config/api';
 import { Activity, Cpu, HardDrive, MemoryStick, Network, AlertTriangle, CheckCircle, XCircle } from 'lucide-react';
 
 // Types
@@ -138,21 +139,21 @@ export function RealTimeMonitoring() {
       setLoading(true);
       
       // 헬스 상태 가져오기
-      const healthResponse = await fetch('/api/v1/monitoring/health');
+      const healthResponse = await fetch(apiUrl('/monitoring/health'));
       if (healthResponse.ok) {
         const healthData = await healthResponse.json();
         setHealthStatus(healthData);
       }
       
       // 메트릭 히스토리 가져오기
-      const historyResponse = await fetch('/api/v1/monitoring/metrics/history?minutes=60');
+      const historyResponse = await fetch(apiUrl('/monitoring/metrics/history?minutes=60'));
       if (historyResponse.ok) {
         const historyData = await historyResponse.json();
         setMetricsHistory(historyData);
       }
       
       // 알림 가져오기
-      const alertsResponse = await fetch('/api/v1/monitoring/alerts');
+      const alertsResponse = await fetch(apiUrl('/monitoring/alerts'));
       if (alertsResponse.ok) {
         const alertsData = await alertsResponse.json();
         setAlerts(alertsData);

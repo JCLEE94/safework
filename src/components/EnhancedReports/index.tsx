@@ -4,6 +4,7 @@
  */
 
 import React, { useState, useEffect } from 'react';
+import { apiUrl } from '../../config/api';
 import { 
   BarChart3, FileText, Download, Calendar, Filter, 
   TrendingUp, Users, Activity, AlertTriangle, BookOpen,
@@ -65,7 +66,7 @@ export function EnhancedReports() {
       const [reportsData, metricsData, complianceData] = await Promise.all([
         fetchApi(`/api/v1/reports?type=${activeReportType}&range=${timeRange}`),
         fetchApi(`/api/v1/reports/metrics?type=${activeReportType}&range=${timeRange}`),
-        fetchApi('/api/v1/reports/compliance')
+        fetchApi(apiUrl('/reports/compliance'))
       ]);
 
       setReports(reportsData || []);
@@ -150,7 +151,7 @@ export function EnhancedReports() {
   const generateReport = async (reportType: string) => {
     try {
       setLoading(true);
-      const response = await fetchApi('/api/v1/reports/generate', {
+      const response = await fetchApi(apiUrl('/reports/generate'), {
         method: 'POST',
         body: JSON.stringify({
           type: reportType,

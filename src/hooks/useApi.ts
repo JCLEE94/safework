@@ -1,5 +1,5 @@
 import { useState, useCallback } from 'react';
-import { API_BASE_URL } from '../constants';
+import { API_CONFIG } from '../config/api';
 
 interface ApiOptions extends RequestInit {
   params?: Record<string, string>;
@@ -19,7 +19,7 @@ export function useApi() {
       setLoading(true);
       setError(null);
       
-      let url = `${API_BASE_URL}/api/v1${endpoint}`;
+      let url = `${API_CONFIG.API_URL}${endpoint}`;
       
       if (params) {
         const searchParams = new URLSearchParams(params);

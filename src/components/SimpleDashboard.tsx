@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { apiUrl } from '../config/api';
 import { Users, ShieldCheck, Calendar, AlertTriangle, TrendingUp, Activity, FileText, Zap } from 'lucide-react';
 
 interface DashboardStats {
@@ -33,7 +34,7 @@ export function SimpleDashboard() {
       setLoading(true);
       
       // API 기본 URL 설정
-      const API_BASE = window.location.origin + '/api/v1';
+      const API_BASE = apiUrl(''); // API 베이스 URL 사용
       
       // 통계 데이터 가져오기
       const statsResponse = await fetch(`${API_BASE}/workers/statistics/dashboard`);

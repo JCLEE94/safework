@@ -3,7 +3,8 @@
  * Constants definitions
  */
 
-export const API_BASE_URL = import.meta.env.VITE_API_URL || window.location.origin;
+// API_BASE_URL은 deprecated - config/api.ts의 API_CONFIG 사용 권장
+export const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || window.location.origin;
 
 export const BUILD_TIME = new Date().toLocaleString('ko-KR', {
   timeZone: 'Asia/Seoul',
