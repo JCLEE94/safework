@@ -26,6 +26,15 @@ pytest tests/ -v --cov=src --cov-report=html --cov-report=term --timeout=300 -x
 # Run single test file
 pytest tests/test_workers.py -v
 
+# Run tests by marker (skip slow tests)
+pytest -m "not slow" -v
+
+# Run integration tests only
+pytest -m integration -v
+
+# Run with specific timeout
+pytest tests/test_api.py -v --timeout=120
+
 # Lint and format
 black src/ tests/
 isort src/ tests/
@@ -39,8 +48,9 @@ cd frontend && npm run preview      # Preview production build
 
 ### Testing Configuration
 - **pytest.ini**: Configured with `asyncio_mode = auto` for async fixtures
-- **Timeout**: 300 seconds per test, 10 minutes for entire test suite
+- **Timeout**: 60 seconds per test (optimized from 300), fail-fast with `-x --maxfail=5`
 - **Dependencies**: pytest, pytest-asyncio, pytest-cov, pytest-timeout
+- **Test markers**: `slow`, `integration`, `unit` - use `-m "not slow"` to skip slow tests
 - **Coverage target**: 70% minimum (configured in CI/CD)
 
 ### Deployment
@@ -178,10 +188,11 @@ async def test_worker(async_session):
 
 ### GitHub Actions Configuration
 - **Self-hosted runner**: `[self-hosted, linux]`
-- **Service containers**: PostgreSQL (port 15432), Redis (port 16379)
+- **Service containers**: PostgreSQL (port 25432), Redis (port 26379)
 - **npm cache workaround**: `npm_config_cache: ${{ runner.temp }}/.npm`
 - **Test timeout**: 10 minutes max
 - **ArgoCD auto-sync**: Automatically detects and deploys new images
+- **Concurrency**: Cancels previous runs on new push to same branch
 
 ### Workflow Files
 - `main-deploy.yml` - Primary CI/CD pipeline for production (ArgoCD)
@@ -193,8 +204,8 @@ async def test_worker(async_session):
 
 ### Environment Variables (CI/CD)
 ```yaml
-DATABASE_URL: postgresql://admin:password@localhost:15432/health_management
-REDIS_URL: redis://localhost:16379/0
+DATABASE_URL: postgresql://admin:password@localhost:25432/health_management
+REDIS_URL: redis://localhost:26379/0
 JWT_SECRET: test-secret-key
 PYTHONPATH: ${{ github.workspace }}
 npm_config_cache: ${{ runner.temp }}/.npm  # For self-hosted runner
@@ -228,11 +239,14 @@ npm_config_cache: ${{ runner.temp }}/.npm  # For self-hosted runner
 | Issue | Solution |
 |-------|----------|
 | npm cache read-only error | Set `npm_config_cache: ${{ runner.temp }}/.npm` |
-| Port conflicts in CI | Use ports 15432 (PG) and 16379 (Redis) |
+| Port conflicts in CI | Use ports 25432 (PG) and 26379 (Redis) |
 | Async fixture errors | Use `@pytest_asyncio.fixture` decorator |
 | Import errors | Check import paths (e.g., `services.cache` not `services.cache_service`) |
 | Tests hanging | Add timeout configuration (pytest-timeout) |
 | Korean text garbled | Ensure ko_KR.UTF-8 locale in PostgreSQL |
+| Environment variable missing | Check settings.py defaults and use `generate_*_url()` methods |
+| Authentication errors | Set `ENVIRONMENT=development` for bypassed auth in dev |
+| API endpoint 404s | Check router prefix in handlers and app.py registration |
 
 ### Production Debugging
 ```bash
@@ -271,8 +285,32 @@ docker restart safework
 
 ## Security Configuration
 
+### Authentication System
+The system uses a custom JWT-based authentication service:
+```python
+# src/services/auth_service.py - Core authentication service
+# src/utils/auth_deps.py - FastAPI dependency injection
+# src/middleware/auth.py - Authentication middleware
+
+# Usage in handlers:
+from src.utils.auth_deps import CurrentUserId
+
+@router.post("/")
+async def create_worker(
+    worker_data: schemas.WorkerCreate,
+    current_user_id: str = CurrentUserId,
+    db: AsyncSession = Depends(get_db)
+):
+    # current_user_id is automatically extracted from JWT token
+```
+
+### Environment-Based Authentication
+- **Development**: `ENVIRONMENT=development` allows bypassed auth with default user
+- **Production**: Full JWT validation required
+- **Settings**: All auth configuration via environment variables (no hardcoded secrets)
+
 ### Implemented Measures
-- JWT authentication with refresh tokens
+- JWT authentication with role-based access control
 - CSRF protection in middleware
 - XSS prevention headers
 - SQL injection protection via SQLAlchemy
@@ -403,6 +441,23 @@ PDF_FORM_COORDINATES = {
 ```
 
 ### Environment-Specific Configuration
+The settings system provides defaults for all environments while enforcing security in production:
+
+```python
+# src/config/settings.py pattern:
+class Settings(BaseSettings):
+    # Development-friendly defaults with environment variable overrides
+    database_host: str = Field(default="localhost", env="DATABASE_HOST")
+    jwt_secret: str = Field(default="dev-jwt-secret-change-in-production", env="JWT_SECRET")
+    
+    # Dynamic URL generation methods
+    def generate_database_url(self) -> str:
+        if self.database_url:
+            return self.database_url
+        return f"postgresql://{self.database_user}:{self.database_password}@{self.database_host}:{self.database_port}/{self.database_name}"
+```
+
+Environment usage:
 ```bash
 # Development
 ENVIRONMENT=development docker-compose up
@@ -410,13 +465,14 @@ ENVIRONMENT=development docker-compose up
 # Production
 docker-compose up -d  # Uses default production config
 
-# Testing (CI/CD)
-DATABASE_URL=postgresql://admin:password@localhost:15432/health_management
-REDIS_URL=redis://localhost:16379/0
+# Testing (CI/CD) - Uses defaults with service container ports
+DATABASE_URL=postgresql://admin:password@localhost:25432/health_management
+REDIS_URL=redis://localhost:26379/0
 ```
 
 ---
-**Version**: 3.2.0  
-**Updated**: 2025-07-05  
+**Version**: 3.3.0  
+**Updated**: 2025-07-07  
 **Maintainer**: SafeWork Pro Development Team  
-**CI/CD Status**: ✅ Active (Self-hosted runner + ArgoCD)
+**CI/CD Status**: ✅ Active (Self-hosted runner + ArgoCD)  
+**Recent Changes**: Authentication system, hardcoding removal, CI/CD optimization
