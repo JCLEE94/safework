@@ -13,7 +13,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 
 from ..config.settings import get_settings
-from ..models.database import get_db
+from ..config.database import get_db
 from ..utils.logger import get_logger
 
 settings = get_settings()
