@@ -20,7 +20,8 @@ router = APIRouter(prefix="/api/v1/work-environments", tags=["work-environments"
 @router.post("/", response_model=WorkEnvironmentResponse)
 async def create_work_environment(
     env_data: WorkEnvironmentCreate,
-    db: AsyncSession = Depends(get_db)
+    db: AsyncSession = Depends(get_db),
+    current_user_id: str = Depends(get_current_user_id)
 ):
     """작업환경측정 기록 생성"""
     from src.models.work_environment import MeasurementType, MeasurementResult
@@ -241,7 +242,8 @@ async def get_work_environment(env_id: int, db: AsyncSession = Depends(get_db)):
 async def update_work_environment(
     env_id: int,
     env_update: WorkEnvironmentUpdate,
-    db: AsyncSession = Depends(get_db)
+    db: AsyncSession = Depends(get_db),
+    current_user_id: str = Depends(get_current_user_id)
 ):
     """작업환경측정 기록 수정"""
     work_env = await db.get(WorkEnvironment, env_id)
