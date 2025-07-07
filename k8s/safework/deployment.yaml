@@ -22,7 +22,7 @@ spec:
       - name: regcred
       containers:
       - name: safework
-        image: registry.jclee.me/safework:prod-2025.07.07.27-8c029a4
+        image: registry.jclee.me/safework:latest
         ports:
         - containerPort: 3001
           name: http
