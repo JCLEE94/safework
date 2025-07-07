@@ -28,6 +28,7 @@ from src.models import (
 from src.schemas.base import BaseResponse
 
 router = APIRouter(prefix="/api/v1/reports", tags=["reports"])
+from src.utils.auth_deps import get_current_user_id
 
 # 한글 폰트 등록 (PDF용)
 settings = get_settings()

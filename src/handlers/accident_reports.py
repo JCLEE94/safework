@@ -15,6 +15,8 @@ from src.schemas.accident_report import (
     AccidentReportCreate, AccidentReportUpdate, AccidentReportResponse,
     AccidentReportListResponse, AccidentStatistics
 )
+from src.utils.auth_deps import get_current_user_id
+)
 
 router = APIRouter(prefix="/api/v1/accident-reports", tags=["accident-reports"])
 
@@ -22,7 +24,8 @@ router = APIRouter(prefix="/api/v1/accident-reports", tags=["accident-reports"])
 @router.post("/", response_model=AccidentReportResponse)
 async def create_accident_report(
     report_data: AccidentReportCreate,
-    db: AsyncSession = Depends(get_db)
+    db: AsyncSession = Depends(get_db),
+    current_user_id: str = Depends(get_current_user_id)
 ):
     """산업재해 신고"""
     # Check if worker exists
@@ -32,7 +35,7 @@ async def create_accident_report(
     
     # Create accident report
     report = AccidentReport(**report_data.model_dump())
-    report.created_by = "system"  # TODO: Should come from auth
+    report.created_by = current_user_id
     db.add(report)
     await db.commit()
     await db.refresh(report)
@@ -346,7 +349,8 @@ async def get_accident_report(report_id: int, db: AsyncSession = Depends(get_db)
 async def update_accident_report(
     report_id: int,
     report_update: AccidentReportUpdate,
-    db: AsyncSession = Depends(get_db)
+    db: AsyncSession = Depends(get_db),
+    current_user_id: str = Depends(get_current_user_id)
 ):
     """산업재해 신고서 수정"""
     report = await db.get(AccidentReport, report_id)
@@ -359,7 +363,7 @@ async def update_accident_report(
         setattr(report, field, value)
     
     report.updated_at = datetime.utcnow()
-    report.updated_by = "system"  # Should come from auth
+    report.updated_by = current_user_id
     await db.commit()
     await db.refresh(report)
     

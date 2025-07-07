@@ -474,7 +474,7 @@ async def create_unified_document(
             mime_type="application/octet-stream",  # 실제 파일 업로드 시 설정
             description=document_data.description,
             tags=document_data.tags,
-            created_by="system",  # 실제 사용자 정보로 대체
+            created_by=current_user_id,  # 실제 사용자 정보로 대체
             is_template=document_data.is_template,
             access_level=document_data.access_level,
             metadata=document_data.metadata

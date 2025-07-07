@@ -92,7 +92,7 @@ class TestProductionServer:
             response = await client.options(
                 f"{PRODUCTION_URL}/api/v1/workers/",
                 headers={
-                    "Origin": "http://localhost:3000",
+                    "Origin": os.getenv("FRONTEND_URL", "http://localhost:3000"),
                     "Access-Control-Request-Method": "GET"
                 }
             )

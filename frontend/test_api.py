@@ -2,7 +2,8 @@ import requests
 import json
 from datetime import datetime
 
-BASE_URL = "http://localhost:3001/api/v1"
+import os
+BASE_URL = os.getenv("API_BASE_URL", "http://localhost:3001/api/v1")
 
 def test_workers_api():
     print("=== Workers API Test ===")

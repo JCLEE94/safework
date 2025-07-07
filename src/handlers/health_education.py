@@ -14,6 +14,7 @@ from src.schemas.health_education import (
     HealthEducationListResponse, EducationWithAttendanceResponse,
     AttendanceCreate, AttendanceUpdate, EducationStatistics
 )
+from src.utils.auth_deps import get_current_user_id
 
 router = APIRouter(prefix="/api/v1/health-education", tags=["health-education"])
 
@@ -25,7 +26,7 @@ async def create_health_education(
 ):
     """보건교육 등록"""
     education = HealthEducation(**education_data.model_dump())
-    education.created_by = "system"  # Should come from auth
+    education.created_by = current_user_id  # Should come from auth
     db.add(education)
     await db.commit()
     await db.refresh(education)
@@ -197,7 +198,7 @@ async def update_health_education(
         setattr(education, field, value)
     
     education.updated_at = datetime.utcnow()
-    education.updated_by = "system"  # Should come from auth
+    education.updated_by = current_user_id  # Should come from auth
     await db.commit()
     await db.refresh(education)
     
@@ -253,7 +254,7 @@ async def add_attendance(
             education_id=education_id,
             **attendance_data.model_dump()
         )
-        attendance.created_by = "system"  # Should come from auth
+        attendance.created_by = current_user_id  # Should come from auth
         db.add(attendance)
         added_count += 1
     

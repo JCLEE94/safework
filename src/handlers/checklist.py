@@ -95,7 +95,7 @@ async def get_checklist_templates(
 @router.post("/templates", response_model=ChecklistTemplateResponse)
 async def create_checklist_template(
     template_data: ChecklistTemplateCreate,
-    user_id: str = "system",  # 실제로는 JWT에서 추출
+    current_user_id: str = Depends(get_current_user_id),  # 실제로는 JWT에서 추출
     db: AsyncSession = Depends(get_db)
 ):
     """체크리스트 템플릿 생성"""
@@ -255,7 +255,7 @@ async def get_checklist_instances(
 @router.post("/instances", response_model=ChecklistInstanceResponse)
 async def create_checklist_instance(
     instance_data: ChecklistInstanceCreate,
-    user_id: str = "system",  # 실제로는 JWT에서 추출
+    current_user_id: str = Depends(get_current_user_id),  # 실제로는 JWT에서 추출
     db: AsyncSession = Depends(get_db)
 ):
     """체크리스트 인스턴스 생성"""
@@ -354,7 +354,7 @@ async def get_checklist_instance(
 async def update_checklist_instance(
     instance_id: UUID,
     instance_data: ChecklistInstanceUpdate,
-    user_id: str = "system",  # 실제로는 JWT에서 추출
+    current_user_id: str = Depends(get_current_user_id),  # 실제로는 JWT에서 추출
     db: AsyncSession = Depends(get_db)
 ):
     """체크리스트 인스턴스 수정 (점검 결과 포함)"""

@@ -27,28 +27,31 @@ class Settings(BaseSettings):
     logs_dir: str = Field(default="/app/logs", env="LOGS_DIR")
     document_dir: str = Field(default="/app/document", env="DOCUMENT_DIR")
     
-    # 개발 환경 설정
+    # 환경 설정
+    environment: str = Field(default="production", env="ENVIRONMENT")
     disable_auth: bool = Field(default=False, env="DISABLE_AUTH")
     
-    # 데이터베이스 설정 - 하드코딩 제거
-    database_host: str = Field(default="localhost", env="DATABASE_HOST")
-    database_port: int = Field(default=5432, env="DATABASE_PORT")
-    database_user: str = Field(default="admin", env="POSTGRES_USER")
-    database_password: str = Field(default="safework123", env="POSTGRES_PASSWORD")
+    # JWT 설정
+    jwt_secret: str = Field(default="", env="JWT_SECRET")
+    jwt_algorithm: str = Field(default="HS256", env="JWT_ALGORITHM")
+    jwt_expiration_hours: int = Field(default=24, env="JWT_EXPIRATION_HOURS")
+    
+    # 데이터베이스 설정 - 환경변수 필수화
+    database_host: str = Field(env="DATABASE_HOST")
+    database_port: int = Field(env="DATABASE_PORT") 
+    database_user: str = Field(env="POSTGRES_USER")
+    database_password: str = Field(env="POSTGRES_PASSWORD")
     database_name: str = Field(default="health_management", env="POSTGRES_DB")
     database_url: str = Field(default="", env="DATABASE_URL")
     
-    # JWT 설정 - 보안 강화
-    secret_key: str = Field(default="safework-app-secret-2024", env="SECRET_KEY")
-    jwt_secret: str = Field(default="safework-pro-secret-key-2024", env="JWT_SECRET") 
-    algorithm: str = Field(default="HS256", env="JWT_ALGORITHM")
-    access_token_expire_minutes: int = Field(default=1440, env="TOKEN_EXPIRE_MINUTES")
+    # 보안 설정 - 환경변수 필수화
+    secret_key: str = Field(env="SECRET_KEY")
     
-    # Redis 설정
-    redis_host: str = Field(default="localhost", env="REDIS_HOST")
-    redis_port: int = Field(default=6379, env="REDIS_PORT")
+    # Redis 설정 - 환경변수 필수화  
+    redis_host: str = Field(env="REDIS_HOST")
+    redis_port: int = Field(env="REDIS_PORT")
     redis_password: str = Field(default="", env="REDIS_PASSWORD")
-    redis_url: str = Field(default="redis://localhost:6379/0", env="REDIS_URL")
+    redis_url: str = Field(env="REDIS_URL")
     
     # 성능 설정 - Magic numbers 제거
     rate_limit: int = Field(default=100, env="RATE_LIMIT")

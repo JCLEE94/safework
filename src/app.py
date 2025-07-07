@@ -264,10 +264,13 @@ def create_app() -> FastAPI:
 app = create_app()
 
 if __name__ == "__main__":
+    from .config.settings import get_settings
+    settings = get_settings()
+    
     uvicorn.run(
         "src.app:app",
-        host="0.0.0.0",
-        port=8000,
-        reload=True,
+        host=settings.host,
+        port=settings.port,
+        reload=settings.debug,
         access_log=True
     )

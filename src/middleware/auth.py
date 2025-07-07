@@ -68,10 +68,13 @@ class JWTAuthMiddleware(BaseHTTPMiddleware):
         if not any(request.url.path.startswith(prefix) for prefix in self.protected_path_prefixes):
             return await call_next(request)
             
-        # TEMPORARY: Skip authentication for all endpoints in development/demo mode
-        # TODO: Remove this in production
-        logger.info(f"Skipping authentication for {request.url.path} - development mode")
-        return await call_next(request)
+        # 개발 모드에서만 인증 스킵 (프로덕션에서는 인증 필수)
+        from ..config.settings import get_settings
+        settings = get_settings()
+        
+        if settings.environment == "development" or settings.disable_auth:
+            logger.info(f"Skipping authentication for {request.url.path} - development mode")
+            return await call_next(request)
             
         # Get token from Authorization header
         auth_header = request.headers.get("Authorization")

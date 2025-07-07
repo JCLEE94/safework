@@ -12,6 +12,7 @@ from src.schemas.work_environment import (
     WorkEnvironmentListResponse, WorkEnvironmentWithExposuresResponse,
     WorkerExposureCreate, WorkEnvironmentStatistics
 )
+from src.utils.auth_deps import get_current_user_id
 
 router = APIRouter(prefix="/api/v1/work-environments", tags=["work-environments"])
 
@@ -49,7 +50,7 @@ async def create_work_environment(
     
     # Create work environment record
     work_env = WorkEnvironment(**data_dict)
-    work_env.created_by = "system"  # Should come from auth
+    work_env.created_by = current_user_id  # Should come from auth
     db.add(work_env)
     await db.commit()
     await db.refresh(work_env)
@@ -253,7 +254,7 @@ async def update_work_environment(
         setattr(work_env, field, value)
     
     work_env.updated_at = datetime.utcnow()
-    work_env.updated_by = "system"  # Should come from auth
+    work_env.updated_by = current_user_id  # Should come from auth
     await db.commit()
     await db.refresh(work_env)
     

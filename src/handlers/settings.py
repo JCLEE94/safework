@@ -48,7 +48,7 @@ async def get_system_settings(
                 session_timeout=120,
                 api_access_enabled=False,
                 maintenance_mode=False,
-                updated_by="system"
+                updated_by=current_user_id
             )
             
             db.add(default_settings)
@@ -65,7 +65,7 @@ async def get_system_settings(
 @router.put("/system", response_model=SystemSettingsResponse)
 async def update_system_settings(
     settings_data: SystemSettingsUpdate,
-    user_id: str = "system",  # 실제로는 JWT에서 추출
+    current_user_id: str = Depends(get_current_user_id),  # 실제로는 JWT에서 추출
     db: AsyncSession = Depends(get_db)
 ):
     """시스템 설정 수정"""

@@ -157,7 +157,7 @@ class TestHealthManagementSystem:
         async with AsyncClient(app=app, base_url="http://test") as client:
             response = await client.options(
                 "/api/v1/workers/",
-                headers={"Origin": "http://localhost:3001"}
+                headers={"Origin": os.getenv("FRONTEND_URL", "http://localhost:3001")}
             )
             assert "access-control-allow-origin" in response.headers
             assert response.headers["access-control-allow-origin"] == "*"

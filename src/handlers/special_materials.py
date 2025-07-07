@@ -101,7 +101,7 @@ async def get_special_materials(
 @router.post("/", response_model=SpecialMaterialResponse)
 async def create_special_material(
     material_data: SpecialMaterialCreate,
-    user_id: str = "system",  # 실제로는 JWT에서 추출
+    current_user_id: str = Depends(get_current_user_id),  # 실제로는 JWT에서 추출
     db: AsyncSession = Depends(get_db)
 ):
     """특별관리물질 등록"""
@@ -161,7 +161,7 @@ async def get_special_material(
 async def update_special_material(
     material_id: UUID,
     material_data: SpecialMaterialUpdate,
-    user_id: str = "system",  # 실제로는 JWT에서 추출
+    current_user_id: str = Depends(get_current_user_id),  # 실제로는 JWT에서 추출
     db: AsyncSession = Depends(get_db)
 ):
     """특별관리물질 수정"""
@@ -272,7 +272,7 @@ async def get_usage_records(
 @router.post("/usage", response_model=SpecialMaterialUsageResponse)
 async def create_usage_record(
     usage_data: SpecialMaterialUsageCreate,
-    user_id: str = "system",  # 실제로는 JWT에서 추출
+    current_user_id: str = Depends(get_current_user_id),  # 실제로는 JWT에서 추출
     db: AsyncSession = Depends(get_db)
 ):
     """사용 기록 등록"""
@@ -476,7 +476,7 @@ async def get_monitoring_records(
 @router.post("/monitoring", response_model=SpecialMaterialMonitoringResponse)
 async def create_monitoring_record(
     monitoring_data: SpecialMaterialMonitoringCreate,
-    user_id: str = "system",  # 실제로는 JWT에서 추출
+    current_user_id: str = Depends(get_current_user_id),  # 실제로는 JWT에서 추출
     db: AsyncSession = Depends(get_db)
 ):
     """모니터링 기록 등록"""
@@ -729,7 +729,7 @@ async def get_control_measures(
 @router.post("/control-measures", response_model=ControlMeasureResponse)
 async def create_control_measure(
     measure_data: ControlMeasureCreate,
-    user_id: str = "system",  # 실제로는 JWT에서 추출
+    current_user_id: str = Depends(get_current_user_id),  # 실제로는 JWT에서 추출
     db: AsyncSession = Depends(get_db)
 ):
     """관리 조치 등록"""

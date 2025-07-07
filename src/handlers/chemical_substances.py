@@ -15,6 +15,8 @@ from src.schemas.chemical_substance import (
     ChemicalSubstanceListResponse, ChemicalWithUsageResponse,
     ChemicalUsageCreate, ChemicalStatistics
 )
+from src.utils.auth_deps import get_current_user_id
+)
 
 router = APIRouter(prefix="/api/v1/chemical-substances", tags=["chemical-substances"])
 
@@ -35,7 +37,7 @@ async def create_chemical_substance(
             raise HTTPException(status_code=400, detail="이미 등록된 CAS 번호입니다")
     
     chemical = ChemicalSubstance(**chemical_data.model_dump())
-    chemical.created_by = "system"  # TODO: Should come from auth
+    chemical.created_by = current_user_id  # TODO: Should come from auth
     db.add(chemical)
     await db.commit()
     await db.refresh(chemical)
@@ -283,7 +285,7 @@ async def update_chemical_substance(
         setattr(chemical, field, value)
     
     chemical.updated_at = datetime.utcnow()
-    chemical.updated_by = "system"  # Should come from auth
+    chemical.updated_by = current_user_id  # Should come from auth
     await db.commit()
     await db.refresh(chemical)
     
@@ -337,7 +339,7 @@ async def record_chemical_usage(
         chemical_id=chemical_id,
         **usage_data.model_dump()
     )
-    usage.created_by = "system"  # Should come from auth
+    usage.created_by = current_user_id  # Should come from auth
     db.add(usage)
     
     # Update chemical quantity
