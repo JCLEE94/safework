@@ -5,12 +5,9 @@ metadata:
   namespace: argocd
   labels:
     app: safework
+    environment: production
   annotations:
     argocd.argoproj.io/sync-wave: "1"
-    argocd-image-updater.argoproj.io/image-list: safework=registry.jclee.me/safework:latest
-    argocd-image-updater.argoproj.io/write-back-method: git
-    argocd-image-updater.argoproj.io/git-branch: main
-    argocd.argoproj.io/refresh: "true"
   finalizers:
     - resources-finalizer.argocd.argoproj.io
 spec:
@@ -33,29 +30,25 @@ spec:
       - CreateNamespace=true
       - PrunePropagationPolicy=foreground
       - PruneLast=true
-      - ApplyOutOfSyncOnly=true
-      - RespectIgnoreDifferences=true
       - ServerSideApply=true
     retry:
-      limit: 5
+      limit: 3
       backoff:
-        duration: 10s
+        duration: 5s
         factor: 2
-        maxDuration: 3m
-  revisionHistoryLimit: 10
+        maxDuration: 1m
+  revisionHistoryLimit: 5
   ignoreDifferences:
     - group: apps
       kind: Deployment
       jsonPointers:
         - /spec/replicas
-    - group: ""
-      kind: Secret
-      jsonPointers:
-        - /data
   info:
-    - name: 'Project URL'
+    - name: 'Project'
+      value: 'SafeWork Pro - 건설업 보건관리 시스템'
+    - name: 'Repository'
       value: 'https://github.com/JCLEE94/safework'
     - name: 'Registry'
       value: 'registry.jclee.me/safework'
-    - name: 'Production URL'
+    - name: 'Production'
       value: 'https://safework.jclee.me'

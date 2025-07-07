@@ -1,0 +1,259 @@
+name: SafeWork Pro - Unified CI/CD Pipeline
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+    types: [opened, synchronize, reopened]
+  workflow_dispatch:
+
+env:
+  REGISTRY_URL: registry.jclee.me
+  IMAGE_NAME: safework
+  ARGOCD_SERVER: argo.jclee.me
+  ARGOCD_APP_NAME: safework
+  DOCKER_BUILDKIT: 1
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    name: Run Tests
+    runs-on: [self-hosted, linux]
+    
+    services:
+      postgres:
+        image: postgres:15
+        env:
+          POSTGRES_USER: admin
+          POSTGRES_PASSWORD: password
+          POSTGRES_DB: health_management
+        ports:
+          - 25432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+          
+      redis:
+        image: redis:7-alpine
+        ports:
+          - 26379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+      
+      - name: Install backend dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r backend/requirements.txt
+          pip install pytest pytest-cov pytest-asyncio pytest-timeout
+      
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+          cache: 'npm'
+          cache-dependency-path: frontend/package-lock.json
+      
+      - name: Install frontend dependencies
+        working-directory: frontend
+        run: npm ci
+      
+      - name: Run backend tests
+        env:
+          DATABASE_URL: postgresql://admin:password@localhost:25432/health_management
+          REDIS_URL: redis://localhost:26379/0
+          JWT_SECRET: test-secret-key
+          PYTHONPATH: ${{ github.workspace }}
+        timeout-minutes: 10
+        run: |
+          echo "🧪 Running backend tests..."
+          pytest tests/ -v --cov=src --cov-report=term --cov-fail-under=70 --timeout=300 -x
+      
+      - name: Run frontend tests
+        working-directory: frontend
+        run: |
+          npm run lint
+          npm run test -- --passWithNoTests
+          npm run build
+
+  security:
+    name: Security Scan
+    runs-on: [self-hosted, linux]
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Run Trivy security scan
+        uses: aquasecurity/trivy-action@master
+        with:
+          scan-type: 'fs'
+          scan-ref: '.'
+          severity: 'CRITICAL,HIGH'
+          exit-code: '0'
+          format: 'sarif'
+          output: 'trivy-results.sarif'
+      
+      - name: Upload security scan results
+        uses: github/codeql-action/upload-sarif@v3
+        if: always()
+        with:
+          sarif_file: 'trivy-results.sarif'
+
+  build:
+    name: Build and Push Docker Image
+    needs: [test, security]
+    runs-on: [self-hosted, linux]
+    if: github.ref == 'refs/heads/main'
+    
+    outputs:
+      image-tag: ${{ steps.meta.outputs.tag }}
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Generate metadata
+        id: meta
+        run: |
+          VERSION=$(date +%Y.%m.%d)
+          BUILD_NUM=${{ github.run_number }}
+          SHA_SHORT=${GITHUB_SHA:0:7}
+          TAG="prod-${VERSION}.${BUILD_NUM}-${SHA_SHORT}"
+          echo "tag=${TAG}" >> $GITHUB_OUTPUT
+          echo "🏷️ Image tag: ${TAG}"
+      
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+      
+      - name: Login to Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY_URL }}
+          username: ${{ secrets.REGISTRY_USERNAME }}
+          password: ${{ secrets.REGISTRY_PASSWORD }}
+      
+      - name: Build and push image
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: deployment/Dockerfile.prod
+          push: true
+          tags: |
+            ${{ env.REGISTRY_URL }}/${{ env.IMAGE_NAME }}:${{ steps.meta.outputs.tag }}
+            ${{ env.REGISTRY_URL }}/${{ env.IMAGE_NAME }}:latest
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+          build-args: |
+            BUILD_DATE=${{ steps.meta.outputs.tag }}
+            GIT_COMMIT=${{ github.sha }}
+
+  deploy:
+    name: Deploy to Production
+    needs: [build]
+    runs-on: [self-hosted, linux]
+    if: github.ref == 'refs/heads/main'
+    environment:
+      name: production
+      url: https://safework.jclee.me
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+      
+      - name: Update Kubernetes manifest
+        run: |
+          echo "📝 Updating deployment manifest..."
+          IMAGE_TAG="${{ needs.build.outputs.image-tag }}"
+          sed -i "s|image: registry.jclee.me/safework:.*|image: registry.jclee.me/safework:${IMAGE_TAG}|g" k8s/safework/deployment.yaml
+          
+          echo "🔍 Updated image reference:"
+          grep "image:" k8s/safework/deployment.yaml
+      
+      - name: Commit and push manifest changes
+        run: |
+          git config --local user.email "action@github.com"
+          git config --local user.name "GitHub Action"
+          git add k8s/safework/deployment.yaml
+          git commit -m "chore: update image to ${{ needs.build.outputs.image-tag }} [skip ci]" || exit 0
+          git push
+      
+      - name: Install ArgoCD CLI
+        run: |
+          if ! command -v argocd &> /dev/null; then
+            echo "📦 Installing ArgoCD CLI..."
+            curl -sSL -o /usr/local/bin/argocd https://github.com/argoproj/argo-cd/releases/latest/download/argocd-linux-amd64
+            chmod +x /usr/local/bin/argocd
+          fi
+      
+      - name: Deploy via ArgoCD
+        env:
+          ARGOCD_AUTH_TOKEN: ${{ secrets.ARGOCD_AUTH_TOKEN }}
+        run: |
+          echo "🔐 Connecting to ArgoCD..."
+          argocd login ${{ env.ARGOCD_SERVER }} \
+            --auth-token ${{ env.ARGOCD_AUTH_TOKEN }} \
+            --grpc-web \
+            --insecure
+          
+          echo "🔄 Syncing application..."
+          argocd app sync ${{ env.ARGOCD_APP_NAME }} \
+            --force \
+            --prune \
+            --timeout 300
+          
+          echo "⏳ Waiting for healthy deployment..."
+          argocd app wait ${{ env.ARGOCD_APP_NAME }} \
+            --health \
+            --timeout 600
+      
+      - name: Verify deployment
+        run: |
+          echo "📊 Deployment status:"
+          argocd app get ${{ env.ARGOCD_APP_NAME }}
+          
+          echo "🏥 Health check..."
+          for i in {1..10}; do
+            if curl -s https://safework.jclee.me/health | jq .; then
+              echo "✅ Application is healthy!"
+              exit 0
+            else
+              echo "⏳ Waiting for application... (attempt $i/10)"
+              sleep 30
+            fi
+          done
+          echo "❌ Health check failed after 10 attempts"
+          exit 1
+      
+      - name: Deployment notification
+        if: always()
+        run: |
+          if [ ${{ job.status }} == 'success' ]; then
+            echo "✅ SafeWork Pro deployment successful!"
+            echo "🔗 Application: https://safework.jclee.me"
+            echo "📦 Image: ${{ env.REGISTRY_URL }}/${{ env.IMAGE_NAME }}:${{ needs.build.outputs.image-tag }}"
+            echo "📋 ArgoCD: https://${{ env.ARGOCD_SERVER }}/applications/${{ env.ARGOCD_APP_NAME }}"
+          else
+            echo "❌ SafeWork Pro deployment failed!"
+            echo "🔍 Check logs and ArgoCD dashboard for details"
+          fi
