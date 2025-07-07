@@ -255,28 +255,42 @@ jobs:
       - name: Deploy via ArgoCD
         env:
           ARGOCD_AUTH_TOKEN: ${{ secrets.ARGOCD_AUTH_TOKEN }}
+          ARGOCD_OPTS: "--grpc-web --insecure"
         run: |
-          echo "🔐 Connecting to ArgoCD..."
-          argocd login ${{ env.ARGOCD_SERVER }} \
-            --auth-token ${{ env.ARGOCD_AUTH_TOKEN }} \
-            --grpc-web \
-            --insecure
+          echo "🔐 Setting up ArgoCD authentication..."
+          
+          # Set token for ArgoCD CLI
+          export ARGOCD_AUTH_TOKEN="${{ secrets.ARGOCD_AUTH_TOKEN }}"
           
           echo "🔄 Syncing application..."
           argocd app sync ${{ env.ARGOCD_APP_NAME }} \
+            --server ${{ env.ARGOCD_SERVER }} \
+            --auth-token $ARGOCD_AUTH_TOKEN \
+            --grpc-web \
+            --insecure \
             --force \
             --prune \
             --timeout 300
           
           echo "⏳ Waiting for healthy deployment..."
           argocd app wait ${{ env.ARGOCD_APP_NAME }} \
+            --server ${{ env.ARGOCD_SERVER }} \
+            --auth-token $ARGOCD_AUTH_TOKEN \
+            --grpc-web \
+            --insecure \
             --health \
             --timeout 600
       
       - name: Verify deployment
+        env:
+          ARGOCD_AUTH_TOKEN: ${{ secrets.ARGOCD_AUTH_TOKEN }}
         run: |
           echo "📊 Deployment status:"
-          argocd app get ${{ env.ARGOCD_APP_NAME }}
+          argocd app get ${{ env.ARGOCD_APP_NAME }} \
+            --server ${{ env.ARGOCD_SERVER }} \
+            --auth-token $ARGOCD_AUTH_TOKEN \
+            --grpc-web \
+            --insecure
           
           echo "🏥 Health check..."
           for i in {1..10}; do
