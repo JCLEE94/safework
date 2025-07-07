@@ -100,5 +100,11 @@ HEALTHCHECK --interval=30s --timeout=10s --start-period=60s --retries=5 \
 COPY deployment/start.sh deployment/start-simple.sh deployment/start-minimal.sh deployment/start-fixed.sh deployment/start-postgres-fix.sh deployment/start-external-db.sh deployment/start-gosu.sh deployment/start-official.sh /usr/local/bin/
 RUN chmod +x /usr/local/bin/start.sh /usr/local/bin/start-simple.sh /usr/local/bin/start-minimal.sh /usr/local/bin/start-fixed.sh /usr/local/bin/start-postgres-fix.sh /usr/local/bin/start-external-db.sh /usr/local/bin/start-gosu.sh /usr/local/bin/start-official.sh
 
-# 애플리케이션 시작 (공식 PostgreSQL 방법 사용)
-CMD ["/usr/local/bin/start-official.sh"]
+# 환경변수 설정
+ENV PYTHONPATH=/app
+ENV PORT=3001
+ENV DATABASE_URL=sqlite:///app/data.db
+ENV REDIS_URL=redis://localhost:6379/0
+
+# 애플리케이션 시작 - 간단하게
+CMD ["sh", "-c", "redis-server --daemonize yes && uvicorn src.app:app --host 0.0.0.0 --port 3001"]
