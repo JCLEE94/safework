@@ -1816,6 +1816,153 @@ async def download_pdf_template(form_id: str):
         raise HTTPException(status_code=500, detail=f"템플릿 다운로드 실패: {str(e)}")
 
 
+# ===== 통합문서관리시스템 지원 엔드포인트 =====
+
+@router.get("/")
+async def get_documents_list(
+    category: Optional[str] = None,
+    search: Optional[str] = None,
+    page: int = 1,
+    limit: int = 50
+):
+    """문서 목록 조회 (통합문서관리시스템용)"""
+    try:
+        files = []
+        total_files = 0
+        
+        # 각 카테고리별로 파일 목록 수집
+        for category_id, category_name in DOCUMENT_CATEGORIES.items():
+            # 카테고리 필터 적용
+            if category and category != category_id:
+                continue
+                
+            category_path = DOCUMENT_BASE_DIR / category_name
+            if category_path.exists():
+                for file_path in category_path.iterdir():
+                    if file_path.is_file():
+                        # 검색어 필터 적용
+                        if search and search.lower() not in file_path.name.lower():
+                            continue
+                            
+                        stat = file_path.stat()
+                        file_info = {
+                            "id": str(hash(str(file_path))),
+                            "name": file_path.name,
+                            "size": stat.st_size,
+                            "modified": datetime.fromtimestamp(stat.st_mtime).isoformat(),
+                            "type": file_path.suffix.lower(),
+                            "category": category_id,
+                            "category_name": category_name,
+                            "path": str(file_path.relative_to(DOCUMENT_BASE_DIR)),
+                            "status": "available",
+                            "download_url": f"/api/v1/documents/download/{category_id}/{file_path.name}",
+                            "edit_url": f"/api/v1/documents/edit/{category_id}/{file_path.name}"
+                        }
+                        files.append(file_info)
+                        total_files += 1
+        
+        # 페이지네이션 적용
+        start_idx = (page - 1) * limit
+        end_idx = start_idx + limit
+        paginated_files = files[start_idx:end_idx]
+        
+        return {
+            "documents": paginated_files,
+            "total": total_files,
+            "page": page,
+            "limit": limit,
+            "has_next": end_idx < total_files,
+            "has_prev": page > 1,
+            "categories": list(DOCUMENT_CATEGORIES.keys())
+        }
+        
+    except Exception as e:
+        print(f"Documents list error: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"문서 목록 조회 실패: {str(e)}")
+
+
+@router.get("/stats")
+async def get_documents_stats():
+    """문서 통계 정보 조회 (통합문서관리시스템용)"""
+    try:
+        stats = {
+            "total_documents": 0,
+            "total_size": 0,
+            "categories": {},
+            "file_types": {},
+            "recent_uploads": [],
+            "storage_usage": {
+                "used": 0,
+                "total": 1000000000,  # 1GB 기본값
+                "percentage": 0
+            }
+        }
+        
+        recent_files = []
+        
+        # 각 카테고리별로 통계 수집
+        for category_id, category_name in DOCUMENT_CATEGORIES.items():
+            category_path = DOCUMENT_BASE_DIR / category_name
+            category_stats = {
+                "count": 0,
+                "size": 0,
+                "name": category_name
+            }
+            
+            if category_path.exists():
+                for file_path in category_path.iterdir():
+                    if file_path.is_file():
+                        stat = file_path.stat()
+                        file_size = stat.st_size
+                        file_ext = file_path.suffix.lower()
+                        
+                        # 전체 통계 업데이트
+                        stats["total_documents"] += 1
+                        stats["total_size"] += file_size
+                        
+                        # 카테고리별 통계 업데이트
+                        category_stats["count"] += 1
+                        category_stats["size"] += file_size
+                        
+                        # 파일 타입별 통계 업데이트
+                        if file_ext in stats["file_types"]:
+                            stats["file_types"][file_ext]["count"] += 1
+                            stats["file_types"][file_ext]["size"] += file_size
+                        else:
+                            stats["file_types"][file_ext] = {
+                                "count": 1,
+                                "size": file_size
+                            }
+                        
+                        # 최근 파일 목록에 추가
+                        recent_files.append({
+                            "name": file_path.name,
+                            "category": category_id,
+                            "size": file_size,
+                            "modified": datetime.fromtimestamp(stat.st_mtime).isoformat(),
+                            "type": file_ext
+                        })
+            
+            stats["categories"][category_id] = category_stats
+        
+        # 최근 파일 목록 정렬 (수정일 기준 최신순)
+        recent_files.sort(key=lambda x: x["modified"], reverse=True)
+        stats["recent_uploads"] = recent_files[:10]  # 최근 10개
+        
+        # 저장공간 사용률 계산
+        if stats["storage_usage"]["total"] > 0:
+            stats["storage_usage"]["used"] = stats["total_size"]
+            stats["storage_usage"]["percentage"] = (
+                stats["total_size"] / stats["storage_usage"]["total"] * 100
+            )
+        
+        return stats
+        
+    except Exception as e:
+        print(f"Documents stats error: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"문서 통계 조회 실패: {str(e)}")
+
+
 # 메인 라우터에 PDF 편집 라우터 포함
 def include_pdf_editor_router(app):
     """PDF 편집 라우터를 메인 앱에 포함"""
