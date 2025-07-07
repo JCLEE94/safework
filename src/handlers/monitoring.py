@@ -52,6 +52,25 @@ class ConnectionManager:
 manager = ConnectionManager()
 
 
+@router.get("/metrics")
+async def get_metrics(
+    metrics_collector: MetricsCollector = Depends(get_metrics_collector)
+):
+    """시스템 메트릭 조회 (간단한 버전)"""
+    if not metrics_collector:
+        raise HTTPException(status_code=503, detail="모니터링 서비스가 초기화되지 않았습니다")
+    
+    metrics = await metrics_collector.collect_system_metrics()
+    app_metrics = await metrics_collector.get_application_metrics()
+    
+    return {
+        "timestamp": datetime.now().isoformat(),
+        "system": metrics.get("system", {}),
+        "process": metrics.get("process", {}),
+        "application": app_metrics
+    }
+
+
 @router.get("/metrics/current")
 async def get_current_metrics(
     metrics_collector: MetricsCollector = Depends(get_metrics_collector)

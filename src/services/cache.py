@@ -27,7 +27,7 @@ class CacheService:
         """Redis 연결 설정"""
         try:
             self.redis_client = redis.from_url(
-                self.settings.redis_url,
+                self.settings.generate_redis_url(),
                 encoding="utf-8",
                 decode_responses=True
             )

@@ -27,7 +27,7 @@ async def init_db():
     settings = get_settings()
     
     # PostgreSQL URL을 AsyncPG 형식으로 변환
-    database_url = settings.database_url.replace("postgresql://", "postgresql+asyncpg://")
+    database_url = settings.generate_database_url().replace("postgresql://", "postgresql+asyncpg://")
     
     engine = create_async_engine(
         database_url,

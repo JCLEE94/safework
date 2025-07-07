@@ -32,26 +32,26 @@ class Settings(BaseSettings):
     disable_auth: bool = Field(default=False, env="DISABLE_AUTH")
     
     # JWT 설정
-    jwt_secret: str = Field(default="", env="JWT_SECRET")
+    jwt_secret: str = Field(default="dev-jwt-secret-change-in-production", env="JWT_SECRET")
     jwt_algorithm: str = Field(default="HS256", env="JWT_ALGORITHM")
     jwt_expiration_hours: int = Field(default=24, env="JWT_EXPIRATION_HOURS")
     
-    # 데이터베이스 설정 - 환경변수 필수화
-    database_host: str = Field(env="DATABASE_HOST")
-    database_port: int = Field(env="DATABASE_PORT") 
-    database_user: str = Field(env="POSTGRES_USER")
-    database_password: str = Field(env="POSTGRES_PASSWORD")
+    # 데이터베이스 설정 - 기본값 제공 (CI/CD 환경 지원)
+    database_host: str = Field(default="localhost", env="DATABASE_HOST")
+    database_port: int = Field(default=5432, env="DATABASE_PORT") 
+    database_user: str = Field(default="admin", env="POSTGRES_USER")
+    database_password: str = Field(default="password", env="POSTGRES_PASSWORD")
     database_name: str = Field(default="health_management", env="POSTGRES_DB")
     database_url: str = Field(default="", env="DATABASE_URL")
     
-    # 보안 설정 - 환경변수 필수화
-    secret_key: str = Field(env="SECRET_KEY")
+    # 보안 설정 - 기본값 제공 (CI/CD 환경 지원)
+    secret_key: str = Field(default="dev-secret-key-change-in-production", env="SECRET_KEY")
     
-    # Redis 설정 - 환경변수 필수화  
-    redis_host: str = Field(env="REDIS_HOST")
-    redis_port: int = Field(env="REDIS_PORT")
+    # Redis 설정 - 기본값 제공 (CI/CD 환경 지원)
+    redis_host: str = Field(default="localhost", env="REDIS_HOST")
+    redis_port: int = Field(default=6379, env="REDIS_PORT")
     redis_password: str = Field(default="", env="REDIS_PASSWORD")
-    redis_url: str = Field(env="REDIS_URL")
+    redis_url: str = Field(default="", env="REDIS_URL")
     
     # 성능 설정 - Magic numbers 제거
     rate_limit: int = Field(default=100, env="RATE_LIMIT")
@@ -131,7 +131,7 @@ class Settings(BaseSettings):
     
     def generate_redis_url(self) -> str:
         """Redis URL 동적 생성"""
-        if self.redis_url:
+        if self.redis_url and self.redis_url.strip():
             return self.redis_url
         if self.redis_password:
             return f"redis://:{self.redis_password}@{self.redis_host}:{self.redis_port}/0"
