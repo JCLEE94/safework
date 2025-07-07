@@ -20,6 +20,29 @@ spec:
     spec:
       imagePullSecrets:
       - name: regcred
+      initContainers:
+      - name: wait-for-db
+        image: postgres:15
+        command:
+        - sh
+        - -c
+        - |
+          until pg_isready -h postgres -p 5432 -U admin; do
+            echo "Waiting for PostgreSQL..."
+            sleep 2
+          done
+          echo "PostgreSQL is ready!"
+      - name: wait-for-redis
+        image: redis:7-alpine
+        command:
+        - sh
+        - -c
+        - |
+          until redis-cli -h redis -p 6379 ping; do
+            echo "Waiting for Redis..."
+            sleep 2
+          done
+          echo "Redis is ready!"
       containers:
       - name: safework
         image: registry.jclee.me/safework:prod-2025.07.07.47-1ec396d
@@ -31,6 +54,10 @@ spec:
           value: "0.0.0.0"
         - name: PORT
           value: "3001"
+        - name: DATABASE_HOST
+          value: "postgres"
+        - name: REDIS_HOST
+          value: "redis"
         envFrom:
         - secretRef:
             name: safework-secrets
