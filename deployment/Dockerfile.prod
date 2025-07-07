@@ -26,7 +26,7 @@ RUN npx vite build
 RUN ls -la /app/dist/ && test -f /app/dist/index.html || (echo "❌ React 빌드 실패" && exit 1)
 
 # ================================
-# Stage 2: All-in-One Production
+# Stage 2: Microservices Backend
 # ================================
 FROM python:3.11-slim AS production
 
@@ -39,22 +39,12 @@ ENV PYTHONDONTWRITEBYTECODE=1
 
 WORKDIR /app
 
-# 시스템 의존성 설치 (gosu 추가로 PostgreSQL 권한 문제 해결)
+# 시스템 의존성 설치 (microservices - PostgreSQL/Redis 제거)
 RUN apt-get update && apt-get install -y --no-install-recommends \
-    postgresql \
-    postgresql-client \
-    redis-server \
     curl \
     fonts-nanum \
     wkhtmltopdf \
     ca-certificates \
-    gnupg \
-    lsb-release \
-    gosu \
-    && curl -fsSL https://download.docker.com/linux/debian/gpg | gpg --dearmor -o /usr/share/keyrings/docker-archive-keyring.gpg \
-    && echo "deb [arch=amd64 signed-by=/usr/share/keyrings/docker-archive-keyring.gpg] https://download.docker.com/linux/debian $(lsb_release -cs) stable" | tee /etc/apt/sources.list.d/docker.list > /dev/null \
-    && apt-get update \
-    && apt-get install -y docker-ce-cli \
     && rm -rf /var/lib/apt/lists/* \
     && ln -snf /usr/share/zoneinfo/$TZ /etc/localtime && echo $TZ > /etc/timezone
 
@@ -77,28 +67,16 @@ COPY document/ ./document/
 COPY database/migrations/ ./database/migrations/
 COPY deployment/direct-migration.sql ./deployment/
 
-# 필요한 디렉토리 생성 및 권한 설정
-RUN mkdir -p uploads logs /var/lib/redis /var/lib/postgresql /var/log/postgresql \
-    && chmod 755 uploads logs \
-    && chown -R postgres:postgres /var/lib/postgresql /var/log/postgresql \
-    && chmod -R 750 /var/lib/postgresql /var/log/postgresql
+# 필요한 디렉토리 생성 및 권한 설정 (microservices)
+RUN mkdir -p uploads logs \
+    && chmod 755 uploads logs
 
-# 데이터베이스 초기화 스크립트
-COPY database/init-db.sh /usr/local/bin/
-RUN chmod +x /usr/local/bin/init-db.sh
+# 포트 노출
+EXPOSE 3001
 
-# Nginx 제거됨 - 설정 불필요
-
-# 포트 노출 (기본값, docker-compose에서 설정 가능)
-EXPOSE 8000
-
-# 헬스체크 (PORT 환경변수 사용)
+# 헬스체크
 HEALTHCHECK --interval=30s --timeout=10s --start-period=60s --retries=5 \
-    CMD curl -f http://localhost:${PORT:-8000}/health || exit 1
-
-# 시작 스크립트
-COPY deployment/start.sh deployment/start-simple.sh deployment/start-minimal.sh deployment/start-fixed.sh deployment/start-postgres-fix.sh deployment/start-external-db.sh deployment/start-gosu.sh deployment/start-official.sh /usr/local/bin/
-RUN chmod +x /usr/local/bin/start.sh /usr/local/bin/start-simple.sh /usr/local/bin/start-minimal.sh /usr/local/bin/start-fixed.sh /usr/local/bin/start-postgres-fix.sh /usr/local/bin/start-external-db.sh /usr/local/bin/start-gosu.sh /usr/local/bin/start-official.sh
+    CMD curl -f http://localhost:3001/health || exit 1
 
 # 환경변수 설정
 ENV PYTHONPATH=/app
