@@ -103,8 +103,6 @@ RUN chmod +x /usr/local/bin/start.sh /usr/local/bin/start-simple.sh /usr/local/b
 # 환경변수 설정
 ENV PYTHONPATH=/app
 ENV PORT=3001
-ENV DATABASE_URL=sqlite:///app/data.db
-ENV REDIS_URL=redis://localhost:6379/0
 
-# 애플리케이션 시작 - 간단하게
-CMD ["sh", "-c", "redis-server --daemonize yes && uvicorn src.app:app --host 0.0.0.0 --port 3001"]
+# FastAPI만 실행 - 외부 DB/Redis 사용
+CMD ["uvicorn", "src.app:app", "--host", "0.0.0.0", "--port", "3001"]
