@@ -16,7 +16,6 @@ from src.schemas.accident_report import (
     AccidentReportListResponse, AccidentStatistics
 )
 from src.utils.auth_deps import get_current_user_id
-)
 
 router = APIRouter(prefix="/api/v1/accident-reports", tags=["accident-reports"])
 
