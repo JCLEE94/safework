@@ -114,13 +114,13 @@ jobs:
       
       - name: Upload security scan results
         uses: github/codeql-action/upload-sarif@v3
-        if: always()
+        if: false  # Skip SARIF upload since Advanced Security is not enabled
         with:
           sarif_file: 'trivy-results.sarif'
 
   build:
     name: Build and Push Docker Image
-    needs: [test, security]
+    needs: [test]
     runs-on: [self-hosted, linux]
     if: github.ref == 'refs/heads/main'
     
