@@ -16,7 +16,6 @@ from src.schemas.chemical_substance import (
     ChemicalUsageCreate, ChemicalStatistics
 )
 from src.utils.auth_deps import get_current_user_id
-)
 
 router = APIRouter(prefix="/api/v1/chemical-substances", tags=["chemical-substances"])
 
