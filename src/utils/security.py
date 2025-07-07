@@ -134,8 +134,8 @@ class TokenManager:
     def __init__(self):
         settings = get_settings()
         self.secret_key = settings.jwt_secret
-        self.algorithm = settings.algorithm
-        self.access_token_expire_minutes = settings.access_token_expire_minutes
+        self.algorithm = settings.jwt_algorithm
+        self.access_token_expire_minutes = settings.jwt_expiration_hours * 60
         
     def create_access_token(self, data: dict, expires_delta: Optional[timedelta] = None) -> str:
         """Create JWT access token"""
