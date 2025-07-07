@@ -14,10 +14,9 @@ from sqlalchemy import select
 
 from ..config.settings import get_settings
 from ..config.database import get_db
-from ..utils.logger import get_logger
+from ..utils.logger import logger
 
 settings = get_settings()
-logger = get_logger(__name__)
 security = HTTPBearer()
 
 
