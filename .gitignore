@@ -106,3 +106,7 @@ coverage.xml
 .hypothesis/
 pytest_cache/
 cover/argocd-linux-amd64
+
+# PostgreSQL data directory
+data/postgres/
+data/redis/
