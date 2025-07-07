@@ -17,6 +17,7 @@ from ..models.special_materials import (
     SpecialMaterial, SpecialMaterialUsage, ExposureAssessment, SpecialMaterialMonitoring,
     ControlMeasure, SpecialMaterialType, ExposureLevel, MonitoringStatus
 )
+from ..utils.auth_deps import get_current_user_id
 from ..schemas.special_materials import (
     SpecialMaterialCreate, SpecialMaterialUpdate, SpecialMaterialResponse,
     SpecialMaterialUsageCreate, SpecialMaterialUsageResponse,

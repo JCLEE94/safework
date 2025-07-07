@@ -17,6 +17,7 @@ from ..models.checklist import (
     ChecklistTemplate, ChecklistTemplateItem, ChecklistInstance, ChecklistInstanceItem,
     ChecklistAttachment, ChecklistSchedule, ChecklistType, ChecklistStatus, ChecklistPriority
 )
+from ..utils.auth_deps import get_current_user_id
 from ..schemas.checklist import (
     ChecklistTemplateCreate, ChecklistTemplateUpdate, ChecklistTemplateResponse,
     ChecklistInstanceCreate, ChecklistInstanceUpdate, ChecklistInstanceResponse,
