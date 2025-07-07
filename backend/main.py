@@ -14,8 +14,8 @@ def main():
     """애플리케이션 진입점"""
     app = create_app()
     
-    # 환경변수에서 포트 읽기, 기본값 8000 (FastAPI 표준)
-    port = int(os.environ.get("PORT", 8000))
+    # 환경변수에서 포트 읽기, 기본값 3001
+    port = int(os.environ.get("PORT", 3001))
     
     # 프로덕션 환경에서는 bind to all interfaces
     uvicorn.run(
