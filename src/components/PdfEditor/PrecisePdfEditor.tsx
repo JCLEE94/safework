@@ -1,7 +1,7 @@
 import React, { useState, useRef, useCallback, useEffect } from 'react';
 import { Document, Page, pdfjs } from 'react-pdf';
 import { PDFDocument, rgb, StandardFonts } from 'pdf-lib';
-import { API_BASE_URL } from '../../config/api';
+import { apiUrl } from '../../config/api';
 import { 
   Upload, 
   Download, 
@@ -141,7 +141,7 @@ const PrecisePdfEditor: React.FC<PrecisePdfEditorProps> = ({
       formData.append('file', file);
 
       // 백엔드 고급 필드 감지 API 호출
-      const response = await fetch(`${API_BASE_URL}/api/v1/pdf-precise/detect-fields`, {
+      const response = await fetch(apiUrl('/pdf-precise/detect-fields'), {
         method: 'POST',
         body: formData
       });
@@ -269,7 +269,7 @@ const PrecisePdfEditor: React.FC<PrecisePdfEditorProps> = ({
       formData.append('field_data', JSON.stringify(fieldInputs));
       formData.append('field_mappings', JSON.stringify(fieldMappings));
 
-      const response = await fetch(`${API_BASE_URL}/api/v1/pdf-precise/auto-fill`, {
+      const response = await fetch(apiUrl('/pdf-precise/auto-fill'), {
         method: 'POST',
         body: formData
       });

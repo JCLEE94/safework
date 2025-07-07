@@ -1,6 +1,6 @@
 import React, { useState, useRef, useCallback } from 'react';
 import { EmbedPDF, useEmbed } from '@simplepdf/react-embed-pdf';
-import { API_BASE_URL } from '../../config/api';
+import { apiUrl } from '../../config/api';
 import PrecisePdfEditor from './PrecisePdfEditor';
 import { 
   Upload, 
@@ -60,7 +60,7 @@ const EnhancedPdfEditor: React.FC = () => {
   const fetchAvailableForms = async () => {
     try {
       setLoading(true);
-      const response = await fetch(`${API_BASE_URL}/api/v1/pdf-editor/forms/`);
+      const response = await fetch(apiUrl('/pdf-editor/forms/'));
       const data = await response.json();
       
       if (response.ok && data.status === 'success') {
@@ -79,7 +79,7 @@ const EnhancedPdfEditor: React.FC = () => {
   const fetchFormFields = async (formId: string) => {
     try {
       setLoading(true);
-      const response = await fetch(`/api/v1/pdf-editor/forms/${formId}/fields`);
+      const response = await fetch(apiUrl(`/pdf-editor/forms/${formId}/fields`));
       const data = await response.json();
       
       if (response.ok && data.status === 'success') {
@@ -108,7 +108,7 @@ const EnhancedPdfEditor: React.FC = () => {
     if (selectedForm) {
       fetchFormFields(selectedForm);
       // 선택된 양식의 템플릿 URL 설정
-      setDocumentUrl(`/api/v1/pdf-editor/forms/${selectedForm}/template`);
+      setDocumentUrl(apiUrl(`/pdf-editor/forms/${selectedForm}/template`));
     } else {
       setFormFields([]);
       setFieldValues({});
@@ -190,7 +190,7 @@ const EnhancedPdfEditor: React.FC = () => {
       const formData = new FormData();
       formData.append('file', file);
       
-      const response = await fetch(`${API_BASE_URL}/api/v1/pdf-auto/detect-fields`, {
+      const response = await fetch(apiUrl('/pdf-auto/detect-fields'), {
         method: 'POST',
         body: formData
       });
@@ -212,7 +212,7 @@ const EnhancedPdfEditor: React.FC = () => {
       formData.append('file', file);
       formData.append('data', JSON.stringify(data));
       
-      const response = await fetch(`${API_BASE_URL}/api/v1/pdf-auto/auto-fill`, {
+      const response = await fetch(apiUrl('/pdf-auto/auto-fill'), {
         method: 'POST',
         body: formData
       });
@@ -271,7 +271,7 @@ const EnhancedPdfEditor: React.FC = () => {
         formData.append('file', uploadedFile);
         formData.append('field_data', JSON.stringify(fieldValues));
 
-        response = await fetch(`${API_BASE_URL}/api/v1/pdf-editor/upload-and-edit`, {
+        response = await fetch(apiUrl('/pdf-editor/upload-and-edit'), {
           method: 'POST',
           body: formData
         });
@@ -281,7 +281,7 @@ const EnhancedPdfEditor: React.FC = () => {
           formData.append(key, value);
         });
 
-        response = await fetch(`${API_BASE_URL}/api/v1/pdf-editor/forms/${selectedForm}/edit`, {
+        response = await fetch(apiUrl(`/pdf-editor/forms/${selectedForm}/edit`), {
           method: 'POST',
           body: formData
         });
@@ -326,7 +326,7 @@ const EnhancedPdfEditor: React.FC = () => {
     }
 
     try {
-      const response = await fetch(`/api/v1/pdf-editor/forms/${selectedForm}/template`);
+      const response = await fetch(apiUrl(`/pdf-editor/forms/${selectedForm}/template`));
       if (response.ok) {
         const blob = await response.blob();
         const url = window.URL.createObjectURL(blob);

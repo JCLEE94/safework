@@ -1,6 +1,6 @@
 import React, { Component, ErrorInfo, ReactNode } from 'react';
 import { AlertTriangle, RefreshCw, Bug, Send } from 'lucide-react';
-import { API_BASE_URL } from '../../config/api';
+import { apiUrl } from '../../config/api';
 
 interface Props {
   children: ReactNode;
@@ -70,7 +70,7 @@ class ErrorBoundary extends Component<Props, State> {
         }
       };
 
-      const response = await fetch(`${API_BASE_URL}/api/v1/error-reporting/frontend-error`, {
+      const response = await fetch(apiUrl('/error-reporting/frontend-error'), {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

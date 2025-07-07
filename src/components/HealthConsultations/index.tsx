@@ -7,7 +7,7 @@ import {
 import { Card, Button, Table, Badge } from '../common';
 import { ConsultationForm } from './ConsultationForm';
 import { useApi } from '../../hooks/useApi';
-import { API_BASE_URL } from '../../config/api';
+import { apiUrl } from '../../config/api';
 
 interface HealthConsultation {
   id: number;

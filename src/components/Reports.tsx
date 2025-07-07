@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { API_BASE_URL } from '../config/api';
+import { apiUrl } from '../config/api';
 import { DASHBOARD_RECENT_ITEMS } from '../constants';
 
 interface ReportFilters {
@@ -86,7 +86,7 @@ export const Reports: React.FC = () => {
 
   const fetchRecentReports = async () => {
     try {
-      const response = await fetch(`${API_BASE_URL}/api/v1/reports/recent`);
+      const response = await fetch(apiUrl('/reports/recent'));
       if (response.ok) {
         const data = await response.json();
         setRecentReports(data.reports || []);
@@ -115,7 +115,7 @@ export const Reports: React.FC = () => {
         generated_by: 'system' // TODO: Should come from auth
       };
 
-      const response = await fetch(`${API_BASE_URL}/api/v1/reports/generate`, {
+      const response = await fetch(apiUrl('/reports/generate'), {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
