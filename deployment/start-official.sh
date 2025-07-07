@@ -128,4 +128,4 @@ fi
 
 # FastAPI 시작
 echo "🎯 SafeWork Pro 백엔드 시작 중..."
-exec uvicorn src.app:app --host 0.0.0.0 --port $PORT --workers 2
+exec python main.py
