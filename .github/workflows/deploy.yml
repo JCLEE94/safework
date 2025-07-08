@@ -219,7 +219,9 @@ jobs:
       
       # Cloudflare Tunnel Secret 생성
       - name: Create Cloudflare Tunnel Secret
-        if: ${{ secrets.CLOUDFLARE_TUNNEL_TOKEN != '' }}
+        if: env.CLOUDFLARE_TOKEN_EXISTS == 'true'
+        env:
+          CLOUDFLARE_TOKEN_EXISTS: ${{ secrets.CLOUDFLARE_TUNNEL_TOKEN != '' && 'true' || 'false' }}
         run: |
           echo "🔐 Creating Cloudflare Tunnel secret..."
           
