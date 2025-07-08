@@ -1,0 +1,27 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: safework-cloudflare
+  namespace: argocd
+  labels:
+    app: safework-cloudflare
+    component: tunnel
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/JCLEE94/safework.git
+    targetRevision: main
+    path: k8s/cloudflare
+    directory:
+      exclude: |
+        tunnel-secret*.yaml
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: safework
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
+      - Replace=true

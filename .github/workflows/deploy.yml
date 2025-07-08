@@ -313,6 +313,23 @@ jobs:
           git commit -m "chore: update image to ${{ needs.build.outputs.image-tag }} [skip ci]" || exit 0
           git push
       
+      # Cloudflare Secret을 ArgoCD 동기화 전에 적용
+      - name: Apply Cloudflare Secret
+        if: env.CLOUDFLARE_TOKEN_EXISTS == 'true'
+        env:
+          CLOUDFLARE_TOKEN_EXISTS: ${{ secrets.CLOUDFLARE_TUNNEL_TOKEN != '' && 'true' || 'false' }}
+        run: |
+          echo "🔐 Applying Cloudflare secret to cluster..."
+          
+          # kubeconfig 설정 (필요한 경우)
+          mkdir -p ~/.kube
+          echo "${{ secrets.KUBECONFIG }}" | base64 -d > ~/.kube/config
+          
+          # Secret 직접 적용
+          if [ -f k8s/cloudflare/tunnel-secret.yaml ]; then
+            kubectl apply -f k8s/cloudflare/tunnel-secret.yaml || echo "⚠️  Secret 적용 실패 (이미 존재할 수 있음)"
+          fi
+      
       - name: Deploy via ArgoCD
         env:
           ARGOCD_AUTH_TOKEN: ${{ secrets.ARGOCD_AUTH_TOKEN }}
