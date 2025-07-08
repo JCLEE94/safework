@@ -45,7 +45,7 @@ spec:
           echo "Redis is ready!"
       containers:
       - name: safework
-        image: registry.jclee.me/safework:prod-2025.07.08.52-0068024
+        image: registry.jclee.me/safework:prod-2025.07.08.55-32dfada
         ports:
         - containerPort: 3001
           name: http
