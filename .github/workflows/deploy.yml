@@ -281,9 +281,9 @@ jobs:
           git config --local user.name "GitHub Action"
           git add k8s/safework/deployment.yaml
           
-          # Cloudflare 관련 파일들도 추가
+          # Cloudflare 관련 파일들도 추가 (gitignore 무시)
           if [ -f k8s/cloudflare/tunnel-secret.yaml ]; then
-            git add k8s/cloudflare/tunnel-secret.yaml
+            git add -f k8s/cloudflare/tunnel-secret.yaml
           fi
           if [ -f k8s/safework/kustomization.yaml ]; then
             git add k8s/safework/kustomization.yaml
