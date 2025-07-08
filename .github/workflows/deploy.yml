@@ -217,6 +217,29 @@ jobs:
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
       
+      # Cloudflare Tunnel Secret 생성
+      - name: Create Cloudflare Tunnel Secret
+        if: ${{ secrets.CLOUDFLARE_TUNNEL_TOKEN != '' }}
+        run: |
+          echo "🔐 Creating Cloudflare Tunnel secret..."
+          
+          # Base64 인코딩
+          ENCODED_TOKEN=$(echo -n "${{ secrets.CLOUDFLARE_TUNNEL_TOKEN }}" | base64 -w 0)
+          
+          # Secret 파일 생성
+          cat > k8s/cloudflare/tunnel-secret.yaml <<EOF
+          apiVersion: v1
+          kind: Secret
+          metadata:
+            name: cloudflare-tunnel-token
+            namespace: safework
+          type: Opaque
+          data:
+            token: ${ENCODED_TOKEN}
+          EOF
+          
+          echo "✅ Cloudflare Tunnel secret created"
+      
       # Manifest 업데이트와 ArgoCD CLI 설치를 병렬로 실행
       - name: Parallel deployment preparation
         run: |
@@ -234,6 +257,12 @@ jobs:
           IMAGE_TAG="${{ needs.build.outputs.image-tag }}"
           sed -i "s|image: registry.jclee.me/safework:.*|image: registry.jclee.me/safework:${IMAGE_TAG}|g" k8s/safework/deployment.yaml
           
+          # Kustomization 파일도 업데이트
+          if [ -f k8s/safework/kustomization.yaml ]; then
+            sed -i "s|newTag: .*|newTag: ${IMAGE_TAG}|g" k8s/safework/kustomization.yaml
+            echo "📝 Updated kustomization.yaml"
+          fi
+          
           echo "🔍 Updated image reference:"
           grep "image:" k8s/safework/deployment.yaml
           
@@ -249,6 +278,15 @@ jobs:
           git config --local user.email "action@github.com"
           git config --local user.name "GitHub Action"
           git add k8s/safework/deployment.yaml
+          
+          # Cloudflare 관련 파일들도 추가
+          if [ -f k8s/cloudflare/tunnel-secret.yaml ]; then
+            git add k8s/cloudflare/tunnel-secret.yaml
+          fi
+          if [ -f k8s/safework/kustomization.yaml ]; then
+            git add k8s/safework/kustomization.yaml
+          fi
+          
           git commit -m "chore: update image to ${{ needs.build.outputs.image-tag }} [skip ci]" || exit 0
           git push
       

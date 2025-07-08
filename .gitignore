@@ -49,6 +49,11 @@ node_modules/
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
+
+# Kubernetes secrets
+k8s/cloudflare/tunnel-secret.yaml
+k8s/**/*-secret.yaml
+k8s/**/*-secrets.yaml
 lerna-debug.log*
 .pnpm-debug.log*
 
