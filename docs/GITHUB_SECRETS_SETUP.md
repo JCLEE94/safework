@@ -13,6 +13,9 @@
 
 ### 3. Cloudflare Tunnel 관련 (신규)
 - `CLOUDFLARE_TUNNEL_TOKEN`: Cloudflare Tunnel 연결 토큰
+- `CLOUDFLARE_ACCOUNT_ID`: Cloudflare 계정 ID (a8d9c67f586acdd15eebcc65ca3aa5bb)
+- `CLOUDFLARE_TUNNEL_ID`: Cloudflare Tunnel ID (8ea78906-1a05-44fb-a1bb-e512172cb5ab)
+- `CLOUDFLARE_API_TOKEN`: Cloudflare API 토큰 (라우팅 자동 설정용)
 
 ## Cloudflare Tunnel Token 설정 방법
 
@@ -31,6 +34,30 @@
   ```
 
 ### 4. Add secret 클릭
+
+## Cloudflare API Token 설정 방법
+
+### 1. Cloudflare API 토큰 생성
+1. https://dash.cloudflare.com/profile/api-tokens 접속
+2. **Create Token** 클릭
+3. **Custom token** 선택
+4. 다음 권한 설정:
+   - **Account** > **Cloudflare Tunnel**: Edit
+   - **Zone** > **Zone**: Read
+   - **Zone** > **DNS**: Edit
+5. **Continue to summary** > **Create Token**
+6. 생성된 토큰 복사
+
+### 2. 추가 Secrets 설정
+- **CLOUDFLARE_ACCOUNT_ID**: `a8d9c67f586acdd15eebcc65ca3aa5bb`
+- **CLOUDFLARE_TUNNEL_ID**: `8ea78906-1a05-44fb-a1bb-e512172cb5ab`
+- **CLOUDFLARE_API_TOKEN**: 위에서 생성한 토큰
+
+### 3. 자동 설정 스크립트 사용 (선택사항)
+```bash
+# API 토큰 생성 후 실행
+./scripts/setup-cloudflare-secrets.sh
+```
 
 ## 설정 확인
 
