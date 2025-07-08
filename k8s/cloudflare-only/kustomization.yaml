@@ -5,6 +5,6 @@ namespace: safework
 
 resources:
   # Cloudflare Tunnel 리소스만 포함 (Service 제외)
-  - ../cloudflare/tunnel-secret.yaml
-  - ../cloudflare/cloudflared-deployment.yaml
-  - ../cloudflare/tunnel-config.yaml
+  - tunnel-secret.yaml
+  - cloudflared-deployment.yaml
+  - tunnel-config.yaml
