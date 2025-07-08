@@ -6,7 +6,7 @@ metadata:
   labels:
     app: cloudflared
 spec:
-  replicas: 2  # High availability를 위해 2개의 replica 실행
+  replicas: 1  # 단일 인스턴스로 변경
   selector:
     matchLabels:
       app: cloudflared
