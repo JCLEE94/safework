@@ -144,3 +144,8 @@ Dockerfile*
 *.psd
 *.ai
 *.sketch
+
+# Data directories
+data/
+postgres/
+redis/
