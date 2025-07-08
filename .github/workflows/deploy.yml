@@ -198,9 +198,12 @@ jobs:
             ${{ env.REGISTRY_URL }}/${{ env.IMAGE_NAME }}:latest
           cache-from: type=gha
           cache-to: type=gha,mode=max
+          provenance: false
+          sbom: false
           build-args: |
             BUILD_DATE=${{ steps.meta.outputs.tag }}
             GIT_COMMIT=${{ github.sha }}
+            BUILDKIT_INLINE_CACHE=1
 
   deploy:
     name: Deploy to Production

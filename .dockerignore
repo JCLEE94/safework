@@ -115,4 +115,32 @@ uploads/*
 secrets.yml
 secrets.yaml
 private.yml
-private.yamldata/
+private.yaml
+
+# Test files
+tests/
+test/
+*_test.py
+test_*.py
+
+# K8s files (not needed in Docker image)
+k8s/
+kubernetes/
+*.yaml
+*.yml
+
+# Deploy scripts
+deploy*.sh
+deployment/*.sh
+
+# Development files
+Makefile
+docker-compose*.yml
+.dockerignore
+Dockerfile*
+
+# Large unnecessary files
+*.pdf
+*.psd
+*.ai
+*.sketch
