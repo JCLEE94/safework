@@ -9,8 +9,8 @@ on:
   workflow_dispatch:
 
 env:
-  REGISTRY_URL: registry.jclee.me
-  IMAGE_NAME: safework
+  REGISTRY_URL: docker.io
+  IMAGE_NAME: qws9411/safework
   ARGOCD_SERVER: argo.jclee.me
   ARGOCD_APP_NAME: safework
   DOCKER_BUILDKIT: 1
@@ -183,9 +183,9 @@ jobs:
       - name: Login to Registry
         uses: docker/login-action@v3
         with:
-          registry: ${{ env.REGISTRY_URL }}
-          username: ${{ secrets.REGISTRY_USERNAME }}
-          password: ${{ secrets.REGISTRY_PASSWORD }}
+          registry: docker.io
+          username: qws9411
+          password: bingogo1
       
       - name: Build and push image
         uses: docker/build-push-action@v5
@@ -194,8 +194,8 @@ jobs:
           file: deployment/Dockerfile.prod
           push: true
           tags: |
-            ${{ env.REGISTRY_URL }}/${{ env.IMAGE_NAME }}:${{ steps.meta.outputs.tag }}
-            ${{ env.REGISTRY_URL }}/${{ env.IMAGE_NAME }}:latest
+            ${{ env.IMAGE_NAME }}:${{ steps.meta.outputs.tag }}
+            ${{ env.IMAGE_NAME }}:latest
           cache-from: type=gha
           cache-to: type=gha,mode=max
           provenance: false
@@ -281,7 +281,7 @@ jobs:
           # Manifest 업데이트 (포그라운드)
           echo "📝 Updating deployment manifest..."
           IMAGE_TAG="${{ needs.build.outputs.image-tag }}"
-          sed -i "s|image: registry.jclee.me/safework:.*|image: registry.jclee.me/safework:${IMAGE_TAG}|g" k8s/safework/deployment.yaml
+          sed -i "s|image: .*/safework:.*|image: qws9411/safework:${IMAGE_TAG}|g" k8s/safework/deployment.yaml
           
           # Kustomization 파일도 업데이트
           if [ -f k8s/safework/kustomization.yaml ]; then
@@ -392,7 +392,7 @@ jobs:
           if [ ${{ job.status }} == 'success' ]; then
             echo "✅ SafeWork Pro deployment successful!"
             echo "🔗 Application: https://safework.jclee.me"
-            echo "📦 Image: ${{ env.REGISTRY_URL }}/${{ env.IMAGE_NAME }}:${{ needs.build.outputs.image-tag }}"
+            echo "📦 Image: ${{ env.IMAGE_NAME }}:${{ needs.build.outputs.image-tag }}"
             echo "📋 ArgoCD: https://${{ env.ARGOCD_SERVER }}/applications/${{ env.ARGOCD_APP_NAME }}"
           else
             echo "❌ SafeWork Pro deployment failed!"
