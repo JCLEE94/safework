@@ -45,7 +45,7 @@ spec:
           echo "Redis is ready!"
       containers:
       - name: safework
-        image: registry.jclee.me/safework:prod-2025.07.07.50-manual
+        image: registry.jclee.me/safework:prod-2025.07.08.52-0068024
         ports:
         - containerPort: 3001
           name: http
@@ -58,6 +58,8 @@ spec:
           value: "postgres"
         - name: REDIS_HOST
           value: "redis"
+        - name: REDIS_PORT
+          value: "6379"
         envFrom:
         - secretRef:
             name: safework-secrets

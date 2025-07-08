@@ -8,7 +8,7 @@ import logging
 from typing import Dict, Any, Optional, List
 from fastapi import APIRouter, UploadFile, File, HTTPException, Form
 from fastapi.responses import Response
-import fitz  # PyMuPDF
+# import fitz  # PyMuPDF - disabled due to missing dependency
 from fillpdf import fillpdfs
 from pdfminer.pdfparser import PDFParser
 from pdfminer.pdfdocument import PDFDocument

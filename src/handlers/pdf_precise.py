@@ -9,7 +9,7 @@ import logging
 from typing import Dict, Any, List, Optional, Tuple
 from fastapi import APIRouter, UploadFile, File, HTTPException, Form
 from fastapi.responses import Response
-import fitz  # PyMuPDF
+# import fitz  # PyMuPDF - disabled due to missing dependency
 import numpy as np
 from PIL import Image
 import cv2
