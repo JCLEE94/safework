@@ -32,7 +32,6 @@ aiohttp==3.9.1
 cryptography==41.0.7
 bcrypt==4.1.2
 PyPDF2==3.0.1
-PyMuPDF==1.23.26
 docker==7.0.0
 
 # Test requirements

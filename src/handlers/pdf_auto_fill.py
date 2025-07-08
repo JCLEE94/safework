@@ -8,7 +8,7 @@ import logging
 from typing import Dict, Any, Optional, List
 from fastapi import APIRouter, UploadFile, File, HTTPException, Form
 from fastapi.responses import Response
-import fitz  # PyMuPDF
+# import fitz  # PyMuPDF - replaced with PyPDF2
 from fillpdf import fillpdfs
 from pdfminer.pdfparser import PDFParser
 from pdfminer.pdfdocument import PDFDocument
@@ -174,7 +174,8 @@ class PDFAutoFiller:
                 return await self._fill_with_fillpdf(pdf_content, mapped_data)
             
             # 4. PyMuPDF로 채우기 시도
-            return await self._fill_with_pymupdf(pdf_content, mapped_data)
+            # PyMuPDF disabled due to size constraints - use fillpdfs instead
+            return await self._fill_with_fillpdfs(pdf_content, mapped_data)
             
         except Exception as e:
             logger.error(f"PDF 자동 채우기 오류: {str(e)}")

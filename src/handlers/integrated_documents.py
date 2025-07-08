@@ -22,7 +22,7 @@ from pydantic import BaseModel, Field
 import pandas as pd
 from openpyxl import Workbook, load_workbook
 from openpyxl.styles import Font, PatternFill, Alignment
-import fitz  # PyMuPDF
+# import fitz  # PyMuPDF - disabled due to size constraints
 from reportlab.lib.pagesizes import A4
 from reportlab.pdfgen import canvas
 from reportlab.pdfbase import pdfutils
@@ -162,7 +162,8 @@ def edit_pdf_with_data(pdf_path: Path, edit_data: Dict[str, Any]) -> bytes:
     """PDF에 데이터 삽입/편집"""
     try:
         # PDF 읽기
-        pdf_doc = fitz.open(str(pdf_path))
+        # pdf_doc = fitz.open(str(pdf_path))  # PyMuPDF disabled
+        raise HTTPException(status_code=501, detail="PyMuPDF functionality temporarily disabled")
         
         for page_num in range(len(pdf_doc)):
             page = pdf_doc[page_num]
