@@ -25,4 +25,4 @@ resources:
 # ArgoCD에서 자동으로 이미지를 업데이트하기 위한 설정
 images:
   - name: registry.jclee.me/safework
-    newTag: prod-2025.07.08.52-0068024
+    newTag: latest

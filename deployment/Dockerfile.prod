@@ -48,10 +48,13 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     && apt-get clean \
     && ln -snf /usr/share/zoneinfo/$TZ /etc/localtime && echo $TZ > /etc/timezone
 
-# Python 의존성 설치
+# Python 의존성 설치 (최소화된 패키지만)
 COPY requirements.txt .
 RUN pip install --no-cache-dir --upgrade pip \
-    && pip install --no-cache-dir -r requirements.txt
+    && pip install --no-cache-dir -r requirements.txt \
+    && pip cache purge \
+    && find /usr/local/lib/python3.11/site-packages -name '*.pyc' -delete \
+    && find /usr/local/lib/python3.11/site-packages -name '__pycache__' -exec rm -rf {} + 2>/dev/null || true
 
 # 백엔드 소스 코드 복사
 COPY src/ ./src/
