@@ -22,7 +22,7 @@ from pydantic import BaseModel, Field
 import pandas as pd
 from openpyxl import Workbook, load_workbook
 from openpyxl.styles import Font, PatternFill, Alignment
-# import fitz  # PyMuPDF - disabled due to size constraints
+import fitz  # PyMuPDF
 from reportlab.lib.pagesizes import A4
 from reportlab.pdfgen import canvas
 from reportlab.pdfbase import pdfutils
