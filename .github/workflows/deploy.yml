@@ -180,12 +180,22 @@ jobs:
         uses: docker/setup-buildx-action@v3
         # 빌드 설정과 레지스트리 로그인 병렬 준비
         
-      - name: Login to Registry
-        uses: docker/login-action@v3
-        with:
-          registry: ${{ env.REGISTRY_URL }}
-          username: _token
-          password: ${{ secrets.CF_ACCESS_TOKEN }}
+      # 레지스트리 인증 제거 - 공개 레지스트리 사용
+      # - name: Setup Service Token Authentication
+      #   env:
+      #     CF_SERVICE_TOKEN_CICD_CLIENT_ID: ${{ secrets.CF_SERVICE_TOKEN_CICD_CLIENT_ID }}
+      #     CF_SERVICE_TOKEN_CICD_CLIENT_SECRET: ${{ secrets.CF_SERVICE_TOKEN_CICD_CLIENT_SECRET }}
+      #   run: |
+      #     echo "CF_ACCESS_CLIENT_ID=$CF_SERVICE_TOKEN_CICD_CLIENT_ID" >> $GITHUB_ENV
+      #     echo "CF_ACCESS_CLIENT_SECRET=$CF_SERVICE_TOKEN_CICD_CLIENT_SECRET" >> $GITHUB_ENV
+      #     echo "🔐 Service token authentication configured"
+      
+      # - name: Login to Registry
+      #   uses: docker/login-action@v3
+      #   with:
+      #     registry: ${{ env.REGISTRY_URL }}
+      #     username: _token
+      #     password: ${{ secrets.CF_ACCESS_TOKEN }}
       
       - name: Build and push image
         uses: docker/build-push-action@v5
@@ -332,6 +342,53 @@ jobs:
           if [ -f k8s/cloudflare/tunnel-secret.yaml ]; then
             kubectl apply -f k8s/cloudflare/tunnel-secret.yaml || echo "⚠️  Secret 적용 실패 (이미 존재할 수 있음)"
           fi
+      
+      - name: Deploy Service Token Secrets
+        env:
+          CF_SERVICE_TOKEN_API_CLIENT_ID: ${{ secrets.CF_SERVICE_TOKEN_API_CLIENT_ID }}
+          CF_SERVICE_TOKEN_API_CLIENT_SECRET: ${{ secrets.CF_SERVICE_TOKEN_API_CLIENT_SECRET }}
+          CF_SERVICE_TOKEN_REGISTRY_CLIENT_ID: ${{ secrets.CF_SERVICE_TOKEN_REGISTRY_CLIENT_ID }}
+          CF_SERVICE_TOKEN_REGISTRY_CLIENT_SECRET: ${{ secrets.CF_SERVICE_TOKEN_REGISTRY_CLIENT_SECRET }}
+          CF_SERVICE_TOKEN_CICD_CLIENT_ID: ${{ secrets.CF_SERVICE_TOKEN_CICD_CLIENT_ID }}
+          CF_SERVICE_TOKEN_CICD_CLIENT_SECRET: ${{ secrets.CF_SERVICE_TOKEN_CICD_CLIENT_SECRET }}
+          CF_SERVICE_TOKEN_MONITORING_CLIENT_ID: ${{ secrets.CF_SERVICE_TOKEN_MONITORING_CLIENT_ID }}
+          CF_SERVICE_TOKEN_MONITORING_CLIENT_SECRET: ${{ secrets.CF_SERVICE_TOKEN_MONITORING_CLIENT_SECRET }}
+          CLOUDFLARE_TEAM_DOMAIN: ${{ secrets.CLOUDFLARE_TEAM_DOMAIN }}
+        run: |
+          echo "🔐 Deploying service token secrets..."
+          
+          # Check if service token secrets exist
+          if kubectl get secret cloudflare-service-tokens -n safework &> /dev/null; then
+            echo "⚠️  Service token secret already exists, updating..."
+            kubectl delete secret cloudflare-service-tokens -n safework
+          fi
+          
+          # Create service token secret
+          kubectl create secret generic cloudflare-service-tokens -n safework \
+            --from-literal=CLOUDFLARE_TEAM_DOMAIN="$CLOUDFLARE_TEAM_DOMAIN" \
+            --from-literal=CF_SERVICE_TOKEN_API_CLIENT_ID="$CF_SERVICE_TOKEN_API_CLIENT_ID" \
+            --from-literal=CF_SERVICE_TOKEN_API_CLIENT_SECRET="$CF_SERVICE_TOKEN_API_CLIENT_SECRET" \
+            --from-literal=CF_SERVICE_TOKEN_REGISTRY_CLIENT_ID="$CF_SERVICE_TOKEN_REGISTRY_CLIENT_ID" \
+            --from-literal=CF_SERVICE_TOKEN_REGISTRY_CLIENT_SECRET="$CF_SERVICE_TOKEN_REGISTRY_CLIENT_SECRET" \
+            --from-literal=CF_SERVICE_TOKEN_CICD_CLIENT_ID="$CF_SERVICE_TOKEN_CICD_CLIENT_ID" \
+            --from-literal=CF_SERVICE_TOKEN_CICD_CLIENT_SECRET="$CF_SERVICE_TOKEN_CICD_CLIENT_SECRET" \
+            --from-literal=CF_SERVICE_TOKEN_MONITORING_CLIENT_ID="$CF_SERVICE_TOKEN_MONITORING_CLIENT_ID" \
+            --from-literal=CF_SERVICE_TOKEN_MONITORING_CLIENT_SECRET="$CF_SERVICE_TOKEN_MONITORING_CLIENT_SECRET" \
+            --from-literal=ENABLE_SERVICE_TOKEN_VALIDATION="true" \
+            --from-literal=ENABLE_SERVICE_TOKEN_RATE_LIMITING="true" \
+            --from-literal=ENABLE_SERVICE_TOKEN_AUDIT="true" \
+            --from-literal=SERVICE_TOKEN_CACHE_TTL="300" \
+            --from-literal=SERVICE_TOKEN_RATE_LIMIT_WINDOW="3600" \
+            --from-literal=SERVICE_TOKEN_API_RATE_LIMIT="1000" \
+            --from-literal=SERVICE_TOKEN_REGISTRY_RATE_LIMIT="500" \
+            --from-literal=SERVICE_TOKEN_CICD_RATE_LIMIT="100" \
+            --from-literal=SERVICE_TOKEN_MONITORING_RATE_LIMIT="2000"
+          
+          # Add labels
+          kubectl label secret cloudflare-service-tokens -n safework \
+            app=safework component=authentication security=service-tokens
+          
+          echo "✅ Service token secrets deployed successfully"
       
       - name: Deploy via ArgoCD
         env:

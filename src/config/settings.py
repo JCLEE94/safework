@@ -142,6 +142,37 @@ class Settings(BaseSettings):
         case_sensitive = False
         extra = "ignore"  # Ignore extra fields from .env
 
+    
+    # Cloudflare Service Token Settings
+    cloudflare_team_domain: str = Field(default="", env="CLOUDFLARE_TEAM_DOMAIN")
+    
+    # Service Token Client IDs and Secrets
+    cf_service_token_api_client_id: str = Field(default="", env="CF_SERVICE_TOKEN_API_CLIENT_ID")
+    cf_service_token_api_client_secret: str = Field(default="", env="CF_SERVICE_TOKEN_API_CLIENT_SECRET")
+    
+    cf_service_token_registry_client_id: str = Field(default="", env="CF_SERVICE_TOKEN_REGISTRY_CLIENT_ID")
+    cf_service_token_registry_client_secret: str = Field(default="", env="CF_SERVICE_TOKEN_REGISTRY_CLIENT_SECRET")
+    
+    cf_service_token_cicd_client_id: str = Field(default="", env="CF_SERVICE_TOKEN_CICD_CLIENT_ID")
+    cf_service_token_cicd_client_secret: str = Field(default="", env="CF_SERVICE_TOKEN_CICD_CLIENT_SECRET")
+    
+    cf_service_token_monitoring_client_id: str = Field(default="", env="CF_SERVICE_TOKEN_MONITORING_CLIENT_ID")
+    cf_service_token_monitoring_client_secret: str = Field(default="", env="CF_SERVICE_TOKEN_MONITORING_CLIENT_SECRET")
+    
+    # Service Token Configuration
+    enable_service_token_validation: bool = Field(default=True, env="ENABLE_SERVICE_TOKEN_VALIDATION")
+    enable_service_token_rate_limiting: bool = Field(default=True, env="ENABLE_SERVICE_TOKEN_RATE_LIMITING")
+    enable_service_token_audit: bool = Field(default=True, env="ENABLE_SERVICE_TOKEN_AUDIT")
+    
+    service_token_cache_ttl: int = Field(default=300, env="SERVICE_TOKEN_CACHE_TTL")  # 5 minutes
+    service_token_rate_limit_window: int = Field(default=3600, env="SERVICE_TOKEN_RATE_LIMIT_WINDOW")  # 1 hour
+    
+    # Service Token Rate Limits (requests per window)
+    service_token_api_rate_limit: int = Field(default=1000, env="SERVICE_TOKEN_API_RATE_LIMIT")
+    service_token_registry_rate_limit: int = Field(default=500, env="SERVICE_TOKEN_REGISTRY_RATE_LIMIT")
+    service_token_cicd_rate_limit: int = Field(default=100, env="SERVICE_TOKEN_CICD_RATE_LIMIT")
+    service_token_monitoring_rate_limit: int = Field(default=2000, env="SERVICE_TOKEN_MONITORING_RATE_LIMIT")
+
 @lru_cache()
 def get_settings() -> Settings:
     """설정 인스턴스 반환 (캐시됨)"""
