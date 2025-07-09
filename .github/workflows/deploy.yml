@@ -10,7 +10,7 @@ on:
 
 env:
   REGISTRY_URL: ghcr.io
-  IMAGE_NAME: ${{ github.repository_owner }}/safework
+  IMAGE_NAME: jclee94/safework
   ARGOCD_SERVER: argo.jclee.me
   ARGOCD_APP_NAME: safework
   DOCKER_BUILDKIT: 1
