@@ -25,6 +25,7 @@ export const MENU_ITEMS = [
   { id: 'dashboard', name: '대시보드', icon: 'LayoutGrid', color: 'text-blue-600' },
   { id: 'workers', name: '근로자관리', icon: 'Users', color: 'text-purple-600' },
   { id: 'health', name: '건강진단', icon: 'Heart', color: 'text-red-600' },
+  { id: 'appointments', name: '건강진단예약', icon: 'CalendarCheck', color: 'text-purple-500' },
   { id: 'environment', name: '작업환경측정', icon: 'Activity', color: 'text-green-600' },
   { id: 'education', name: '보건교육', icon: 'BookOpen', color: 'text-indigo-600' },
   { id: 'chemicals', name: '화학물질관리', icon: 'FlaskConical', color: 'text-yellow-600' },

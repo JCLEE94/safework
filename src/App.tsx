@@ -6,6 +6,7 @@ import { SimpleDashboard } from './components/SimpleDashboard';
 import { AdvancedMonitoring } from './components/AdvancedMonitoring';
 import { Workers } from './components/Workers';
 import { HealthExams } from './components/HealthExams';
+import { HealthExamAppointments } from './components/HealthExamAppointments';
 import { WorkEnvironments } from './components/WorkEnvironments';
 import { HealthEducation } from './components/HealthEducation';
 import { ChemicalSubstances } from './components/ChemicalSubstances';
@@ -28,6 +29,8 @@ function App() {
         return <Workers />;
       case 'health':
         return <HealthExams />;
+      case 'appointments':
+        return <HealthExamAppointments />;
       case 'environment':
         return <WorkEnvironments />;
       case 'education':

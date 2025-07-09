@@ -20,6 +20,7 @@ spec:
     spec:
       imagePullSecrets:
       - name: regcred
+      - name: ghcr-secret
       initContainers:
       - name: wait-for-db
         image: postgres:15
@@ -45,7 +46,8 @@ spec:
           echo "Redis is ready!"
       containers:
       - name: safework
-        image: registry.jclee.me/safework:prod-2025.07.08.57-b00231b
+        image: safework:appointment-fix
+        imagePullPolicy: Never
         ports:
         - containerPort: 3001
           name: http

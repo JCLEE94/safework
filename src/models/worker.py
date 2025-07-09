@@ -79,6 +79,7 @@ class Worker(Base):
     # 관계설정
     health_consultations = relationship("HealthConsultation", back_populates="worker", cascade="all, delete-orphan")
     health_exams = relationship("HealthExam", back_populates="worker", cascade="all, delete-orphan")
+    exam_appointments = relationship("HealthExamAppointment", back_populates="worker", cascade="all, delete-orphan")
     
     # 복합 인덱스
     __table_args__ = (

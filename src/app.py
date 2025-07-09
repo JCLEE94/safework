@@ -189,6 +189,7 @@ def create_app() -> FastAPI:
     # API 라우터 등록
     from .handlers.workers import router as workers_router
     from .handlers.health_exams import router as health_exams_router
+    from .handlers.health_exam_appointments import router as health_exam_appointments_router
     from .handlers.health_consultations import router as health_consultations_router
     from .handlers.work_environments import router as work_environments_router
     from .handlers.health_education import router as health_education_router
@@ -213,6 +214,7 @@ def create_app() -> FastAPI:
     
     app.include_router(workers_router, prefix="/api/v1/workers", tags=["근로자관리"])
     app.include_router(health_exams_router, tags=["건강진단"])
+    app.include_router(health_exam_appointments_router, tags=["건강진단예약"])
     app.include_router(health_consultations_router, tags=["보건상담"])
     app.include_router(work_environments_router, tags=["작업환경측정"])
     app.include_router(health_education_router, tags=["보건교육"])
