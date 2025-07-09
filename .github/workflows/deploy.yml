@@ -9,8 +9,8 @@ on:
   workflow_dispatch:
 
 env:
-  REGISTRY_URL: registry.jclee.me
-  IMAGE_NAME: safework
+  REGISTRY_URL: ghcr.io
+  IMAGE_NAME: ${{ github.repository_owner }}/safework
   ARGOCD_SERVER: argo.jclee.me
   ARGOCD_APP_NAME: safework
   DOCKER_BUILDKIT: 1
@@ -157,6 +157,9 @@ jobs:
     needs: [backend-test, frontend-test]
     runs-on: [self-hosted, linux]
     if: github.ref == 'refs/heads/main'
+    permissions:
+      contents: read
+      packages: write
     
     outputs:
       image-tag: ${{ steps.meta.outputs.tag }}
@@ -180,22 +183,12 @@ jobs:
         uses: docker/setup-buildx-action@v3
         # 빌드 설정과 레지스트리 로그인 병렬 준비
         
-      # 레지스트리 인증 제거 - 공개 레지스트리 사용
-      # - name: Setup Service Token Authentication
-      #   env:
-      #     CF_SERVICE_TOKEN_CICD_CLIENT_ID: ${{ secrets.CF_SERVICE_TOKEN_CICD_CLIENT_ID }}
-      #     CF_SERVICE_TOKEN_CICD_CLIENT_SECRET: ${{ secrets.CF_SERVICE_TOKEN_CICD_CLIENT_SECRET }}
-      #   run: |
-      #     echo "CF_ACCESS_CLIENT_ID=$CF_SERVICE_TOKEN_CICD_CLIENT_ID" >> $GITHUB_ENV
-      #     echo "CF_ACCESS_CLIENT_SECRET=$CF_SERVICE_TOKEN_CICD_CLIENT_SECRET" >> $GITHUB_ENV
-      #     echo "🔐 Service token authentication configured"
-      
-      # - name: Login to Registry
-      #   uses: docker/login-action@v3
-      #   with:
-      #     registry: ${{ env.REGISTRY_URL }}
-      #     username: _token
-      #     password: ${{ secrets.CF_ACCESS_TOKEN }}
+      - name: Login to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY_URL }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
       
       - name: Build and push image
         uses: docker/build-push-action@v5
@@ -291,7 +284,7 @@ jobs:
           # Manifest 업데이트 (포그라운드)
           echo "📝 Updating deployment manifest..."
           IMAGE_TAG="${{ needs.build.outputs.image-tag }}"
-          sed -i "s|image: .*/safework:.*|image: registry.jclee.me/safework:${IMAGE_TAG}|g" k8s/safework/deployment.yaml
+          sed -i "s|image: .*/safework:.*|image: ghcr.io/jclee94/safework:${IMAGE_TAG}|g" k8s/safework/deployment.yaml
           
           # Kustomization 파일도 업데이트
           if [ -f k8s/safework/kustomization.yaml ]; then
