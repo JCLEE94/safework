@@ -1,4 +1,4 @@
-name: SafeWork Pro - Optimized CI/CD Pipeline
+name: SafeWork Pro - ArgoCD Image Updater Pipeline
 
 on:
   push:
@@ -23,7 +23,7 @@ jobs:
   # 테스트 작업 - 병렬 실행으로 속도 향상
   test:
     name: Test - ${{ matrix.test-type }}
-    runs-on: [self-hosted, linux]
+    runs-on: ubuntu-latest  # GitHub-hosted runner 사용
     strategy:
       fail-fast: false
       matrix:
@@ -37,7 +37,7 @@ jobs:
           POSTGRES_PASSWORD: password
           POSTGRES_DB: health_management
         ports:
-          - 25432:5432
+          - 5432:5432
         options: >-
           --health-cmd pg_isready
           --health-interval 10s
@@ -48,7 +48,7 @@ jobs:
       redis:
         image: redis:7-alpine
         ports:
-          - 26379:6379
+          - 6379:6379
         options: >-
           --health-cmd "redis-cli ping"
           --health-interval 10s
@@ -104,8 +104,8 @@ jobs:
       - name: Run backend unit tests
         if: matrix.test-type == 'backend-unit'
         env:
-          DATABASE_URL: postgresql://admin:password@localhost:25432/health_management
-          REDIS_URL: redis://localhost:26379/0
+          DATABASE_URL: postgresql://admin:password@localhost:5432/health_management
+          REDIS_URL: redis://localhost:6379/0
           JWT_SECRET: test-secret-key
           ENVIRONMENT: development
           PYTHONPATH: ${{ github.workspace }}
@@ -119,8 +119,8 @@ jobs:
       - name: Run backend integration tests
         if: matrix.test-type == 'backend-integration'
         env:
-          DATABASE_URL: postgresql://admin:password@localhost:25432/health_management
-          REDIS_URL: redis://localhost:26379/0
+          DATABASE_URL: postgresql://admin:password@localhost:5432/health_management
+          REDIS_URL: redis://localhost:6379/0
           JWT_SECRET: test-secret-key
           ENVIRONMENT: development
           PYTHONPATH: ${{ github.workspace }}
@@ -168,6 +168,14 @@ jobs:
           echo "Checking registry connectivity to ${{ env.REGISTRY }}"
           curl -f https://${{ env.REGISTRY }}/v2/ || echo "Registry check completed"
       
+      - name: Generate semantic version
+        id: version
+        run: |
+          # Generate semantic version based on date and commit
+          VERSION="1.$(date +%Y%m%d).${GITHUB_RUN_NUMBER}"
+          echo "version=${VERSION}" >> $GITHUB_OUTPUT
+          echo "Generated version: ${VERSION}"
+      
       - name: Extract metadata
         id: meta
         uses: docker/metadata-action@v5
@@ -176,7 +184,8 @@ jobs:
           tags: |
             type=raw,value=latest
             type=raw,value=prod-{{date 'YYYYMMDD'}}-{{sha}}
-            type=sha,prefix={{date 'YYYYMMDD'}}-
+            type=raw,value=${{ steps.version.outputs.version }}
+            type=semver,pattern={{version}},value=${{ steps.version.outputs.version }}
       
       - name: Build and push optimized image
         id: build
@@ -204,8 +213,10 @@ jobs:
               --file $DOCKERFILE \
               --tag ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest \
               --tag ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:prod-$(date +%Y%m%d)-${GITHUB_SHA::7} \
+              --tag ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ steps.version.outputs.version }} \
               --build-arg BUILD_TIME=$(date -u +'%Y-%m-%dT%H:%M:%SZ') \
               --build-arg GIT_COMMIT=${GITHUB_SHA::7} \
+              --build-arg VERSION=${{ steps.version.outputs.version }} \
               .
       
       - name: Handle 413 error
@@ -223,65 +234,12 @@ jobs:
             --build-arg GIT_COMMIT=${GITHUB_SHA::7} \
             .
 
-  # 배포 작업
-  deploy:
-    name: Deploy to Kubernetes
-    needs: build
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
-    runs-on: ubuntu-latest
-    
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-        with:
-          token: ${{ secrets.GITHUB_TOKEN }}
-          
-      - name: Update Kubernetes manifests
-        run: |
-          # Update image tag in kustomization.yaml
-          NEW_TAG="prod-$(date +%Y%m%d)-${GITHUB_SHA::7}"
-          sed -i "s|newTag:.*|newTag: ${NEW_TAG}|g" k8s/safework/kustomization.yaml
-          sed -i "s|name:.*safework.*|name: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}|g" k8s/safework/kustomization.yaml
-          
-          # Commit and push changes
-          git config --local user.email "github-actions[bot]@users.noreply.github.com"
-          git config --local user.name "github-actions[bot]"
-          git add k8s/safework/kustomization.yaml
-          git commit -m "chore: update image to ${NEW_TAG} [skip ci]" || echo "No changes to commit"
-          git push || echo "No changes to push"
-      
-      - name: Trigger ArgoCD sync
-        if: env.ARGOCD_SERVER != ''
-        continue-on-error: true
-        run: |
-          echo "ArgoCD will automatically sync the changes"
-          # Optional: Force sync via API
-          # curl -X POST https://${{ env.ARGOCD_SERVER }}/api/v1/applications/${{ env.ARGOCD_APP_NAME }}/sync
-
-  # 상태 확인 작업
-  verify:
-    name: Verify Deployment
-    needs: deploy
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
-    runs-on: ubuntu-latest
-    
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-        
-      - name: Wait for deployment
-        run: sleep 60
-        
-      - name: Check application health
-        timeout-minutes: 5
-        run: |
-          chmod +x .github/scripts/health-check.sh
-          .github/scripts/health-check.sh https://safework.jclee.me/health 10 30
+  # ArgoCD Image Updater가 자동으로 처리하므로 수동 deploy 작업 제거
 
   # 알림 작업
   notify:
     name: Send Notifications
-    needs: [test, build, deploy, verify]
+    needs: [test, build]
     if: always()
     runs-on: ubuntu-latest
     
@@ -289,9 +247,10 @@ jobs:
       - name: Send success notification
         if: success()
         run: |
-          echo "✅ Deployment successful!"
+          echo "✅ Docker image build successful!"
           echo "Registry: ${{ env.REGISTRY }}"
           echo "Image: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:prod-$(date +%Y%m%d)-${GITHUB_SHA::7}"
+          echo "ArgoCD Image Updater will automatically detect and deploy the new image"
           
       - name: Send failure notification
         if: failure()
