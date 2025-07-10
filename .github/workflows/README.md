@@ -1,127 +1,111 @@
 # GitHub Actions Workflows
 
-## 🚀 Active Workflows
+## 활성 워크플로우
 
-### main-cicd.yml (Primary CI/CD Pipeline)
-- **Trigger**: Push to `main` branch, manual dispatch
-- **Purpose**: Build and push Docker images to registry
-- **Features**:
-  - Docker image build and push
-  - Registry authentication
-  - Build status reporting
-  - Automatic failure tracking
+### 1. deploy-stable.yml (권장)
+- **목적**: 안정화된 메인 CI/CD 파이프라인
+- **특징**:
+  - GitHub Container Registry (ghcr.io) 사용으로 413 오류 해결
+  - 병렬 테스트 실행으로 속도 향상
+  - 재시도 로직 및 헬스체크 강화
+  - 자동 롤백 기능 포함
 
-### cicd-failure-tracker.yml (Failure Monitoring)
-- **Trigger**: When any CI/CD workflow fails
-- **Purpose**: Automatically create GitHub issues for CI/CD failures
-- **Features**:
-  - Failure detection across all workflows
-  - Error log extraction and parsing
-  - Duplicate issue prevention (24-hour window)
-  - Automatic issue assignment to committer
-  - Recurring failure tracking via comments
+### 2. deploy-ghcr.yml
+- **목적**: GitHub Container Registry 전용 간단한 배포
+- **특징**: 최소 구성, 빠른 배포
 
-### build-deploy.yml
-- **Trigger**: Push to `develop` branch
-- **Purpose**: Development deployment using Watchtower
-- **Target**: Development environment
+### 3. test-quick.yml
+- **목적**: PR용 빠른 테스트
+- **특징**: 
+  - 10분 내 완료
+  - 필수 테스트만 실행
+  - 코드 품질 체크 포함
 
-### test.yml
-- **Trigger**: All pushes and PRs
-- **Purpose**: Run test suite only
+### 4. deploy.yml (이전 버전)
+- **상태**: 점진적 폐기 예정
+- **문제**: 413 오류, 복잡한 구조
 
-### security.yml
-- **Trigger**: Weekly schedule
-- **Purpose**: Regular security vulnerability scanning
+## 비활성 워크플로우 (.disabled)
+- test.yml
+- security.yml
+- k8s-deploy.yml
+- argocd-simple.yml
+- build-deploy.yml
+- main-cicd.yml
+- main-deploy.yml
 
-## 📁 Deprecated/Disabled Workflows
+## 공통 환경 변수
 
-These workflows have been disabled to prevent conflicts:
-
-- **argocd-simple.yml**: Replaced by main-deploy.yml
-- **k8s-deploy.yml**: Replaced by main-deploy.yml
-- **docker-build.yml**: Legacy build workflow
-- **deploy-hosted.yml**: Old deployment method
-- **direct-deploy.yml**: Manual deployment (backup only)
-
-## 🔧 Workflow Management
-
-### To Re-enable a Workflow
-Change the trigger from:
 ```yaml
-on:
-  workflow_dispatch:
-  # Disabled - replaced by main-deploy.yml
+env:
+  REGISTRY: ghcr.io
+  IMAGE_NAME: ${{ github.repository }}
+  DOCKER_BUILDKIT: 1
+  COMPOSE_DOCKER_CLI_BUILD: 1
 ```
 
-To:
+## Self-hosted Runner 설정
+
 ```yaml
-on:
-  push:
-    branches: [ main ]
+# npm 캐시 권한 문제 해결
+npm_config_cache: ${{ runner.temp }}/.npm
+
+# 서비스 컨테이너 포트
+postgres: 25432
+redis: 26379
 ```
 
-### Environment Variables Required
+## 재사용 가능한 Actions
 
-#### Registry Secrets
-- `REGISTRY_USERNAME` (default: qws9411)
-- `REGISTRY_PASSWORD` (default: bingogo1)
+### retry-docker-push
+- 위치: `.github/actions/retry-docker-push/action.yml`
+- 용도: Docker push 실패 시 자동 재시도
 
-#### Deployment Secrets
-- `KUBECONFIG`: Base64 encoded kubeconfig for K8s access
-- `GITHUB_TOKEN`: For updating manifests
+## 헬퍼 스크립트
 
-## 📊 Deployment Flow
+### health-check.sh
+- 위치: `.github/scripts/health-check.sh`
+- 용도: 배포 후 애플리케이션 상태 확인
 
-```
-1. Code Push (main) → 2. Tests & Security Scan → 3. Build & Push Image
-                                                            ↓
-6. Verify Health ← 5. ArgoCD Auto-sync ← 4. Update K8s Manifests
-```
+### rollback.sh
+- 위치: `.github/scripts/rollback.sh`
+- 용도: 배포 실패 시 자동 롤백
 
-## 🏷️ Image Tagging Strategy
+## 트러블슈팅
 
-- **Production**: `prod-YYYYMMDD-SHA7` (e.g., prod-20250104-abc1234)
-- **Development**: `dev-YYYYMMDD-SHA7`
-- **Latest**: Always points to the most recent production build
+### 413 Request Entity Too Large
+- **해결**: GitHub Container Registry (ghcr.io) 사용
+- **대안**: 이미지 크기 최적화
 
-## 🔄 Rollback Procedures
+### 테스트 타임아웃
+- **해결**: 병렬 실행, 타임아웃 세분화
+- **설정**: pytest.ini의 timeout 값 조정
 
-### Via ArgoCD UI
-1. Navigate to https://argo.jclee.me/applications/safework
-2. Click "History and Rollback"
-3. Select previous version
-4. Click "Rollback"
+### npm 캐시 권한
+- **해결**: `npm_config_cache: ${{ runner.temp }}/.npm`
+- **적용**: self-hosted runner 전용
 
-### Via CLI
+### 서비스 컨테이너 연결 실패
+- **해결**: health check 재시도 횟수 증가
+- **설정**: `--health-retries 10`, `--health-start-period 30s`
+
+## 권장 사용법
+
+### 새 기능 개발
+1. feature 브랜치 생성
+2. PR 생성 시 test-quick.yml 자동 실행
+3. 머지 시 deploy-stable.yml 자동 실행
+
+### 긴급 배포
 ```bash
-argocd app rollback safework --server argo.jclee.me
+# GitHub UI에서 workflow_dispatch 트리거
+# 또는
+gh workflow run deploy-stable.yml
 ```
 
-## 🚨 CI/CD Failure Tracking
-
-When a CI/CD workflow fails:
-
-1. **Automatic Issue Creation**
-   - Title: `[CI/CD Failure] {Workflow Name} - {Branch}`
-   - Labels: `ci/cd`, `bug`, `automated`
-   - Assignee: Person who triggered the workflow
-   - Content: Error logs, workflow details, and suggested actions
-
-2. **Duplicate Prevention**
-   - Checks for similar issues created within 24 hours
-   - If found, adds a comment instead of creating new issue
-   - Tracks recurring failures
-
-3. **Error Log Collection**
-   - Extracts last 50 error/failure/exception messages
-   - Links to full workflow run
-   - Provides troubleshooting suggestions
-
-## 📝 Notes
-
-- All workflows use self-hosted runners for better performance
-- Test containers use ports 15432 (PostgreSQL) and 16379 (Redis)
-- Production URL: https://safework.jclee.me
-- ArgoCD Dashboard: https://argo.jclee.me
-- CI/CD failures are automatically tracked via GitHub Issues
+### 롤백
+```bash
+# 자동 롤백 (배포 실패 시)
+# 또는 수동 실행
+.github/scripts/rollback.sh safework default
+```
