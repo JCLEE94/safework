@@ -59,7 +59,7 @@ cd frontend && npm run preview      # Preview production build
 git add . && git commit -m "feat: description" && git push
 
 # Manual deployment (backup)
-./deploy-single.sh
+./scripts/deploy/deploy-main.sh
 
 # Check deployment status
 curl https://safework.jclee.me/health

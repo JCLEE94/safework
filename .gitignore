@@ -115,3 +115,17 @@ cover/argocd-linux-amd64
 # PostgreSQL data directory
 data/postgres/
 data/redis/
+
+# Temporary and backup files
+archive/cleanup-backup-*/
+*.tmp
+*.temp
+*.orig
+
+# Local test files
+test_*.py
+!tests/test_*.py
+
+# Personal configuration
+.personal/
+local-config/

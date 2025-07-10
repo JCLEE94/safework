@@ -46,8 +46,8 @@ spec:
           echo "Redis is ready!"
       containers:
       - name: safework
-        image: safework:appointment-fix
-        imagePullPolicy: Never
+        image: registry.jclee.me/safework:latest
+        imagePullPolicy: Always
         ports:
         - containerPort: 3001
           name: http
