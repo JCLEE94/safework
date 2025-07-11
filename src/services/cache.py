@@ -286,3 +286,8 @@ async def get_cached_pdf(form_id: str, data_hash: str) -> Optional[bytes]:
         import base64
         return base64.b64decode(pdf_base64.encode('utf-8'))
     return None
+
+
+def cache_key_builder(prefix: str, *args, **kwargs) -> str:
+    """Build cache key from prefix and arguments"""
+    return cache_service._generate_key(prefix, *args, **kwargs)

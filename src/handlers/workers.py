@@ -282,3 +282,6 @@ async def test_endpoint():
 async def test_post_endpoint(data: dict):
     """POST 테스트 엔드포인트"""
     return {"status": "ok", "received": data, "message": "POST working"}
+
+# Integration tests have been moved to src/handlers/test_workers.py
+# to avoid circular imports
