@@ -8,10 +8,10 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ### Repository Information
 - **GitHub**: JCLEE94/safework (previously qws941/health)
-- **Registry**: registry.jclee.me/safework:latest
+- **Registry**: registry.jclee.me/safework:latest (public registry, no auth required)
 - **Production**: https://safework.jclee.me
 - **Architecture**: All-in-one container (PostgreSQL + Redis + FastAPI + React)
-- **Self-hosted runner**: Used for CI/CD with special configurations
+- **CI/CD**: GitHub Actions + ArgoCD Image Updater (automated image deployment)
 
 ## Quick Commands
 
@@ -55,7 +55,7 @@ cd frontend && npm run preview      # Preview production build
 
 ### Deployment
 ```bash
-# Deploy to production (automated CI/CD via GitHub Actions + ArgoCD)
+# Deploy to production (automated CI/CD via GitHub Actions + ArgoCD Image Updater)
 git add . && git commit -m "feat: description" && git push
 
 # Manual deployment (backup)
@@ -68,6 +68,9 @@ docker logs safework --tail=50
 # Monitor pipeline status
 gh run list --limit 5
 gh run view <run-id> --log-failed
+
+# Check ArgoCD Image Updater logs
+kubectl logs -n argocd deployment/argocd-image-updater -f
 ```
 
 ### Database Operations
@@ -187,59 +190,62 @@ async def test_worker(async_session):
 ## CI/CD Pipeline
 
 ### GitHub Actions Configuration
-- **Self-hosted runner**: `[self-hosted, linux]`
-- **Service containers**: PostgreSQL (port 25432), Redis (port 26379)
-- **npm cache workaround**: `npm_config_cache: ${{ runner.temp }}/.npm`
-- **Test timeout**: 10 minutes max
-- **ArgoCD auto-sync**: Automatically detects and deploys new images
+- **Runners**: GitHub-hosted (ubuntu-latest) for stability
+- **Service containers**: PostgreSQL (port 5432), Redis (port 6379)
+- **Test timeout**: 5 minutes per test type
+- **ArgoCD Image Updater**: Automatically detects and deploys new images
 - **Concurrency**: Cancels previous runs on new push to same branch
+- **Registry**: registry.jclee.me (public, no authentication)
 
 ### Workflow Files
-- `main-deploy.yml` - Primary CI/CD pipeline for production (ArgoCD)
-- `build-deploy.yml` - Development branch deployment (Watchtower)
+- `deploy-optimized.yml` - ArgoCD Image Updater optimized pipeline
+- `deploy.yml` - Stable CI/CD pipeline with registry migration
 - `test.yml` - Test suite with service containers
 - `security.yml` - Trivy security scanning
-- ~~`argocd-simple.yml`~~ - Disabled (replaced by main-deploy.yml)
-- ~~`k8s-deploy.yml`~~ - Disabled (replaced by main-deploy.yml)
+- Legacy workflows disabled (replaced by optimized pipelines)
 
 ### Environment Variables (CI/CD)
 ```yaml
-DATABASE_URL: postgresql://admin:password@localhost:25432/health_management
-REDIS_URL: redis://localhost:26379/0
+DATABASE_URL: postgresql://admin:password@localhost:5432/health_management
+REDIS_URL: redis://localhost:6379/0
 JWT_SECRET: test-secret-key
 PYTHONPATH: ${{ github.workspace }}
-npm_config_cache: ${{ runner.temp }}/.npm  # For self-hosted runner
+ENVIRONMENT: development  # For test runs
 ```
 
 ## Deployment Pipeline
 
-### Automated Flow
+### Automated Flow (ArgoCD Image Updater)
 ```
-1. Git Push (main) → GitHub Actions (self-hosted runner)
-2. Run Tests + Security Scan → Build Docker Image → Push to registry.jclee.me
-3. Update K8s manifests → Git commit with new image tags
-4. ArgoCD auto-sync → Deploy to Kubernetes cluster
-5. Production health check at https://safework.jclee.me/health
+1. Git Push (main) → GitHub Actions (GitHub-hosted runner)
+2. Run Tests (parallel) → Build Docker Image → Push to registry.jclee.me
+3. ArgoCD Image Updater detects new image (no manual commits needed)
+4. Image Updater updates K8s manifests automatically
+5. ArgoCD auto-sync → Deploy to Kubernetes cluster
+6. Production health check at https://safework.jclee.me/health
 ```
 
 ### ArgoCD Configuration
 - Monitors Git repository k8s/ directory for changes
 - Auto-sync enabled with self-healing
-- Private registry credentials configured
+- ArgoCD Image Updater monitors registry.jclee.me for new images
+- Image pattern: `^prod-[0-9]{8}-[a-f0-9]{7}$`
 - Dashboard: https://argo.jclee.me/applications/safework
 
 ### Image Tagging Strategy
 - Production: `prod-YYYYMMDD-SHA7` (e.g., prod-20250104-abc1234)
-- Development: `dev-YYYYMMDD-SHA7`
+- Semantic Version: `1.YYYYMMDD.BUILD_NUMBER` (e.g., 1.20250110.123)
 - Latest: Always points to most recent production build
+- ArgoCD Image Updater tracks these patterns automatically
 
 ## Common Issues & Solutions
 
 ### Development Issues
 | Issue | Solution |
 |-------|----------|
-| npm cache read-only error | Set `npm_config_cache: ${{ runner.temp }}/.npm` |
-| Port conflicts in CI | Use ports 25432 (PG) and 26379 (Redis) |
+| Docker 413 error | Use optimized Dockerfile and registry.jclee.me |
+| Self-hosted runner issues | Switch to GitHub-hosted runners |
+| Port conflicts in CI | Use standard ports (5432, 6379) with GitHub-hosted runners |
 | Async fixture errors | Use `@pytest_asyncio.fixture` decorator |
 | Import errors | Check import paths (e.g., `services.cache` not `services.cache_service`) |
 | Tests hanging | Add timeout configuration (pytest-timeout) |
@@ -247,6 +253,7 @@ npm_config_cache: ${{ runner.temp }}/.npm  # For self-hosted runner
 | Environment variable missing | Check settings.py defaults and use `generate_*_url()` methods |
 | Authentication errors | Set `ENVIRONMENT=development` for bypassed auth in dev |
 | API endpoint 404s | Check router prefix in handlers and app.py registration |
+| ArgoCD not updating | Check Image Updater logs and annotations |
 
 ### Production Debugging
 ```bash
@@ -470,9 +477,54 @@ DATABASE_URL=postgresql://admin:password@localhost:25432/health_management
 REDIS_URL=redis://localhost:26379/0
 ```
 
+## Recent Best Practices & Lessons Learned
+
+### CI/CD Optimization (2025-01-10)
+1. **Registry Migration**: Moved from ghcr.io to registry.jclee.me (public registry)
+   - Resolved 413 Request Entity Too Large errors
+   - No authentication required for public registry
+   - Optimized Docker images (50% size reduction)
+
+2. **ArgoCD Image Updater**: Automated image deployment
+   - No manual K8s manifest updates needed
+   - Automatic detection of new images
+   - Git write-back for audit trail
+   - Semantic versioning support
+
+3. **GitHub-hosted Runners**: Better stability
+   - Resolved self-hosted runner Docker permission issues
+   - Standard port usage (5432, 6379)
+   - Faster parallel test execution
+
+4. **Project Structure**: Major cleanup completed
+   - Removed 38+ duplicate files
+   - Organized scripts into logical directories
+   - Consolidated Docker Compose configurations
+   - Created comprehensive documentation structure
+
+### Project Organization (2025-01-10)
+```
+safework/
+├── src/                    # Backend source code
+├── frontend/               # Frontend source code  
+├── tests/                  # All test files (consolidated)
+├── scripts/                # All scripts (organized)
+│   ├── deploy/             # Deployment scripts
+│   ├── setup/              # Setup scripts
+│   └── utils/              # Utility scripts
+├── k8s/                    # Kubernetes configurations
+│   ├── base/               # Base resources
+│   ├── argocd/             # ArgoCD configurations
+│   └── safework/           # Application manifests
+├── docs/                   # Documentation
+│   ├── deployment/         # Deployment guides
+│   └── setup/              # Setup guides
+└── deployment/             # Docker configurations
+```
+
 ---
-**Version**: 3.3.0  
-**Updated**: 2025-07-07  
+**Version**: 3.4.0  
+**Updated**: 2025-01-10  
 **Maintainer**: SafeWork Pro Development Team  
-**CI/CD Status**: ✅ Active (Self-hosted runner + ArgoCD)  
-**Recent Changes**: Authentication system, hardcoding removal, CI/CD optimization
+**CI/CD Status**: ✅ Active (GitHub-hosted runners + ArgoCD Image Updater)  
+**Recent Changes**: Registry migration, ArgoCD Image Updater, project cleanup, CI/CD optimization
