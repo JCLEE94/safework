@@ -187,37 +187,60 @@ jobs:
             type=raw,value=${{ steps.version.outputs.version }}
             type=semver,pattern={{version}},value=${{ steps.version.outputs.version }}
       
-      - name: Build and push optimized image
-        id: build
-        uses: nick-fields/retry@v2
-        with:
-          timeout_minutes: 20
-          max_attempts: 3
-          retry_wait_seconds: 60
-          command: |
-            # First, try with the optimized Dockerfile
-            if [ -f deployment/Dockerfile.prod.optimized ]; then
-              echo "Using optimized Dockerfile"
-              DOCKERFILE="./deployment/Dockerfile.prod.optimized"
-            else
-              echo "Using standard Dockerfile"
-              DOCKERFILE="./deployment/Dockerfile.prod"
-            fi
-            
-            # Build with layer caching
-            docker buildx build \
-              --push \
-              --platform linux/amd64 \
-              --cache-from type=registry,ref=${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:buildcache \
-              --cache-to type=registry,ref=${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:buildcache,mode=max \
-              --file $DOCKERFILE \
-              --tag ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest \
-              --tag ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:prod-$(date +%Y%m%d)-${GITHUB_SHA::7} \
-              --tag ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ steps.version.outputs.version }} \
-              --build-arg BUILD_TIME=$(date -u +'%Y-%m-%dT%H:%M:%SZ') \
-              --build-arg GIT_COMMIT=${GITHUB_SHA::7} \
-              --build-arg VERSION=${{ steps.version.outputs.version }} \
-              .
+      - name: Build and push optimized image (first attempt with cache)
+        id: build-with-cache
+        continue-on-error: true
+        run: |
+          # Use optimized Dockerfile if available
+          if [ -f deployment/Dockerfile.prod.optimized ]; then
+            echo "Using optimized Dockerfile"
+            DOCKERFILE="./deployment/Dockerfile.prod.optimized"
+          else
+            echo "Using standard Dockerfile"
+            DOCKERFILE="./deployment/Dockerfile.prod"
+          fi
+          
+          echo "Attempting build with buildcache..."
+          docker buildx build \
+            --push \
+            --platform linux/amd64 \
+            --cache-from type=registry,ref=${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:buildcache \
+            --cache-to type=registry,ref=${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:buildcache,mode=max \
+            --file $DOCKERFILE \
+            --tag ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest \
+            --tag ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:prod-$(date +%Y%m%d)-${GITHUB_SHA::7} \
+            --tag ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ steps.version.outputs.version }} \
+            --build-arg BUILD_TIME=$(date -u +'%Y-%m-%dT%H:%M:%SZ') \
+            --build-arg GIT_COMMIT=${GITHUB_SHA::7} \
+            --build-arg VERSION=${{ steps.version.outputs.version }} \
+            .
+      
+      - name: Build and push optimized image (fallback without cache import)
+        id: build-without-cache-import
+        if: steps.build-with-cache.outcome == 'failure'
+        run: |
+          # Use optimized Dockerfile if available
+          if [ -f deployment/Dockerfile.prod.optimized ]; then
+            echo "Using optimized Dockerfile"
+            DOCKERFILE="./deployment/Dockerfile.prod.optimized"
+          else
+            echo "Using standard Dockerfile"
+            DOCKERFILE="./deployment/Dockerfile.prod"
+          fi
+          
+          echo "Building without cache import (first time or auth issue)..."
+          docker buildx build \
+            --push \
+            --platform linux/amd64 \
+            --cache-to type=registry,ref=${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:buildcache,mode=max \
+            --file $DOCKERFILE \
+            --tag ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest \
+            --tag ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:prod-$(date +%Y%m%d)-${GITHUB_SHA::7} \
+            --tag ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ steps.version.outputs.version }} \
+            --build-arg BUILD_TIME=$(date -u +'%Y-%m-%dT%H:%M:%SZ') \
+            --build-arg GIT_COMMIT=${GITHUB_SHA::7} \
+            --build-arg VERSION=${{ steps.version.outputs.version }} \
+            .
       
       - name: Handle 413 error
         if: failure()
