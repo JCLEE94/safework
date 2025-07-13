@@ -1,6 +1,6 @@
 # CI/CD Pipeline with ArgoCD Image Updater
 
-## 🚀 Optimized CI/CD Architecture (as of 2025-01-10)
+## 🚀 Optimized CI/CD Architecture (as of 2025-01-13)
 
 ### **Modern GitOps Flow**:
 ```
@@ -9,9 +9,15 @@ Git Push → GitHub Actions → Docker Build → Registry Push → ArgoCD Image 
 
 ### **Key Components**:
 1. **GitHub Actions**: Build and test automation
-2. **Docker Registry**: registry.jclee.me (public, no auth required)
+2. **Docker Registry**: registry.jclee.me (requires authentication)
 3. **ArgoCD**: GitOps deployment controller
 4. **ArgoCD Image Updater**: Automatic image detection and deployment
+
+### **⚠️ Current Issue (2025-01-13)**:
+- Registry requires authentication (401 Unauthorized)
+- GitHub secrets needed:
+  - `REGISTRY_USERNAME`: qws9411
+  - `REGISTRY_PASSWORD`: bingogo1
 
 ## 📦 Registry Migration
 
