@@ -162,7 +162,10 @@ jobs:
             image=moby/buildkit:v0.12.0
             network=host
       
-      # No authentication needed for public registry
+      - name: Login to Registry
+        run: |
+          echo "${{ secrets.REGISTRY_PASSWORD }}" | docker login ${{ env.REGISTRY }} -u "${{ secrets.REGISTRY_USERNAME }}" --password-stdin
+      
       - name: Check registry connectivity
         run: |
           echo "Checking registry connectivity to ${{ env.REGISTRY }}"
