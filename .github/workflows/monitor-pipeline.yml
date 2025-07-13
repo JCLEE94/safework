@@ -43,18 +43,25 @@ jobs:
           echo "- Failed runs: $FAILED"
           echo "- Failure rate: $FAILURE_RATE%"
           
-      - name: Check Docker image size
+      - name: Check Docker registry status
         continue-on-error: true
         run: |
-          # Get latest image size
-          IMAGE_INFO=$(gh api \
-            -H "Accept: application/vnd.github+json" \
-            -H "X-GitHub-Api-Version: 2022-11-28" \
-            /user/packages/container/safework/versions \
-            --jq '.[0].metadata.container.tags[0] as $tag | .[0].metadata.container.total_size as $size | "\($tag): \($size / 1024 / 1024) MB"')
+          echo "## Registry Status Check"
           
-          echo "## Latest Image Size"
-          echo "$IMAGE_INFO"
+          # Check registry availability
+          if curl -s -m 5 https://registry.jclee.me/v2/ > /dev/null; then
+            echo "✅ Registry is accessible"
+            
+            # Check if safework repository exists
+            if curl -s -m 5 https://registry.jclee.me/v2/safework/tags/list | grep -q "NAME_UNKNOWN"; then
+              echo "⚠️ SafeWork repository not found in registry"
+            else
+              echo "✅ SafeWork repository exists"
+              curl -s -m 5 https://registry.jclee.me/v2/safework/tags/list | jq . || echo "Tags list unavailable"
+            fi
+          else
+            echo "❌ Registry is not accessible"
+          fi
           
       - name: Generate health report
         if: steps.check-runs.outputs.failure_rate > 20
