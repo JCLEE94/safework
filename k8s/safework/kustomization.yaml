@@ -25,5 +25,4 @@ resources:
 # ArgoCD Image Updater가 이미지 태그를 자동 업데이트
 images:
   - name: registry.jclee.me/safework
-    newName: 192.168.50.200:5000/safework
-    newTag: latest
+    newTag: test

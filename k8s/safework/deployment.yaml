@@ -18,6 +18,8 @@ spec:
       labels:
         app: safework
     spec:
+      imagePullSecrets:
+      - name: regcred
       initContainers:
       - name: wait-for-db
         image: postgres:15
