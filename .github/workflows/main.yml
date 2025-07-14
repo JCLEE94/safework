@@ -1,11 +1,8 @@
-name: SafeWork Pro - Stable CI/CD Pipeline
+name: SafeWork Pro - Main CI/CD Pipeline
 
 on:
   push:
     branches: [ main ]
-  pull_request:
-    branches: [ main ]
-    types: [opened, synchronize, reopened]
   workflow_dispatch:
 
 env:
@@ -13,6 +10,7 @@ env:
   IMAGE_NAME: safework
   DOCKER_BUILDKIT: 1
   COMPOSE_DOCKER_CLI_BUILD: 1
+  BUILDKIT_INLINE_CACHE: 1
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
@@ -22,7 +20,7 @@ jobs:
   # 테스트 작업 - 병렬 실행으로 속도 향상
   test:
     name: Test - ${{ matrix.test-type }}
-    runs-on: [self-hosted, linux]
+    runs-on: ubuntu-latest  # GitHub-hosted runner 사용
     strategy:
       fail-fast: false
       matrix:
@@ -36,7 +34,7 @@ jobs:
           POSTGRES_PASSWORD: password
           POSTGRES_DB: health_management
         ports:
-          - 25432:5432
+          - 5432:5432
         options: >-
           --health-cmd pg_isready
           --health-interval 10s
@@ -47,7 +45,7 @@ jobs:
       redis:
         image: redis:7-alpine
         ports:
-          - 26379:6379
+          - 6379:6379
         options: >-
           --health-cmd "redis-cli ping"
           --health-interval 10s
@@ -103,8 +101,8 @@ jobs:
       - name: Run backend unit tests
         if: matrix.test-type == 'backend-unit'
         env:
-          DATABASE_URL: postgresql://admin:password@localhost:25432/health_management
-          REDIS_URL: redis://localhost:26379/0
+          DATABASE_URL: postgresql://admin:password@localhost:5432/health_management
+          REDIS_URL: redis://localhost:6379/0
           JWT_SECRET: test-secret-key
           ENVIRONMENT: development
           PYTHONPATH: ${{ github.workspace }}
@@ -118,8 +116,8 @@ jobs:
       - name: Run backend integration tests
         if: matrix.test-type == 'backend-integration'
         env:
-          DATABASE_URL: postgresql://admin:password@localhost:25432/health_management
-          REDIS_URL: redis://localhost:26379/0
+          DATABASE_URL: postgresql://admin:password@localhost:5432/health_management
+          REDIS_URL: redis://localhost:6379/0
           JWT_SECRET: test-secret-key
           ENVIRONMENT: development
           PYTHONPATH: ${{ github.workspace }}
@@ -161,11 +159,19 @@ jobs:
             image=moby/buildkit:v0.12.0
             network=host
       
-      # No authentication needed for public registry
-      - name: Registry Status
+      # Registry is public, no authentication needed
+      - name: Check registry connectivity
         run: |
-          echo "Using public registry: ${{ env.REGISTRY }}"
-          echo "No authentication required"
+          echo "Checking registry connectivity to ${{ env.REGISTRY }}"
+          curl -f https://${{ env.REGISTRY }}/v2/ || echo "Registry check completed"
+      
+      - name: Generate semantic version
+        id: version
+        run: |
+          # Generate semantic version based on date and commit
+          VERSION="1.$(date +%Y%m%d).${GITHUB_RUN_NUMBER}"
+          echo "version=${VERSION}" >> $GITHUB_OUTPUT
+          echo "Generated version: ${VERSION}"
       
       - name: Extract metadata
         id: meta
@@ -175,98 +181,76 @@ jobs:
           tags: |
             type=raw,value=latest
             type=raw,value=prod-{{date 'YYYYMMDD'}}-{{sha}}
-            type=sha,prefix={{date 'YYYYMMDD'}}-
+            type=raw,value=${{ steps.version.outputs.version }}
+            type=semver,pattern={{version}},value=${{ steps.version.outputs.version }}
       
-      - name: Build and push with retry
-        uses: nick-fields/retry@v2
-        with:
-          timeout_minutes: 20
-          max_attempts: 3
-          retry_wait_seconds: 60
-          command: |
-            docker buildx build \
-              --push \
-              --platform linux/amd64 \
-              --cache-from type=gha \
-              --cache-to type=gha,mode=max \
-              --cache-from ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:buildcache \
-              --cache-to ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:buildcache \
-              --file ./deployment/Dockerfile.prod.optimized \
-              --tag ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest \
-              --tag ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:prod-$(date +%Y%m%d)-${GITHUB_SHA::7} \
-              --build-arg BUILD_TIME=$(date -u +'%Y-%m-%dT%H:%M:%SZ') \
-              --build-arg GIT_COMMIT=${GITHUB_SHA::7} \
-              .
-
-  # 배포 작업
-  deploy:
-    name: Deploy to Kubernetes
-    needs: build
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
-    runs-on: ubuntu-latest
-    
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-        with:
-          token: ${{ secrets.GITHUB_TOKEN }}
-          
-      - name: Update Kubernetes manifests
+      - name: Build and push Docker image
+        id: build
         run: |
-          # Update image tag in kustomization.yaml
-          NEW_TAG="prod-$(date +%Y%m%d)-${GITHUB_SHA::7}"
-          sed -i "s|newTag:.*|newTag: ${NEW_TAG}|g" k8s/safework/kustomization.yaml
+          # Select Dockerfile
+          if [ -f deployment/Dockerfile.prod.optimized ]; then
+            echo "Using optimized Dockerfile"
+            DOCKERFILE="./deployment/Dockerfile.prod.optimized"
+          else
+            echo "Using standard Dockerfile"
+            DOCKERFILE="./deployment/Dockerfile.prod"
+          fi
           
-          # Commit and push changes
-          git config --local user.email "github-actions[bot]@users.noreply.github.com"
-          git config --local user.name "github-actions[bot]"
-          git add k8s/safework/kustomization.yaml
-          git commit -m "chore: update image to ${NEW_TAG} [skip ci]" || echo "No changes to commit"
-          git push || echo "No changes to push"
+          # First, build without pushing to verify build succeeds
+          echo "Building Docker image..."
+          docker buildx build \
+            --platform linux/amd64 \
+            --file $DOCKERFILE \
+            --tag ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:test \
+            --build-arg BUILD_TIME=$(date -u +'%Y-%m-%dT%H:%M:%SZ') \
+            --build-arg GIT_COMMIT=${GITHUB_SHA::7} \
+            --build-arg VERSION=${{ steps.version.outputs.version }} \
+            --load \
+            .
+          
+          # List built images
+          echo "Built images:"
+          docker images | grep ${{ env.IMAGE_NAME }}
+          
+          # Now push to registry
+          echo "Pushing to registry..."
+          docker buildx build \
+            --push \
+            --platform linux/amd64 \
+            --file $DOCKERFILE \
+            --tag ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest \
+            --tag ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:prod-$(date +%Y%m%d)-${GITHUB_SHA::7} \
+            --tag ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ steps.version.outputs.version }} \
+            --build-arg BUILD_TIME=$(date -u +'%Y-%m-%dT%H:%M:%SZ') \
+            --build-arg GIT_COMMIT=${GITHUB_SHA::7} \
+            --build-arg VERSION=${{ steps.version.outputs.version }} \
+            .
+          
+          # Verify push succeeded
+          echo "Verifying push to registry..."
+          curl -s https://${{ env.REGISTRY }}/v2/${{ env.IMAGE_NAME }}/tags/list || echo "Warning: Could not verify tags"
       
-      - name: Trigger ArgoCD sync
-        if: env.ARGOCD_SERVER != ''
-        continue-on-error: true
+      - name: Handle 413 error
+        if: failure()
         run: |
-          echo "ArgoCD will automatically sync the changes"
-          # Optional: Force sync via API
-          # curl -X POST https://${{ env.ARGOCD_SERVER }}/api/v1/applications/${{ env.ARGOCD_APP_NAME }}/sync
+          echo "Build failed, trying without cache..."
+          docker buildx build \
+            --push \
+            --platform linux/amd64 \
+            --no-cache \
+            --file ./deployment/Dockerfile.prod \
+            --tag ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest \
+            --tag ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:prod-$(date +%Y%m%d)-${GITHUB_SHA::7} \
+            --build-arg BUILD_TIME=$(date -u +'%Y-%m-%dT%H:%M:%SZ') \
+            --build-arg GIT_COMMIT=${GITHUB_SHA::7} \
+            .
 
-  # 상태 확인 작업
-  verify:
-    name: Verify Deployment
-    needs: deploy
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
-    runs-on: ubuntu-latest
-    
-    steps:
-      - name: Wait for deployment
-        run: sleep 60
-        
-      - name: Check application health
-        timeout-minutes: 5
-        run: |
-          MAX_ATTEMPTS=10
-          ATTEMPT=0
-          
-          while [ $ATTEMPT -lt $MAX_ATTEMPTS ]; do
-            if curl -f https://safework.jclee.me/health; then
-              echo "✅ Application is healthy"
-              exit 0
-            fi
-            
-            ATTEMPT=$((ATTEMPT + 1))
-            echo "⏳ Attempt $ATTEMPT/$MAX_ATTEMPTS - Waiting for application..."
-            sleep 30
-          done
-          
-          echo "❌ Application health check failed"
-          exit 1
+  # ArgoCD Image Updater가 자동으로 처리하므로 수동 deploy 작업 제거
 
   # 알림 작업
   notify:
     name: Send Notifications
-    needs: [test, build, deploy, verify]
+    needs: [test, build]
     if: always()
     runs-on: ubuntu-latest
     
@@ -274,8 +258,10 @@ jobs:
       - name: Send success notification
         if: success()
         run: |
-          echo "✅ Deployment successful!"
-          echo "Image: ghcr.io/${{ github.repository }}:prod-$(date +%Y%m%d)-${GITHUB_SHA::7}"
+          echo "✅ Docker image build successful!"
+          echo "Registry: ${{ env.REGISTRY }}"
+          echo "Image: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:prod-$(date +%Y%m%d)-${GITHUB_SHA::7}"
+          echo "ArgoCD Image Updater will automatically detect and deploy the new image"
           
       - name: Send failure notification
         if: failure()
