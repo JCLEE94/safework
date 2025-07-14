@@ -1,0 +1,29 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+namespace: safework
+
+resources:
+  # 네임스페이스
+  - namespace.yaml
+  
+  # 시크릿
+  - secrets.yaml
+  - regcred.yaml
+  - regcred-cf.yaml
+  
+  # 리소스 제한
+  - resources.yaml
+  
+  # 데이터베이스
+  - postgres.yaml
+  - redis.yaml
+  
+  # 애플리케이션
+  - deployment.yaml
+  - service.yaml
+
+# ArgoCD Image Updater가 이미지 태그를 자동 업데이트
+images:
+  - name: registry.jclee.me/safework
+    newTag: latest
