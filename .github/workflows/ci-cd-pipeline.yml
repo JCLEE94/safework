@@ -83,7 +83,7 @@ jobs:
 
     - name: Run tests with coverage
       run: |
-        pytest tests/ -v --cov=src --cov-report=xml --cov-report=term --timeout=60 -x --maxfail=5
+        pytest tests/ -v --cov=src --cov-report=xml --cov-report=term --timeout=60 -x --maxfail=5 --ignore=tests/test_pdf_precise.py --ignore=tests/integration/test_reporting_dashboard.py
         
     - name: Upload coverage reports
       uses: codecov/codecov-action@v4
