@@ -1,0 +1,66 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: cloudflare-tunnel-k8s-api-config
+  namespace: safework
+data:
+  k8s-api-config.yaml: |
+    # Kubernetes API Server용 Cloudflare 터널 설정
+    # 
+    # Cloudflare Zero Trust 대시보드에서 다음과 같이 설정하세요:
+    # 
+    # Public Hostname 설정 1: ArgoCD (기존)
+    # - Subdomain: argo
+    # - Domain: jclee.me
+    # - Path: /*
+    # - Service: https://argocd-server.argocd.svc.cluster.local:443
+    # - Additional settings:
+    #   - Origin Server Name: argocd-server.argocd.svc.cluster.local
+    #   - TLS: Full (Strict)
+    #
+    # Public Hostname 설정 2: SafeWork App (기존)
+    # - Subdomain: safework
+    # - Domain: jclee.me
+    # - Path: /*
+    # - Service: http://safework.safework.svc.cluster.local:3001
+    #
+    # Public Hostname 설정 3: Kubernetes API Server (새로 추가)
+    # - Subdomain: k8s-api
+    # - Domain: jclee.me
+    # - Path: /*
+    # - Service: https://kubernetes.default.svc.cluster.local:443
+    # - Additional settings:
+    #   - Origin Server Name: kubernetes.default.svc.cluster.local
+    #   - TLS: Full (Strict)
+    #   - No TLS Verify: true (클러스터 내부 인증서의 경우)
+    #
+    # 로컬 터널 설정 파일 예시 (참고용):
+    tunnel: YOUR_TUNNEL_ID
+    credentials-file: /etc/cloudflared/creds/credentials.json
+    
+    ingress:
+      # ArgoCD 라우팅
+      - hostname: argo.jclee.me
+        service: https://argocd-server.argocd.svc.cluster.local:443
+        originRequest:
+          originServerName: argocd-server.argocd.svc.cluster.local
+          noTLSVerify: true
+      
+      # SafeWork 애플리케이션 라우팅
+      - hostname: safework.jclee.me
+        service: http://safework.safework.svc.cluster.local:3001
+      
+      # Kubernetes API Server 라우팅 (새로 추가)
+      - hostname: k8s-api.jclee.me
+        service: https://kubernetes.default.svc.cluster.local:443
+        originRequest:
+          originServerName: kubernetes.default.svc.cluster.local
+          noTLSVerify: true
+          # 추가 헤더 설정 (필요시)
+          # httpHostHeader: k8s-api.jclee.me
+      
+      # 기본 404 응답
+      - service: http_status:404
+      
+    # 추가 보안 설정
+    # Access Policy를 통해 특정 사용자만 API 서버에 접근하도록 제한 권장

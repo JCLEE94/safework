@@ -1,0 +1,128 @@
+name: Development Pipeline
+
+on:
+  push:
+    branches: [ develop, feature/*, hotfix/* ]
+  pull_request:
+    branches: [ develop ]
+
+env:
+  REGISTRY_URL: registry.jclee.me
+  IMAGE_NAME: safework
+  DOCKER_BUILDKIT: 1
+
+jobs:
+  test:
+    name: Run Tests
+    runs-on: self-hosted
+    services:
+      postgres:
+        image: postgres:15
+        env:
+          POSTGRES_USER: admin
+          POSTGRES_PASSWORD: password
+          POSTGRES_DB: health_management
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 5432:5432
+      
+      redis:
+        image: redis:7-alpine
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 6379:6379
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Set up Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: '3.11'
+
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install pytest pytest-asyncio pytest-cov pytest-timeout
+        pip install -r requirements.txt
+
+    - name: Set environment variables
+      run: |
+        echo "DATABASE_URL=postgresql://admin:password@localhost:5432/health_management" >> $GITHUB_ENV
+        echo "REDIS_URL=redis://localhost:6379/0" >> $GITHUB_ENV
+        echo "JWT_SECRET=test-secret-key" >> $GITHUB_ENV
+        echo "ENVIRONMENT=development" >> $GITHUB_ENV
+        echo "PYTHONPATH=${{ github.workspace }}" >> $GITHUB_ENV
+
+    - name: Wait for services
+      run: |
+        timeout 60 bash -c 'until pg_isready -h localhost -p 5432; do sleep 1; done'
+        timeout 60 bash -c 'until redis-cli -h localhost -p 6379 ping; do sleep 1; done'
+
+    - name: Run database migrations
+      run: |
+        cd src && python -m alembic upgrade head
+
+    - name: Run tests with coverage
+      run: |
+        pytest tests/ -v --cov=src --cov-report=xml --cov-report=term --timeout=60 -x --maxfail=5
+
+    - name: Lint code
+      run: |
+        pip install black isort flake8
+        black src/ tests/ --check
+        isort src/ tests/ --check-only
+        flake8 src/ tests/
+
+  build-dev-image:
+    name: Build Development Image
+    runs-on: self-hosted
+    needs: [test]
+    if: github.ref == 'refs/heads/develop'
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Set up Docker Buildx
+      uses: docker/setup-buildx-action@v3
+
+    - name: Login to Private Registry
+      uses: docker/login-action@v3
+      with:
+        registry: ${{ env.REGISTRY_URL }}
+        username: ${{ secrets.DOCKER_USERNAME }}
+        password: ${{ secrets.DOCKER_PASSWORD }}
+
+    - name: Generate dev image tags
+      id: meta
+      run: |
+        DATE=$(date +%Y%m%d)
+        SHORT_SHA=$(echo ${{ github.sha }} | cut -c1-7)
+        echo "dev_tag=dev-${DATE}-${SHORT_SHA}" >> $GITHUB_OUTPUT
+
+    - name: Build and push development image
+      uses: docker/build-push-action@v5
+      with:
+        context: .
+        platforms: linux/amd64
+        push: true
+        tags: |
+          ${{ env.REGISTRY_URL }}/${{ env.IMAGE_NAME }}:${{ steps.meta.outputs.dev_tag }}
+          ${{ env.REGISTRY_URL }}/${{ env.IMAGE_NAME }}:dev-latest
+        cache-from: type=gha
+        cache-to: type=gha,mode=max
+
+    - name: Development Build Complete
+      run: |
+        echo "🔧 Development image built:"
+        echo "Image: ${{ env.REGISTRY_URL }}/${{ env.IMAGE_NAME }}:${{ steps.meta.outputs.dev_tag }}"

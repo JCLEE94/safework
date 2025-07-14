@@ -20,7 +20,6 @@ spec:
     spec:
       imagePullSecrets:
       - name: regcred
-      - name: ghcr-secret
       initContainers:
       - name: wait-for-db
         image: postgres:15

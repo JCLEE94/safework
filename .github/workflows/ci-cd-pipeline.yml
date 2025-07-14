@@ -1,0 +1,195 @@
+name: SafeWork CI/CD Pipeline
+
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main ]
+
+env:
+  REGISTRY_URL: registry.jclee.me
+  IMAGE_NAME: safework
+  DOCKER_BUILDKIT: 1
+
+jobs:
+  test:
+    name: Run Tests
+    runs-on: self-hosted
+    services:
+      postgres:
+        image: postgres:15
+        env:
+          POSTGRES_USER: admin
+          POSTGRES_PASSWORD: password
+          POSTGRES_DB: health_management
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 5432:5432
+      
+      redis:
+        image: redis:7-alpine
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 6379:6379
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Set up Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: '3.11'
+
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install pytest pytest-asyncio pytest-cov pytest-timeout
+        pip install -r requirements.txt
+
+    - name: Set environment variables
+      run: |
+        echo "DATABASE_URL=postgresql://admin:password@localhost:5432/health_management" >> $GITHUB_ENV
+        echo "REDIS_URL=redis://localhost:6379/0" >> $GITHUB_ENV
+        echo "JWT_SECRET=test-secret-key" >> $GITHUB_ENV
+        echo "ENVIRONMENT=development" >> $GITHUB_ENV
+        echo "PYTHONPATH=${{ github.workspace }}" >> $GITHUB_ENV
+
+    - name: Wait for services
+      run: |
+        timeout 60 bash -c 'until pg_isready -h localhost -p 5432; do sleep 1; done'
+        timeout 60 bash -c 'until redis-cli -h localhost -p 6379 ping; do sleep 1; done'
+
+    - name: Run database migrations
+      run: |
+        cd src && python -m alembic upgrade head
+
+    - name: Run tests with coverage
+      run: |
+        pytest tests/ -v --cov=src --cov-report=xml --cov-report=term --timeout=60 -x --maxfail=5
+        
+    - name: Upload coverage reports
+      uses: codecov/codecov-action@v4
+      if: always()
+      with:
+        file: ./coverage.xml
+        fail_ci_if_error: false
+
+  security:
+    name: Security Scan
+    runs-on: self-hosted
+    if: github.event_name != 'pull_request'
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Build Docker image for scanning
+      run: |
+        docker build -t ${{ env.IMAGE_NAME }}:scan .
+
+    - name: Run Trivy vulnerability scanner
+      uses: aquasecurity/trivy-action@master
+      with:
+        image-ref: '${{ env.IMAGE_NAME }}:scan'
+        format: 'sarif'
+        output: 'trivy-results.sarif'
+
+    - name: Upload Trivy scan results
+      uses: github/codeql-action/upload-sarif@v3
+      if: always()
+      with:
+        sarif_file: 'trivy-results.sarif'
+
+  build-and-deploy:
+    name: Build and Deploy
+    runs-on: self-hosted
+    needs: [test, security]
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Set up Docker Buildx
+      uses: docker/setup-buildx-action@v3
+
+    - name: Login to Private Registry
+      uses: docker/login-action@v3
+      with:
+        registry: ${{ env.REGISTRY_URL }}
+        username: ${{ secrets.DOCKER_USERNAME }}
+        password: ${{ secrets.DOCKER_PASSWORD }}
+
+    - name: Generate image tags
+      id: meta
+      run: |
+        DATE=$(date +%Y%m%d)
+        SHORT_SHA=$(echo ${{ github.sha }} | cut -c1-7)
+        BUILD_NUMBER=${{ github.run_number }}
+        
+        echo "date_tag=prod-${DATE}-${SHORT_SHA}" >> $GITHUB_OUTPUT
+        echo "semantic_tag=1.${DATE}.${BUILD_NUMBER}" >> $GITHUB_OUTPUT
+        echo "latest_tag=latest" >> $GITHUB_OUTPUT
+
+    - name: Build and push Docker image
+      uses: docker/build-push-action@v5
+      with:
+        context: .
+        platforms: linux/amd64
+        push: true
+        tags: |
+          ${{ env.REGISTRY_URL }}/${{ env.IMAGE_NAME }}:${{ steps.meta.outputs.date_tag }}
+          ${{ env.REGISTRY_URL }}/${{ env.IMAGE_NAME }}:${{ steps.meta.outputs.semantic_tag }}
+          ${{ env.REGISTRY_URL }}/${{ env.IMAGE_NAME }}:${{ steps.meta.outputs.latest_tag }}
+        cache-from: type=gha
+        cache-to: type=gha,mode=max
+        build-args: |
+          BUILDKIT_INLINE_CACHE=1
+
+    - name: Update ArgoCD Image Tags
+      run: |
+        # Update kustomization.yaml with new image tag
+        sed -i "s|registry.jclee.me/safework:.*|registry.jclee.me/safework:${{ steps.meta.outputs.date_tag }}|g" k8s/safework/kustomization.yaml
+        
+        # Commit and push changes
+        git config --local user.email "action@github.com"
+        git config --local user.name "GitHub Action"
+        git add k8s/safework/kustomization.yaml
+        git commit -m "chore: update image tag to ${{ steps.meta.outputs.date_tag }}"
+        git push
+
+    - name: Deployment Status
+      run: |
+        echo "🚀 Deployment Information:"
+        echo "Image: ${{ env.REGISTRY_URL }}/${{ env.IMAGE_NAME }}:${{ steps.meta.outputs.date_tag }}"
+        echo "Semantic Version: ${{ steps.meta.outputs.semantic_tag }}"
+        echo "Production URL: https://safework.jclee.me"
+        echo "ArgoCD URL: https://argo.jclee.me/applications/safework"
+
+  notify:
+    name: Notify Deployment
+    runs-on: self-hosted
+    needs: [build-and-deploy]
+    if: always() && github.ref == 'refs/heads/main'
+    
+    steps:
+    - name: Notify Success
+      if: needs.build-and-deploy.result == 'success'
+      run: |
+        echo "✅ SafeWork deployment successful!"
+        echo "Check status at: https://safework.jclee.me/health"
+        
+    - name: Notify Failure
+      if: needs.build-and-deploy.result == 'failure'
+      run: |
+        echo "❌ SafeWork deployment failed!"
+        echo "Check logs and ArgoCD dashboard for details."

@@ -1,0 +1,48 @@
+name: Registry Cleanup
+
+on:
+  schedule:
+    # Run every Sunday at 2 AM UTC
+    - cron: '0 2 * * 0'
+  workflow_dispatch:
+    inputs:
+      keep_days:
+        description: 'Days to keep images'
+        required: false
+        default: '30'
+        type: string
+
+env:
+  REGISTRY_URL: registry.jclee.me
+  IMAGE_NAME: safework
+
+jobs:
+  cleanup:
+    name: Clean Old Images
+    runs-on: self-hosted
+    
+    steps:
+    - name: Cleanup old development images
+      run: |
+        KEEP_DAYS=${{ github.event.inputs.keep_days || '30' }}
+        echo "🧹 Cleaning up dev images older than $KEEP_DAYS days"
+        
+        # Note: This would require registry API access or custom script
+        # For now, just log the cleanup intent
+        echo "Would clean images older than $KEEP_DAYS days from ${{ env.REGISTRY_URL }}/${{ env.IMAGE_NAME }}"
+        
+        # TODO: Implement actual cleanup based on registry type
+        # - For Harbor: Use Harbor API
+        # - For Docker Registry: Use registry API
+        # - For private registry: Use custom cleanup script
+
+    - name: Cleanup build cache
+      run: |
+        echo "🧹 Cleaning up Docker build cache"
+        docker builder prune -f --filter until=168h # 7 days
+
+    - name: System cleanup
+      run: |
+        echo "🧹 System cleanup"
+        docker system prune -f --volumes
+        docker image prune -f --filter until=72h # 3 days

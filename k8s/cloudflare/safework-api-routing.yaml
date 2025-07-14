@@ -1,0 +1,45 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: safework-api-routing-config
+  namespace: safework
+data:
+  routing-config.yaml: |
+    # Cloudflare Zero Trust 대시보드 설정
+    # safework.jclee.me -> Kubernetes API Server 라우팅
+    
+    # Public Hostname 설정:
+    # ===============================
+    # Subdomain: safework
+    # Domain: jclee.me  
+    # Path: /api/*, /version, /healthz, /livez, /readyz
+    # Service Type: HTTPS
+    # URL: https://kubernetes.default.svc.cluster.local:443
+    
+    # Additional application settings:
+    # ===============================
+    # TLS Settings:
+    #   ✓ No TLS Verify (클러스터 내부 인증서용)
+    #   ✓ Origin Server Name: kubernetes.default.svc.cluster.local
+    # 
+    # HTTP Settings:
+    #   Host Header: kubernetes.default.svc.cluster.local
+    #   Origin Server Name: kubernetes.default.svc.cluster.local
+    
+    # 경로 기반 라우팅 (선택사항):
+    # ===============================
+    # 1. /api/* -> Kubernetes API
+    # 2. /* -> SafeWork Application (기본)
+    
+    ingress_rules: |
+      # 방법 1: 서브패스 라우팅 (추천)
+      # safework.jclee.me/api/* -> Kubernetes API
+      # safework.jclee.me/* -> SafeWork App
+      
+      # 방법 2: 별도 포트 사용
+      # safework.jclee.me:6443 -> Kubernetes API  
+      # safework.jclee.me -> SafeWork App
+      
+      # 방법 3: 헤더 기반 라우팅
+      # User-Agent: kubectl -> Kubernetes API
+      # Others -> SafeWork App

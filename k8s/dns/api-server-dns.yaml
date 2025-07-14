@@ -1,0 +1,40 @@
+# Kubernetes API Server External DNS Configuration
+# This should be applied to your DNS provider (Cloudflare, Route53, etc.)
+
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: api-server-dns-config
+  namespace: kube-system
+data:
+  # External DNS configuration for Kubernetes API Server
+  config.yaml: |
+    # DNS Records to create:
+    # A Record: k8s.jclee.me -> <your-k8s-master-ip>
+    # A Record: k8s-api.jclee.me -> <your-k8s-master-ip>
+    
+    # For Cloudflare DNS:
+    # curl -X POST "https://api.cloudflare.com/client/v4/zones/{zone_id}/dns_records" \
+    #   -H "Authorization: Bearer {api_token}" \
+    #   -H "Content-Type: application/json" \
+    #   --data '{
+    #     "type": "A",
+    #     "name": "k8s",
+    #     "content": "YOUR_K8S_MASTER_IP",
+    #     "ttl": 300
+    #   }'
+    
+    external_dns_urls:
+      - "https://k8s.jclee.me:6443"
+      - "https://k8s-api.jclee.me:6443"
+      - "https://kubernetes.jclee.me:6443"
+    
+    # SSL Certificate considerations:
+    ssl_config:
+      # Use Let's Encrypt or custom certificates
+      # Update kube-apiserver to include external DNS names in SAN
+      cert_manager: true
+      domains:
+        - k8s.jclee.me
+        - k8s-api.jclee.me
+        - kubernetes.jclee.me
