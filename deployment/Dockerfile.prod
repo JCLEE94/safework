@@ -58,7 +58,6 @@ RUN pip install --no-cache-dir --upgrade pip \
 
 # 백엔드 소스 코드 복사
 COPY src/ ./src/
-COPY backend/main.py ./
 
 # 프론트엔드 빌드 결과 복사
 COPY --from=frontend-builder /app/dist ./dist/
