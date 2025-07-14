@@ -32,7 +32,7 @@ class HealthExamAppointmentBase(BaseModel):
     worker_id: int
     exam_type: str = Field(..., description="검진 유형: 일반건강진단, 특수건강진단, 배치전건강진단")
     scheduled_date: date
-    scheduled_time: Optional[str] = Field(None, regex="^([0-1]?[0-9]|2[0-3]):[0-5][0-9]$")
+    scheduled_time: Optional[str] = Field(None, pattern="^([0-1]?[0-9]|2[0-3]):[0-5][0-9]$")
     medical_institution: str
     institution_address: Optional[str] = None
     institution_phone: Optional[str] = None
@@ -53,7 +53,7 @@ class HealthExamAppointmentCreate(HealthExamAppointmentBase):
 class HealthExamAppointmentUpdate(BaseModel):
     """예약 수정"""
     scheduled_date: Optional[date] = None
-    scheduled_time: Optional[str] = Field(None, regex="^([0-1]?[0-9]|2[0-3]):[0-5][0-9]$")
+    scheduled_time: Optional[str] = Field(None, pattern="^([0-1]?[0-9]|2[0-3]):[0-5][0-9]$")
     medical_institution: Optional[str] = None
     institution_address: Optional[str] = None
     institution_phone: Optional[str] = None
