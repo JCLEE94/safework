@@ -64,8 +64,6 @@ spec:
         envFrom:
         - secretRef:
             name: safework-secrets
-        - secretRef:
-            name: cloudflare-service-tokens
         resources:
           requests:
             memory: "512Mi"

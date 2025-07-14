@@ -10,7 +10,6 @@ resources:
   # 시크릿
   - secrets.yaml
   - regcred.yaml
-  - regcred-cf.yaml
   
   # 리소스 제한
   - resources.yaml
