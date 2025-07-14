@@ -54,6 +54,9 @@ jobs:
         python -m pip install --upgrade pip
         pip install pytest pytest-asyncio pytest-cov pytest-timeout
         pip install -r requirements.txt
+        # Install PostgreSQL and Redis clients
+        sudo apt-get update
+        sudo apt-get install -y postgresql-client redis-tools
 
     - name: Set environment variables
       run: |
@@ -94,7 +97,7 @@ jobs:
 
     - name: Build Docker image for scanning
       run: |
-        docker build -t ${{ env.IMAGE_NAME }}:scan .
+        docker build -t ${{ env.IMAGE_NAME }}:scan -f deployment/Dockerfile.prod .
 
     - name: Run Trivy vulnerability scanner
       uses: aquasecurity/trivy-action@master
@@ -144,6 +147,7 @@ jobs:
       uses: docker/build-push-action@v5
       with:
         context: .
+        file: deployment/Dockerfile.prod
         platforms: linux/amd64
         push: true
         tags: |
