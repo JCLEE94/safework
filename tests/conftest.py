@@ -20,8 +20,11 @@ from src.models import (AccidentReport, Base, ChemicalSubstance,
                         HealthEducation, HealthExam, LabResult, VitalSigns,
                         WorkEnvironment, Worker)
 
-# Test database URL - using StaticPool for better SQLite async compatibility
-TEST_DATABASE_URL = "sqlite+aiosqlite:///:memory:"
+# Test database URL - use PostgreSQL from environment or SQLite fallback
+TEST_DATABASE_URL = os.getenv(
+    "TEST_DATABASE_URL",
+    os.getenv("DATABASE_URL", "sqlite+aiosqlite:///:memory:")
+)
 
 
 @pytest.fixture(scope="session")
@@ -35,12 +38,22 @@ def event_loop():
 @pytest_asyncio.fixture
 async def engine():
     """Create test engine"""
-    engine = create_async_engine(
-        TEST_DATABASE_URL,
-        echo=False,
-        poolclass=StaticPool,  # Better for SQLite in tests
-        connect_args={"check_same_thread": False},  # SQLite specific
-    )
+    # SQLite specific settings
+    if "sqlite" in TEST_DATABASE_URL:
+        engine = create_async_engine(
+            TEST_DATABASE_URL,
+            echo=False,
+            poolclass=StaticPool,  # Better for SQLite in tests
+            connect_args={"check_same_thread": False},  # SQLite specific
+        )
+    else:
+        # PostgreSQL settings
+        engine = create_async_engine(
+            TEST_DATABASE_URL,
+            echo=False,
+            pool_pre_ping=True,
+            pool_size=5,
+        )
 
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)

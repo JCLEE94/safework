@@ -50,10 +50,14 @@ npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
 
-# Kubernetes secrets
-# k8s/cloudflare/tunnel-secret.yaml  # CI/CD에서 생성하므로 커밋 필요
-# k8s/**/*-secret.yaml
-# k8s/**/*-secrets.yaml
+# Kubernetes secrets - NEVER commit these!
+k8s/base/secrets/app-secrets.yaml
+k8s/safework/secrets.yaml
+k8s/**/secrets/*.yaml
+!k8s/**/secrets/*-template.yaml
+k8s/**/*-secret.yaml
+k8s/**/*-secrets.yaml
+!k8s/**/*-secret-template.yaml
 lerna-debug.log*
 .pnpm-debug.log*
 
