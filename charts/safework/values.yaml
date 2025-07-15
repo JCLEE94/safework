@@ -1,0 +1,140 @@
+# Default values for safework.
+
+replicaCount: 1
+
+image:
+  repository: registry.jclee.me/safework
+  pullPolicy: IfNotPresent
+  # Overrides the image tag whose default is the chart appVersion.
+  tag: "prod-20250715-1861554"
+
+imagePullSecrets:
+  - name: regcred
+
+nameOverride: ""
+fullnameOverride: "safework"
+
+serviceAccount:
+  create: false
+  annotations: {}
+  name: ""
+
+podAnnotations: {}
+
+podSecurityContext: {}
+
+securityContext: {}
+
+service:
+  type: NodePort
+  port: 3001
+  nodePort: 32301
+
+ingress:
+  enabled: false
+  className: ""
+  annotations: {}
+  hosts:
+    - host: safework.jclee.me
+      paths:
+        - path: /
+          pathType: ImplementationSpecific
+  tls: []
+
+resources:
+  limits:
+    cpu: 1000m
+    memory: 2Gi
+  requests:
+    cpu: 500m
+    memory: 1Gi
+
+# PostgreSQL configuration
+postgresql:
+  enabled: true
+  name: postgres
+  image:
+    repository: postgres
+    tag: "15"
+  auth:
+    database: health_management
+    username: admin
+    password: password
+  persistence:
+    enabled: true
+    size: 10Gi
+  resources:
+    limits:
+      cpu: 500m
+      memory: 512Mi
+    requests:
+      cpu: 250m
+      memory: 256Mi
+
+# Redis configuration
+redis:
+  enabled: true
+  name: redis
+  image:
+    repository: redis
+    tag: "7-alpine"
+  auth:
+    enabled: false
+  persistence:
+    enabled: true
+    size: 1Gi
+  resources:
+    limits:
+      cpu: 200m
+      memory: 256Mi
+    requests:
+      cpu: 100m
+      memory: 128Mi
+
+# Environment variables
+env:
+  - name: DATABASE_URL
+    value: "postgresql://admin:password@postgres:5432/health_management"
+  - name: REDIS_URL
+    value: "redis://redis:6379/0"
+  - name: JWT_SECRET
+    valueFrom:
+      secretKeyRef:
+        name: safework-secrets
+        key: jwt-secret
+  - name: ENVIRONMENT
+    value: "production"
+  - name: TZ
+    value: "Asia/Seoul"
+
+# Resource Quotas
+resourceQuota:
+  enabled: true
+  limits:
+    cpu: "4"
+    memory: "8Gi"
+    persistentvolumeclaims: "10"
+
+# Limit Ranges
+limitRange:
+  enabled: true
+  limits:
+    - type: Container
+      default:
+        cpu: 500m
+        memory: 512Mi
+      defaultRequest:
+        cpu: 100m
+        memory: 128Mi
+      max:
+        cpu: 2000m
+        memory: 4Gi
+      min:
+        cpu: 50m
+        memory: 64Mi
+
+nodeSelector: {}
+
+tolerations: []
+
+affinity: {}

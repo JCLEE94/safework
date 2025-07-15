@@ -167,17 +167,37 @@ jobs:
         build-args: |
           BUILDKIT_INLINE_CACHE=1
 
-    - name: Update ArgoCD Image Tags
+    - name: Update Helm Chart and ArgoCD
       run: |
-        # Update kustomization.yaml with new image tag
+        # Update Helm Chart values.yaml with new image tag
+        sed -i "s|tag: \".*\"|tag: \"${{ steps.meta.outputs.date_tag }}\"|g" charts/safework/values.yaml
+        
+        # Update Chart version (increment patch version)
+        CURRENT_VERSION=$(grep '^version:' charts/safework/Chart.yaml | awk '{print $2}')
+        IFS='.' read -r major minor patch <<< "$CURRENT_VERSION"
+        NEW_VERSION="$major.$minor.$((patch + 1))"
+        sed -i "s|^version: .*|version: $NEW_VERSION|g" charts/safework/Chart.yaml
+        
+        # Package and upload new chart version
+        cd charts
+        helm package safework/
+        curl --data-binary "@safework-${NEW_VERSION}.tgz" -u ${{ secrets.CHARTMUSEUM_USERNAME }}:${{ secrets.CHARTMUSEUM_PASSWORD }} https://charts.jclee.me/api/charts
+        cd ..
+        
+        # Update kustomization.yaml for legacy support
         sed -i "s|registry.jclee.me/safework:.*|registry.jclee.me/safework:${{ steps.meta.outputs.date_tag }}|g" k8s/safework/kustomization.yaml
         
-        # Commit and push changes
-        git config --local user.email "action@github.com"
-        git config --local user.name "GitHub Action"
-        git add k8s/safework/kustomization.yaml
-        git commit -m "chore: update image tag to ${{ steps.meta.outputs.date_tag }}"
-        git push
+        # Check if there are changes to commit
+        if git diff --quiet charts/safework/values.yaml charts/safework/Chart.yaml k8s/safework/kustomization.yaml; then
+          echo "No changes to commit - image tag is already up to date"
+        else
+          # Commit and push changes
+          git config --local user.email "action@github.com"
+          git config --local user.name "GitHub Action"
+          git add charts/safework/values.yaml charts/safework/Chart.yaml k8s/safework/kustomization.yaml
+          git commit -m "chore: update image tag to ${{ steps.meta.outputs.date_tag }} and bump chart version to $NEW_VERSION"
+          git push origin HEAD:main
+        fi
 
     - name: Deployment Status
       run: |
