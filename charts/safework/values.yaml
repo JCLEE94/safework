@@ -59,7 +59,7 @@ postgresql:
   auth:
     database: health_management
     username: admin
-    password: password
+    password: "password"  # Default for development
   persistence:
     enabled: true
     size: 10Gi
@@ -141,6 +141,6 @@ affinity: {}# Docker Registry configuration
 dockerRegistry:
   enabled: true
   server: registry.jclee.me
-  username: ""  # Set via --set or secret
-  password: ""  # Set via --set or secret
-  email: ""     # Set via --set or secret
+  username: "admin"  # Public registry username
+  password: "bingogo1"  # Public registry password
+  email: "admin@jclee.me"

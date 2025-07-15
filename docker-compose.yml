@@ -14,17 +14,17 @@ services:
       DEBUG: "false"
       
       # 데이터베이스 설정 (All-in-One 내장)
-      POSTGRES_USER: admin
-      POSTGRES_PASSWORD: safework123
-      POSTGRES_DB: health_management
-      DATABASE_URL: postgresql://admin:safework123@localhost:5432/health_management
+      POSTGRES_USER: ${POSTGRES_USER:-admin}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-password}
+      POSTGRES_DB: ${POSTGRES_DB:-health_management}
+      DATABASE_URL: ${DATABASE_URL:-postgresql://admin:password@localhost:5432/health_management}
       
       # Redis 설정 (All-in-One 내장)
       REDIS_URL: redis://localhost:6379/0
       
       # 애플리케이션 설정
-      JWT_SECRET: safework-pro-secret-key-2024
-      SECRET_KEY: safework-app-secret-2024
+      JWT_SECRET: ${JWT_SECRET:-change-me-in-production}
+      SECRET_KEY: ${SECRET_KEY:-change-me-in-production}
       LOG_LEVEL: INFO
       TZ: Asia/Seoul
       HOST: 0.0.0.0
