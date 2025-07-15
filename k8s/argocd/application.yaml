@@ -14,6 +14,7 @@ metadata:
     argocd-image-updater.argoproj.io/safework.allow-tags: "regexp:^prod-[0-9]{8}-[a-f0-9]{7}$"
     argocd-image-updater.argoproj.io/write-back-method: git
     argocd-image-updater.argoproj.io/git-branch: main
+    argocd-image-updater.argoproj.io/safework.pull-secret: argocd-image-updater-secret
   finalizers:
     - resources-finalizer.argocd.argoproj.io
 spec:

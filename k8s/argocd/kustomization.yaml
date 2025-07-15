@@ -6,8 +6,7 @@ namespace: argocd
 resources:
   - application.yaml
   - image-updater-configmap.yaml
-  # Secret은 수동으로 생성 필요 (GitHub Token 포함)
-  # - image-updater-secret.yaml
+  - argocd-image-updater-secret.yaml
 
 # ArgoCD 및 Image Updater 설정을 위한 패치
 patches:
