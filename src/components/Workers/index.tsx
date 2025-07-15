@@ -36,9 +36,10 @@ export function Workers() {
       if (filters.health_status) params.append('health_status', filters.health_status);
       
       const data = await fetchApi<ApiResponse<Worker>>(`/workers?${params}`);
-      setWorkers(data.items);
+      setWorkers(data.items || []);
     } catch (error) {
       console.error('근로자 목록 조회 실패:', error);
+      setWorkers([]);
     } finally {
       setLoading(false);
     }
@@ -60,14 +61,10 @@ export function Workers() {
     if (!confirm('정말 삭제하시겠습니까?')) return;
     
     try {
-      // TEMPORARY: Mock the deletion due to backend issues
-      console.log('Deleting worker:', id);
-      setWorkers(prev => prev.filter(w => w.id !== id));
-      // Don't call server since it's broken
-      // await fetchApi(`/workers/${id}`, {
-      //   method: 'DELETE'
-      // });
-      // await loadWorkers();
+      await fetchApi(`/workers/${id}`, {
+        method: 'DELETE'
+      });
+      await loadWorkers();
     } catch (error) {
       console.error('근로자 삭제 실패:', error);
     }
@@ -75,30 +72,20 @@ export function Workers() {
   
   const handleSubmit = async (data: Partial<Worker>) => {
     try {
-      // TEMPORARY: Mock the API calls due to backend issues
       if (formMode === 'create') {
-        // Simulate successful creation
-        console.log('Creating worker:', data);
-        const newWorker = {
-          ...data,
-          id: Date.now(),
-          created_at: new Date().toISOString(),
-          updated_at: new Date().toISOString()
-        } as Worker;
-        setWorkers(prev => [...prev, newWorker]);
+        await fetchApi('/workers', {
+          method: 'POST',
+          body: JSON.stringify(data)
+        });
       } else if (selectedWorker) {
-        // Simulate successful update
-        console.log('Updating worker:', selectedWorker.id, data);
-        setWorkers(prev => prev.map(w => 
-          w.id === selectedWorker.id 
-            ? { ...w, ...data, updated_at: new Date().toISOString() }
-            : w
-        ));
+        await fetchApi(`/workers/${selectedWorker.id}`, {
+          method: 'PUT',
+          body: JSON.stringify(data)
+        });
       }
       
       setShowForm(false);
-      // Don't reload from server since it's broken
-      // await loadWorkers();
+      await loadWorkers();
     } catch (error) {
       console.error('근로자 저장 실패:', error);
     }

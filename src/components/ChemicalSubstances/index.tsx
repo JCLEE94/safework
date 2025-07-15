@@ -43,123 +43,22 @@ export function ChemicalSubstances() {
     try {
       setLoading(true);
       
-      // Try to fetch from API first
-      try {
-        const params = new URLSearchParams();
-        if (searchTerm) params.append('search', searchTerm);
-        if (filterHazardLevel !== 'all') params.append('hazard_level', filterHazardLevel);
-        if (filterMsdsStatus !== 'all') params.append('msds_status', filterMsdsStatus);
-        
-        const response = await fetchApi(`/chemicals?${params}`);
-        if (response?.items) {
-          setSubstances(response.items);
-          return;
-        }
-      } catch (apiError) {
-        console.log('API 연결 실패, 임시 데이터 사용:', apiError);
-      }
+      const params = new URLSearchParams();
+      if (searchTerm) params.append('search', searchTerm);
+      if (filterHazardLevel !== 'all') params.append('hazard_level', filterHazardLevel);
+      if (filterMsdsStatus !== 'all') params.append('msds_status', filterMsdsStatus);
       
-      // Fallback to dummy data
-      const dummyData = [
-        {
-          id: 1,
-          name: "아세톤",
-          cas_number: "67-64-1",
-          manufacturer: "한국화학 주식회사",
-          supplier: "산업화학 유통",
-          hazard_class: "인화성 액체",
-          hazard_level: 'medium' as const,
-          msds_available: true,
-          msds_updated_date: "2024-03-15",
-          storage_location: "화학물질 저장소 A동",
-          quantity: 200,
-          unit: "L",
-          last_inspection_date: "2024-06-20",
-          expiry_date: "2025-12-31",
-          safety_measures: ["방화", "환기", "개인보호구 착용"],
-          responsible_person: "김화학",
-          notes: "환기 시설 필수"
-        },
-        {
-          id: 2,
-          name: "메탄올",
-          cas_number: "67-56-1",
-          manufacturer: "대한화학공업",
-          supplier: "케미칼 솔루션",
-          hazard_class: "독성 물질",
-          hazard_level: 'high' as const,
-          msds_available: true,
-          msds_updated_date: "2024-02-28",
-          storage_location: "특별관리구역 B",
-          quantity: 50,
-          unit: "L",
-          last_inspection_date: "2024-06-22",
-          expiry_date: "2025-08-30",
-          safety_measures: ["독성 경고", "밀폐 보관", "특별 환기"],
-          responsible_person: "이안전",
-          notes: "취급 시 특별 주의 필요"
-        },
-        {
-          id: 3,
-          name: "톨루엔",
-          cas_number: "108-88-3",
-          manufacturer: "글로벌 케미칼",
-          supplier: "화학물질 전문",
-          hazard_class: "인화성 액체",
-          hazard_level: 'medium' as const,
-          msds_available: false,
-          msds_updated_date: "2023-12-15",
-          storage_location: "화학물질 저장소 A동",
-          quantity: 100,
-          unit: "L",
-          last_inspection_date: "2024-06-18",
-          expiry_date: "2025-10-15",
-          safety_measures: ["방화", "호흡보호구"],
-          responsible_person: "박관리",
-          notes: "MSDS 업데이트 필요"
-        },
-        {
-          id: 4,
-          name: "염산",
-          cas_number: "7647-01-0",
-          manufacturer: "화학산업 코퍼레이션",
-          supplier: "산업용품 공급",
-          hazard_class: "부식성 물질",
-          hazard_level: 'very_high' as const,
-          msds_available: true,
-          msds_updated_date: "2024-05-10",
-          storage_location: "특별관리구역 C",
-          quantity: 25,
-          unit: "L",
-          last_inspection_date: "2024-06-25",
-          expiry_date: "2026-01-20",
-          safety_measures: ["부식 방지", "산성 중화제 비치", "완전 밀폐"],
-          responsible_person: "최화학",
-          notes: "최고 위험 등급"
-        },
-        {
-          id: 5,
-          name: "벤젠",
-          cas_number: "71-43-2",
-          manufacturer: "페트로 케미칼",
-          supplier: "전문화학 유통",
-          hazard_class: "발암성 물질",
-          hazard_level: 'very_high' as const,
-          msds_available: true,
-          msds_updated_date: "2024-04-05",
-          storage_location: "특별관리구역 D",
-          quantity: 10,
-          unit: "L",
-          last_inspection_date: "2024-06-23",
-          expiry_date: "2025-09-30",
-          safety_measures: ["발암물질 경고", "완전 밀폐", "특별 모니터링"],
-          responsible_person: "정전문",
-          notes: "발암물질 - 극도 주의"
-        }
-      ];
-      setSubstances(dummyData);
+      const response = await fetchApi(`/chemicals?${params}`);
+      if (response?.items) {
+        setSubstances(response.items);
+      } else if (Array.isArray(response)) {
+        setSubstances(response);
+      } else {
+        setSubstances([]);
+      }
     } catch (error) {
       console.error('화학물질 목록 조회 실패:', error);
+      setSubstances([]);
     } finally {
       setLoading(false);
     }
@@ -180,41 +79,26 @@ export function ChemicalSubstances() {
   const handleSubmit = async (data: Partial<ChemicalSubstance>) => {
     try {
       if (formMode === 'create') {
-        try {
-          await fetchApi('/chemicals', {
-            method: 'POST',
-            body: JSON.stringify(data)
-          });
-        } catch (apiError) {
-          console.log('API 생성 실패, 로컬 데이터에 추가:', apiError);
-          // Add to local state as fallback
-          const newSubstance = {
-            ...data,
-            id: Math.max(...substances.map(s => s.id), 0) + 1
-          } as ChemicalSubstance;
-          setSubstances(prev => [newSubstance, ...prev]);
-        }
+        await fetchApi('/chemicals', {
+          method: 'POST',
+          body: JSON.stringify(data)
+        });
+        await loadSubstances(); // Refresh the list
       } else if (selectedSubstance) {
-        try {
-          await fetchApi(`/chemicals/${selectedSubstance.id}`, {
-            method: 'PUT',
-            body: JSON.stringify(data)
-          });
-        } catch (apiError) {
-          console.log('API 수정 실패, 로컬 데이터 수정:', apiError);
-          // Update local state as fallback
-          setSubstances(prev => prev.map(s => 
-            s.id === selectedSubstance.id ? { ...s, ...data } : s
-          ));
-        }
+        await fetchApi(`/chemicals/${selectedSubstance.id}`, {
+          method: 'PUT',
+          body: JSON.stringify(data)
+        });
+        // Update the item in the list
+        setSubstances(prev => prev.map(s => 
+          s.id === selectedSubstance.id ? { ...s, ...data } : s
+        ));
       }
       
       setShowForm(false);
-      if (formMode === 'create') {
-        await loadSubstances(); // Refresh the list
-      }
     } catch (error) {
       console.error('화학물질 저장 실패:', error);
+      alert('화학물질 저장에 실패했습니다.');
     }
   };
 

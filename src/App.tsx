@@ -16,10 +16,40 @@ import IntegratedDocuments from './components/IntegratedDocuments';
 import { EnhancedReports } from './components/EnhancedReports';
 import { Settings } from './components/Settings';
 import ErrorBoundary from './components/ErrorBoundary';
+import { LoginForm } from './components/Auth/LoginForm';
+import { authService } from './services/authService';
 
 function App() {
   const [activeMenu, setActiveMenu] = useState('dashboard');
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [loading, setLoading] = useState(true);
+  
+  useEffect(() => {
+    // 초기 인증 상태 확인
+    const checkAuth = () => {
+      const authenticated = authService.isAuthenticated();
+      setIsAuthenticated(authenticated);
+      setLoading(false);
+    };
+    
+    checkAuth();
+  }, []);
+  
+  const handleLoginSuccess = () => {
+    setIsAuthenticated(true);
+  };
+  
+  const handleLogout = async () => {
+    try {
+      await authService.logout();
+    } catch (error) {
+      console.error('로그아웃 오류:', error);
+    } finally {
+      setIsAuthenticated(false);
+      setActiveMenu('dashboard');
+    }
+  };
   
   const renderContent = () => {
     switch (activeMenu) {
@@ -54,6 +84,21 @@ function App() {
     }
   };
   
+  if (loading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-blue-600"></div>
+          <p className="mt-4 text-gray-600">로딩 중...</p>
+        </div>
+      </div>
+    );
+  }
+  
+  if (!isAuthenticated) {
+    return <LoginForm onLoginSuccess={handleLoginSuccess} />;
+  }
+  
   return (
     <ErrorBoundary>
       <Layout
@@ -61,6 +106,7 @@ function App() {
         setSidebarOpen={setSidebarOpen}
         activeMenu={activeMenu}
         setActiveMenu={setActiveMenu}
+        onLogout={handleLogout}
       >
         {renderContent()}
       </Layout>

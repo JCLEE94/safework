@@ -57,150 +57,22 @@ export function AccidentReports() {
     try {
       setLoading(true);
       
-      // Try to fetch from API first
-      try {
-        const params = new URLSearchParams();
-        if (searchTerm) params.append('search', searchTerm);
-        if (filterSeverity !== 'all') params.append('severity', filterSeverity);
-        if (filterStatus !== 'all') params.append('status', filterStatus);
-        
-        const response = await fetchApi(`/accidents?${params}`);
-        if (response?.items) {
-          setAccidents(response.items);
-          return;
-        }
-      } catch (apiError) {
-        console.log('API 연결 실패, 임시 데이터 사용:', apiError);
-      }
+      const params = new URLSearchParams();
+      if (searchTerm) params.append('search', searchTerm);
+      if (filterSeverity !== 'all') params.append('severity', filterSeverity);
+      if (filterStatus !== 'all') params.append('status', filterStatus);
       
-      // Fallback to dummy data
-      const dummyData = [
-        {
-          id: 1,
-          report_number: "ACC-2024-001",
-          incident_date: "2024-06-20",
-          report_date: "2024-06-20",
-          location: "건설 현장 A구역",
-          injured_person: "김철수",
-          department: "건설팀",
-          accident_type: "추락",
-          severity: 'moderate' as const,
-          injury_type: "타박상, 골절",
-          description: "비계 작업 중 안전대 미착용으로 인한 2m 높이에서 추락",
-          immediate_cause: "안전대 미착용",
-          root_cause: "안전교육 부족 및 안전점검 소홀",
-          corrective_actions: ["안전대 착용 의무화", "현장 안전교육 실시"],
-          preventive_measures: ["안전점검 강화", "안전교육 정기화"],
-          reported_by: "현장 감독자",
-          investigated_by: "안전관리자 이안전",
-          investigation_date: "2024-06-21",
-          status: 'action_required' as const,
-          follow_up_required: true,
-          follow_up_date: "2024-07-20",
-          cost_estimate: 1500000,
-          lost_work_days: 14,
-          witnesses: ["박목격", "최현장"],
-          photos_attached: true,
-          medical_treatment_required: true,
-          government_notification_required: true,
-          government_reported: true,
-          notes: "중상 사고로 정부 신고 완료"
-        },
-        {
-          id: 2,
-          report_number: "ACC-2024-002",
-          incident_date: "2024-06-15",
-          report_date: "2024-06-15",
-          location: "기계실 B동",
-          injured_person: "이영희",
-          department: "정비팀",
-          accident_type: "협착",
-          severity: 'minor' as const,
-          injury_type: "손가락 찰과상",
-          description: "기계 정비 중 손가락이 기계 부품에 협착됨",
-          immediate_cause: "보호장갑 미착용",
-          root_cause: "개인보호구 관리 부주의",
-          corrective_actions: ["보호장갑 착용 확인"],
-          preventive_measures: ["개인보호구 점검 강화"],
-          reported_by: "당사자",
-          investigated_by: "안전관리자 이안전",
-          investigation_date: "2024-06-16",
-          status: 'completed' as const,
-          follow_up_required: false,
-          cost_estimate: 50000,
-          lost_work_days: 0,
-          witnesses: [],
-          photos_attached: false,
-          medical_treatment_required: true,
-          government_notification_required: false,
-          government_reported: false,
-          notes: "경미한 사고"
-        },
-        {
-          id: 3,
-          report_number: "ACC-2024-003",
-          incident_date: "2024-06-10",
-          report_date: "2024-06-11",
-          location: "화학물질 저장소",
-          injured_person: "박화학",
-          department: "화학팀",
-          accident_type: "화학물질 노출",
-          severity: 'severe' as const,
-          injury_type: "화학 화상, 호흡기 자극",
-          description: "화학물질 이송 중 용기 파손으로 인한 화학물질 누출 및 노출",
-          immediate_cause: "용기 결함",
-          root_cause: "화학물질 용기 점검 부족",
-          corrective_actions: ["화학물질 용기 전체 점검", "비상 대응 절차 개선"],
-          preventive_measures: ["용기 정기 점검 체계 구축", "화학물질 취급 교육 강화"],
-          reported_by: "동료 근로자",
-          investigated_by: "안전관리자 이안전",
-          investigation_date: "2024-06-12",
-          status: 'investigating' as const,
-          follow_up_required: true,
-          follow_up_date: "2024-08-10",
-          cost_estimate: 3000000,
-          lost_work_days: 30,
-          witnesses: ["최목격", "정현장", "김동료"],
-          photos_attached: true,
-          medical_treatment_required: true,
-          government_notification_required: true,
-          government_reported: true,
-          notes: "중대재해 조사 진행 중"
-        },
-        {
-          id: 4,
-          report_number: "ACC-2024-004",
-          incident_date: "2024-06-25",
-          report_date: "2024-06-25",
-          location: "주차장",
-          injured_person: "최운전",
-          department: "운송팀",
-          accident_type: "차량 사고",
-          severity: 'minor' as const,
-          injury_type: "목 염좌",
-          description: "후진 중 다른 차량과 접촉 사고",
-          immediate_cause: "후방 확인 소홀",
-          root_cause: "안전운전 교육 부족",
-          corrective_actions: ["안전운전 재교육"],
-          preventive_measures: ["후방 카메라 설치 검토"],
-          reported_by: "당사자",
-          investigated_by: "안전관리자 이안전",
-          investigation_date: "2024-06-25",
-          status: 'reported' as const,
-          follow_up_required: false,
-          cost_estimate: 200000,
-          lost_work_days: 1,
-          witnesses: ["박주차"],
-          photos_attached: true,
-          medical_treatment_required: false,
-          government_notification_required: false,
-          government_reported: false,
-          notes: "경미한 교통사고"
-        }
-      ];
-      setAccidents(dummyData);
+      const response = await fetchApi(`/accidents?${params}`);
+      if (response?.items) {
+        setAccidents(response.items);
+      } else if (Array.isArray(response)) {
+        setAccidents(response);
+      } else {
+        setAccidents([]);
+      }
     } catch (error) {
       console.error('사고보고 목록 조회 실패:', error);
+      setAccidents([]);
     } finally {
       setLoading(false);
     }
@@ -226,42 +98,26 @@ export function AccidentReports() {
   const handleSubmit = async (data: Partial<AccidentReport>) => {
     try {
       if (formMode === 'create') {
-        try {
-          await fetchApi('/accidents', {
-            method: 'POST',
-            body: JSON.stringify(data)
-          });
-        } catch (apiError) {
-          console.log('API 생성 실패, 로컬 데이터에 추가:', apiError);
-          // Add to local state as fallback
-          const newAccident = {
-            ...data,
-            id: Math.max(...accidents.map(a => a.id), 0) + 1,
-            report_number: data.report_number || `ACC-${new Date().getFullYear()}-${Math.floor(Math.random() * 1000).toString().padStart(3, '0')}`
-          } as AccidentReport;
-          setAccidents(prev => [newAccident, ...prev]);
-        }
+        await fetchApi('/accidents', {
+          method: 'POST',
+          body: JSON.stringify(data)
+        });
+        await loadAccidents(); // Refresh the list
       } else if (selectedAccident) {
-        try {
-          await fetchApi(`/accidents/${selectedAccident.id}`, {
-            method: 'PUT',
-            body: JSON.stringify(data)
-          });
-        } catch (apiError) {
-          console.log('API 수정 실패, 로컬 데이터 수정:', apiError);
-          // Update local state as fallback
-          setAccidents(prev => prev.map(a => 
-            a.id === selectedAccident.id ? { ...a, ...data } : a
-          ));
-        }
+        await fetchApi(`/accidents/${selectedAccident.id}`, {
+          method: 'PUT',
+          body: JSON.stringify(data)
+        });
+        // Update the item in the list
+        setAccidents(prev => prev.map(a => 
+          a.id === selectedAccident.id ? { ...a, ...data } : a
+        ));
       }
       
       setShowForm(false);
-      if (formMode === 'create') {
-        await loadAccidents(); // Refresh the list
-      }
     } catch (error) {
       console.error('사고 보고서 저장 실패:', error);
+      alert('사고 보고서 저장에 실패했습니다.');
     }
   };
 

@@ -42,43 +42,7 @@ export function WorkEnvironments() {
       setMeasurements(data);
     } catch (error) {
       console.error('작업환경측정 목록 조회 실패:', error);
-      // API 실패 시 더미 데이터로 폴백
-      const dummyData = [
-        {
-          id: 1,
-          location: "작업장 A동",
-          measurement_type: "소음",
-          measurement_date: "2024-06-20",
-          measured_value: 82,
-          standard_value: 90,
-          unit: "dB",
-          status: 'normal' as const,
-          notes: "정상 범위"
-        },
-        {
-          id: 2,
-          location: "작업장 B동",
-          measurement_type: "분진",
-          measurement_date: "2024-06-19",
-          measured_value: 8.5,
-          standard_value: 10,
-          unit: "mg/m³",
-          status: 'warning' as const,
-          notes: "주의 필요"
-        },
-        {
-          id: 3,
-          location: "화학물질 저장소",
-          measurement_type: "유기용제",
-          measurement_date: "2024-06-18",
-          measured_value: 15,
-          standard_value: 10,
-          unit: "ppm",
-          status: 'danger' as const,
-          notes: "기준치 초과"
-        }
-      ];
-      setMeasurements(dummyData);
+      setMeasurements([]);
     } finally {
       setLoading(false);
     }

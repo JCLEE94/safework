@@ -74,79 +74,15 @@ export function EnhancedReports() {
       setCompliance(complianceData || []);
     } catch (error) {
       console.error('Failed to load report data:', error);
-      // Load mock data for demonstration
-      loadMockData();
+      // Set empty data on error
+      setReports([]);
+      setMetrics([]);
+      setCompliance([]);
     } finally {
       setLoading(false);
     }
   };
 
-  const loadMockData = () => {
-    // Mock data for demonstration
-    const mockReports: ReportSummary[] = [
-      {
-        id: '1',
-        title: '월간 근로자 건강현황 보고서',
-        description: '근로자 건강진단 결과 및 현황 분석',
-        type: 'health',
-        last_generated: '2024-01-15T10:00:00Z',
-        status: 'available',
-        download_count: 15
-      },
-      {
-        id: '2',
-        title: '작업환경측정 결과 보고서',
-        description: '유해요인 측정 결과 및 개선사항',
-        type: 'environment',
-        last_generated: '2024-01-10T14:30:00Z',
-        status: 'available',
-        download_count: 8
-      },
-      {
-        id: '3',
-        title: '안전사고 현황 및 분석',
-        description: '산업재해 발생현황 및 예방대책',
-        type: 'safety',
-        last_generated: '2024-01-12T09:15:00Z',
-        status: 'available',
-        download_count: 22
-      }
-    ];
-
-    const mockMetrics: ReportMetric[] = [
-      { label: '총 근로자 수', value: 245, change: 5, trend: 'up', color: 'blue' },
-      { label: '건강진단 완료율', value: '95%', change: 3, trend: 'up', color: 'green' },
-      { label: '안전교육 이수율', value: '87%', change: -2, trend: 'down', color: 'yellow' },
-      { label: '산업재해 건수', value: 2, change: -1, trend: 'down', color: 'green' },
-      { label: '법령 준수율', value: '98%', change: 1, trend: 'up', color: 'green' },
-      { label: '작업환경 적정률', value: '92%', change: 0, trend: 'stable', color: 'blue' }
-    ];
-
-    const mockCompliance: ComplianceItem[] = [
-      {
-        requirement: '특수건강진단 실시',
-        status: 'compliant',
-        due_date: '2024-06-30',
-        responsible: '보건관리자'
-      },
-      {
-        requirement: '작업환경측정',
-        status: 'pending',
-        due_date: '2024-03-15',
-        responsible: '환경관리자'
-      },
-      {
-        requirement: '안전보건교육 실시',
-        status: 'compliant',
-        due_date: '2024-02-28',
-        responsible: '안전관리자'
-      }
-    ];
-
-    setReports(mockReports);
-    setMetrics(mockMetrics);
-    setCompliance(mockCompliance);
-  };
 
   const generateReport = async (reportType: string) => {
     try {

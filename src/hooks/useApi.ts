@@ -1,5 +1,6 @@
 import { useState, useCallback } from 'react';
 import { API_CONFIG } from '../config/api';
+import { authService } from '../services/authService';
 
 interface ApiOptions extends RequestInit {
   params?: Record<string, string>;
@@ -30,11 +31,17 @@ export function useApi() {
         ...fetchOptions,
         headers: {
           'Content-Type': 'application/json',
+          ...authService.getAuthHeaders(),
           ...fetchOptions.headers,
         },
       });
       
       if (!response.ok) {
+        // 401 인증 오류시 로그아웃
+        if (response.status === 401) {
+          authService.clearAuth();
+          window.location.reload();
+        }
         throw new Error(`API Error: ${response.status} ${response.statusText}`);
       }
       

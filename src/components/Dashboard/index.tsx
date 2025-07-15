@@ -37,11 +37,12 @@ export function Dashboard({ data, loading }: DashboardProps) {
     }]
   };
   
+  // TODO: Replace with actual monthly trend data from API
   const monthlyTrendData = {
     labels: ['1월', '2월', '3월', '4월', '5월', '6월'],
     datasets: [{
       label: '건강검진',
-      data: [12, 19, 15, 25, 22, 30],
+      data: data.monthly_trend || [],
       borderColor: '#3B82F6',
       backgroundColor: 'rgba(59, 130, 246, 0.1)',
       fill: true,

@@ -102,6 +102,7 @@ export interface DashboardData {
   work_type_distribution: Record<string, { count: number; label: string }>;
   health_status_distribution: Record<string, { count: number; label: string }>;
   by_department?: Record<string, number>;
+  monthly_trend?: number[];
   updated_at: string;
 }
 

@@ -1,12 +1,24 @@
-import React from 'react';
-import { Menu, Bell, Search } from 'lucide-react';
+import React, { useState } from 'react';
+import { Menu, Bell, Search, LogOut, User } from 'lucide-react';
 import { BUILD_TIME } from '../../constants';
+import { authService } from '../../services/authService';
 
 interface HeaderProps {
   onMenuToggle: () => void;
+  onLogout?: () => void;
 }
 
-export function Header({ onMenuToggle }: HeaderProps) {
+export function Header({ onMenuToggle, onLogout }: HeaderProps) {
+  const [showUserMenu, setShowUserMenu] = useState(false);
+  const user = authService.getUser();
+
+  const handleLogout = () => {
+    if (onLogout) {
+      onLogout();
+    }
+    setShowUserMenu(false);
+  };
+
   return (
     <header className="bg-white shadow-lg border-b border-gray-200">
       <div className="px-4 sm:px-6 lg:px-8">
@@ -42,15 +54,37 @@ export function Header({ onMenuToggle }: HeaderProps) {
               <span className="absolute top-0 right-0 h-2 w-2 bg-red-500 rounded-full"></span>
             </button>
             
-            <div className="flex items-center">
-              <img
-                src={`https://ui-avatars.com/api/?name=${encodeURIComponent('관리자')}&background=4F46E5&color=fff`}
-                alt="User"
-                className="h-8 w-8 rounded-full"
-              />
-              <span className="ml-2 text-sm font-medium text-gray-700 hidden md:block">
-                관리자
-              </span>
+            <div className="relative">
+              <button
+                onClick={() => setShowUserMenu(!showUserMenu)}
+                className="flex items-center space-x-2 p-2 rounded-lg hover:bg-gray-100 transition-colors"
+              >
+                <img
+                  src={`https://ui-avatars.com/api/?name=${encodeURIComponent(user?.name || '사용자')}&background=4F46E5&color=fff`}
+                  alt="User"
+                  className="h-8 w-8 rounded-full"
+                />
+                <span className="text-sm font-medium text-gray-700 hidden md:block">
+                  {user?.name || '사용자'}
+                </span>
+              </button>
+              
+              {showUserMenu && (
+                <div className="absolute right-0 mt-2 w-48 bg-white rounded-lg shadow-lg border border-gray-200 z-50">
+                  <div className="py-1">
+                    <div className="px-4 py-2 text-sm text-gray-500 border-b border-gray-200">
+                      {user?.email}
+                    </div>
+                    <button
+                      onClick={handleLogout}
+                      className="flex items-center w-full px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 transition-colors"
+                    >
+                      <LogOut size={16} className="mr-2" />
+                      로그아웃
+                    </button>
+                  </div>
+                </div>
+              )}
             </div>
           </div>
         </div>

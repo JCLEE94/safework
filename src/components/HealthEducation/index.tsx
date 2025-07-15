@@ -36,79 +36,21 @@ export function HealthEducation() {
     try {
       setLoading(true);
       
-      // Try to fetch from API first
-      try {
-        const params = new URLSearchParams();
-        if (searchTerm) params.append('search', searchTerm);
-        if (filterStatus !== 'all') params.append('status', filterStatus);
-        
-        const response = await fetchApi(`/educations?${params}`);
-        if (response?.items) {
-          setEducations(response.items);
-          return;
-        }
-      } catch (apiError) {
-        console.log('API 연결 실패, 임시 데이터 사용:', apiError);
-      }
+      const params = new URLSearchParams();
+      if (searchTerm) params.append('search', searchTerm);
+      if (filterStatus !== 'all') params.append('status', filterStatus);
       
-      // Fallback to dummy data
-      const dummyData = [
-        {
-          id: 1,
-          title: "신입 근로자 안전보건교육",
-          education_type: "법정교육",
-          instructor: "안전관리자 김교육",
-          duration: 8,
-          target_workers: ["김철수", "이영희", "박신입"],
-          scheduled_date: "2024-07-01",
-          completion_rate: 100,
-          status: 'completed' as const,
-          required_hours: 8,
-          description: "산업안전보건법 제31조에 따른 신입 근로자 안전보건교육"
-        },
-        {
-          id: 2,
-          title: "정기 안전보건교육",
-          education_type: "정기교육",
-          instructor: "외부강사 최전문",
-          duration: 3,
-          target_workers: ["김철수", "이영희", "박기존", "최숙련"],
-          scheduled_date: "2024-07-15",
-          completion_rate: 75,
-          status: 'ongoing' as const,
-          required_hours: 3,
-          description: "분기별 정기 안전보건교육 (3시간)"
-        },
-        {
-          id: 3,
-          title: "화학물질 취급 안전교육",
-          education_type: "특별교육",
-          instructor: "화학안전전문가 이화학",
-          duration: 4,
-          target_workers: ["박화학", "최취급"],
-          scheduled_date: "2024-07-20",
-          completion_rate: 0,
-          status: 'scheduled' as const,
-          required_hours: 4,
-          description: "화학물질 및 위험물 취급 근로자 대상 특별안전교육"
-        },
-        {
-          id: 4,
-          title: "고소작업 안전교육",
-          education_type: "특별교육",
-          instructor: "안전관리자 김교육",
-          duration: 2,
-          target_workers: ["이고소", "박높이"],
-          scheduled_date: "2024-06-30",
-          completion_rate: 0,
-          status: 'cancelled' as const,
-          required_hours: 2,
-          description: "2m 이상 고소작업 근로자 대상 안전교육"
-        }
-      ];
-      setEducations(dummyData);
+      const response = await fetchApi(`/educations?${params}`);
+      if (response?.items) {
+        setEducations(response.items);
+      } else if (Array.isArray(response)) {
+        setEducations(response);
+      } else {
+        setEducations([]);
+      }
     } catch (error) {
       console.error('보건교육 목록 조회 실패:', error);
+      setEducations([]);
     } finally {
       setLoading(false);
     }
@@ -129,41 +71,26 @@ export function HealthEducation() {
   const handleSubmit = async (data: Partial<HealthEducation>) => {
     try {
       if (formMode === 'create') {
-        try {
-          await fetchApi('/educations', {
-            method: 'POST',
-            body: JSON.stringify(data)
-          });
-        } catch (apiError) {
-          console.log('API 생성 실패, 로컬 데이터에 추가:', apiError);
-          // Add to local state as fallback
-          const newEducation = {
-            ...data,
-            id: Math.max(...educations.map(e => e.id), 0) + 1
-          } as HealthEducation;
-          setEducations(prev => [newEducation, ...prev]);
-        }
+        await fetchApi('/educations', {
+          method: 'POST',
+          body: JSON.stringify(data)
+        });
+        await loadEducations(); // Refresh the list
       } else if (selectedEducation) {
-        try {
-          await fetchApi(`/educations/${selectedEducation.id}`, {
-            method: 'PUT',
-            body: JSON.stringify(data)
-          });
-        } catch (apiError) {
-          console.log('API 수정 실패, 로컬 데이터 수정:', apiError);
-          // Update local state as fallback
-          setEducations(prev => prev.map(e => 
-            e.id === selectedEducation.id ? { ...e, ...data } : e
-          ));
-        }
+        await fetchApi(`/educations/${selectedEducation.id}`, {
+          method: 'PUT',
+          body: JSON.stringify(data)
+        });
+        // Update the item in the list
+        setEducations(prev => prev.map(e => 
+          e.id === selectedEducation.id ? { ...e, ...data } : e
+        ));
       }
       
       setShowForm(false);
-      if (formMode === 'create') {
-        await loadEducations(); // Refresh the list
-      }
     } catch (error) {
       console.error('보건교육 저장 실패:', error);
+      alert('보건교육 저장에 실패했습니다.');
     }
   };
 

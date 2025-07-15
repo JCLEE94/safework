@@ -1,5 +1,5 @@
 import React from 'react';
-import { X } from 'lucide-react';
+import { X, LogOut } from 'lucide-react';
 import * as Icons from 'lucide-react';
 import { MENU_ITEMS } from '../../constants';
 
@@ -8,9 +8,10 @@ interface SidebarProps {
   onClose: () => void;
   activeMenu: string;
   onMenuSelect: (menuId: string) => void;
+  onLogout?: () => void;
 }
 
-export function Sidebar({ isOpen, onClose, activeMenu, onMenuSelect }: SidebarProps) {
+export function Sidebar({ isOpen, onClose, activeMenu, onMenuSelect, onLogout }: SidebarProps) {
   return (
     <>
       {/* Mobile overlay */}
@@ -67,6 +68,16 @@ export function Sidebar({ isOpen, onClose, activeMenu, onMenuSelect }: SidebarPr
         </nav>
         
         <div className="absolute bottom-4 left-4 right-4">
+          {onLogout && (
+            <button
+              onClick={onLogout}
+              className="w-full flex items-center px-4 py-3 rounded-lg mb-3 transition-all duration-200 hover:bg-red-600 hover:shadow-md text-red-400 hover:text-white"
+            >
+              <LogOut size={20} className="flex-shrink-0" />
+              <span className="ml-3 font-medium">로그아웃</span>
+            </button>
+          )}
+          
           <div className="bg-gray-700 rounded-lg p-3">
             <p className="text-xs text-gray-400">건설업 보건관리 시스템</p>
             <p className="text-xs text-gray-500 mt-1">v1.0.0</p>

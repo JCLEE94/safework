@@ -62,53 +62,62 @@ export function Settings() {
     try {
       setLoading(true);
       
-      // 시스템 설정 더미 데이터
-      const systemData: SystemSettings = {
-        company_name: "안전건설 주식회사",
-        company_address: "서울특별시 강남구 테헤란로 123",
-        company_phone: "02-1234-5678",
-        company_registration_number: "123-45-67890",
-        business_type: "건설업",
-        total_employees: 150,
-        safety_manager: "이안전",
-        health_manager: "김보건",
-        representative_name: "박대표",
-        auto_backup_enabled: true,
-        backup_frequency: 'daily',
-        notification_enabled: true,
-        email_notifications: true,
-        sms_notifications: false,
-        report_language: 'korean',
-        data_retention_period: 36,
-        audit_log_enabled: true,
-        password_policy_enabled: true,
-        session_timeout: 120,
-        api_access_enabled: false,
-        maintenance_mode: false
-      };
-
-      // 사용자 설정 더미 데이터
-      const userData: UserSettings = {
-        user_name: "관리자",
-        user_email: "admin@company.com",
-        user_phone: "010-1234-5678",
-        user_role: "시스템 관리자",
-        department: "안전관리팀",
-        notification_preferences: {
-          accidents: true,
-          health_exams: true,
-          education_reminders: true,
-          report_deadlines: true,
-          system_updates: false
-        },
-        dashboard_layout: 'default',
-        theme: 'light',
-        language: 'korean',
-        timezone: 'Asia/Seoul'
-      };
-
-      setSystemSettings(systemData);
-      setUserSettings(userData);
+      // Try to fetch from API first
+      try {
+        const response = await fetchApi('/settings');
+        if (response?.system) {
+          setSystemSettings(response.system);
+        }
+        if (response?.user) {
+          setUserSettings(response.user);
+        }
+      } catch (apiError) {
+        console.log('API 연결 실패, 기본 설정 사용:', apiError);
+        // Set default settings for system
+        setSystemSettings({
+          company_name: "",
+          company_address: "",
+          company_phone: "",
+          company_registration_number: "",
+          business_type: "",
+          total_employees: 0,
+          safety_manager: "",
+          health_manager: "",
+          representative_name: "",
+          auto_backup_enabled: true,
+          backup_frequency: 'daily',
+          notification_enabled: true,
+          email_notifications: true,
+          sms_notifications: false,
+          report_language: 'korean',
+          data_retention_period: 36,
+          audit_log_enabled: true,
+          password_policy_enabled: true,
+          session_timeout: 120,
+          api_access_enabled: false,
+          maintenance_mode: false
+        });
+        
+        // Set default settings for user
+        setUserSettings({
+          user_name: "",
+          user_email: "",
+          user_phone: "",
+          user_role: "",
+          department: "",
+          notification_preferences: {
+            accidents: true,
+            health_exams: true,
+            education_reminders: true,
+            report_deadlines: true,
+            system_updates: false
+          },
+          dashboard_layout: 'default',
+          theme: 'light',
+          language: 'korean',
+          timezone: 'Asia/Seoul'
+        });
+      }
     } catch (error) {
       console.error('설정 조회 실패:', error);
     } finally {
@@ -120,25 +129,13 @@ export function Settings() {
     try {
       setSaving(true);
       
-      // Try to save to API first
-      try {
-        await fetchApi('/settings', {
-          method: 'PUT',
-          body: JSON.stringify({
-            system: systemSettings,
-            user: userSettings
-          })
-        });
-        console.log('API 설정 저장 성공');
-      } catch (apiError) {
-        console.log('API 저장 실패, 로컬 저장소 사용:', apiError);
-        // Save to localStorage as fallback
-        localStorage.setItem('healthSystem_settings', JSON.stringify({
+      await fetchApi('/settings', {
+        method: 'PUT',
+        body: JSON.stringify({
           system: systemSettings,
-          user: userSettings,
-          saved_at: new Date().toISOString()
-        }));
-      }
+          user: userSettings
+        })
+      });
       
       alert('설정이 저장되었습니다.');
     } catch (error) {
