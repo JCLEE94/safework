@@ -141,6 +141,6 @@ affinity: {}# Docker Registry configuration
 dockerRegistry:
   enabled: true
   server: registry.jclee.me
-  username: admin
-  password: bingogo1
-  email: admin@jclee.me
+  username: ""  # Set via --set or secret
+  password: ""  # Set via --set or secret
+  email: ""     # Set via --set or secret

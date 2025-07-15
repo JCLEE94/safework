@@ -729,15 +729,20 @@ async def list_documents_by_category(category_id: str):
     return {"documents": sorted(documents, key=lambda x: x["name"])}
 
 
-@router.get("/download/{category_id}/{filename}")
+@router.get("/download/{category_id}/{filename:path}")
 async def download_document(category_id: str, filename: str):
     """문서 다운로드"""
+    from urllib.parse import unquote
+    
+    # URL 디코딩
+    filename = unquote(filename)
+    
     if category_id not in DOCUMENT_CATEGORIES:
         raise HTTPException(status_code=404, detail="카테고리를 찾을 수 없습니다")
 
     file_path = DOCUMENT_BASE_DIR / DOCUMENT_CATEGORIES[category_id] / filename
     if not file_path.exists():
-        raise HTTPException(status_code=404, detail="문서를 찾을 수 없습니다")
+        raise HTTPException(status_code=404, detail=f"문서를 찾을 수 없습니다: {filename}")
 
     return FileResponse(
         path=str(file_path), filename=filename, media_type="application/octet-stream"
