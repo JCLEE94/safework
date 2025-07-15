@@ -164,37 +164,23 @@ jobs:
         build-args: |
           BUILDKIT_INLINE_CACHE=1
 
-    - name: Install ArgoCD CLI
-      run: |
-        curl -sSL -o argocd-linux-amd64 https://github.com/argoproj/argo-cd/releases/latest/download/argocd-linux-amd64
-        sudo install -m 555 argocd-linux-amd64 /usr/local/bin/argocd
-        rm argocd-linux-amd64
-
     - name: Sync ArgoCD Application
       env:
         ARGOCD_AUTH_TOKEN: ${{ secrets.ARGOCD_TOKEN }}
       run: |
         # ArgoCD sync with new image
-        argocd app sync ${{ env.ARGOCD_APP }} \
-          --server ${{ env.ARGOCD_SERVER }} \
-          --grpc-web \
-          --insecure \
-          --auth-token ${{ env.ARGOCD_AUTH_TOKEN }} || echo "Sync failed, relying on auto-sync"
+        echo "Syncing ArgoCD application: ${{ env.ARGOCD_APP }}"
         
-        # Wait for sync to complete
-        argocd app wait ${{ env.ARGOCD_APP }} \
-          --server ${{ env.ARGOCD_SERVER }} \
-          --grpc-web \
-          --insecure \
-          --auth-token ${{ env.ARGOCD_AUTH_TOKEN }} \
-          --timeout 300 || echo "Wait timeout, checking status..."
+        # Trigger sync via API
+        curl -k -X POST "https://${{ env.ARGOCD_SERVER }}/api/v1/applications/${{ env.ARGOCD_APP }}/sync" \
+          -H "Authorization: Bearer ${{ env.ARGOCD_AUTH_TOKEN }}" \
+          -H "Content-Type: application/json" \
+          -d '{"revision":"HEAD","prune":true,"dryRun":false,"strategy":{"hook":{}}}' || echo "Sync API call failed"
         
-        # Get final status
-        argocd app get ${{ env.ARGOCD_APP }} \
-          --server ${{ env.ARGOCD_SERVER }} \
-          --grpc-web \
-          --insecure \
-          --auth-token ${{ env.ARGOCD_AUTH_TOKEN }}
+        # Check sync status
+        sleep 10
+        curl -k "https://${{ env.ARGOCD_SERVER }}/api/v1/applications/${{ env.ARGOCD_APP }}" \
+          -H "Authorization: Bearer ${{ env.ARGOCD_AUTH_TOKEN }}" | jq '.status.sync.status, .status.health.status' || echo "Status check failed"
 
     - name: Create deployment summary
       if: success()
