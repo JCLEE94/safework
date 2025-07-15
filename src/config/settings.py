@@ -58,6 +58,16 @@ class Settings(BaseSettings):
     redis_port: int = Field(default=6379, env="REDIS_PORT")
     redis_password: str = Field(default="", env="REDIS_PASSWORD")
     redis_url: str = Field(default="", env="REDIS_URL")
+    
+    def __init__(self, **kwargs):
+        # Kubernetes가 자동으로 주입하는 환경변수 처리
+        if "REDIS_PORT" in os.environ:
+            redis_port_value = os.environ.get("REDIS_PORT", "6379")
+            # tcp://10.x.x.x:6379 형식을 6379로 변환
+            if redis_port_value.startswith("tcp://"):
+                redis_port_value = redis_port_value.split(":")[-1]
+            os.environ["REDIS_PORT"] = redis_port_value
+        super().__init__(**kwargs)
 
     # 성능 설정 - Magic numbers 제거
     rate_limit: int = Field(default=100, env="RATE_LIMIT")
