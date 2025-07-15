@@ -6,7 +6,7 @@ image:
   repository: registry.jclee.me/safework
   pullPolicy: IfNotPresent
   # Overrides the image tag whose default is the chart appVersion.
-  tag: "prod-20250715-56bc40a"
+  tag: "prod-20250715-047293d"
 
 imagePullSecrets: []
 #  - name: regcred
@@ -55,7 +55,7 @@ postgresql:
   name: postgres
   image:
     repository: postgres
-    tag: "prod-20250715-56bc40a"
+    tag: "prod-20250715-047293d"
   auth:
     database: health_management
     username: admin
@@ -77,7 +77,7 @@ redis:
   name: redis
   image:
     repository: redis
-    tag: "prod-20250715-56bc40a"
+    tag: "prod-20250715-047293d"
   auth:
     enabled: false
   persistence:
