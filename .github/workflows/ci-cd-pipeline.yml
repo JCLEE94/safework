@@ -169,8 +169,8 @@ jobs:
 
     - name: Update Helm Chart and ArgoCD
       run: |
-        # Update Helm Chart values.yaml with new image tag
-        sed -i "s|tag: \".*\"|tag: \"${{ steps.meta.outputs.date_tag }}\"|g" charts/safework/values.yaml
+        # Update only SafeWork image tag in values.yaml
+        sed -i "0,/tag: \".*\"/{s|tag: \".*\"|tag: \"${{ steps.meta.outputs.date_tag }}\"|}" charts/safework/values.yaml
         
         # Update Chart version (increment patch version)
         CURRENT_VERSION=$(grep '^version:' charts/safework/Chart.yaml | awk '{print $2}')
