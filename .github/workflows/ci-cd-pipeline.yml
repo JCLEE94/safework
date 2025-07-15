@@ -181,7 +181,7 @@ jobs:
         # Package and upload new chart version
         cd charts
         helm package safework/
-        curl --data-binary "@safework-${NEW_VERSION}.tgz" -u admin:bingogo1 https://charts.jclee.me/api/charts
+        curl --data-binary "@safework-${NEW_VERSION}.tgz" -u ${{ secrets.CHARTMUSEUM_USERNAME }}:${{ secrets.CHARTMUSEUM_PASSWORD }} https://charts.jclee.me/api/charts
         cd ..
         
         # Update kustomization.yaml for legacy support
