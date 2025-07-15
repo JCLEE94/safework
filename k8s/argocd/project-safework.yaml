@@ -1,0 +1,88 @@
+apiVersion: argoproj.io/v1alpha1
+kind: AppProject
+metadata:
+  name: safework-project
+  namespace: argocd
+  labels:
+    app: safework
+    project: safework
+  annotations:
+    argocd.argoproj.io/sync-wave: "0"
+spec:
+  description: SafeWork Pro - 건설업 보건관리 시스템
+  sourceRepos:
+    - 'https://github.com/JCLEE94/safework.git'
+    - 'https://github.com/JCLEE94/safework-gitops.git'  # GitOps 전용 저장소 (향후 사용)
+  destinations:
+    - namespace: safework
+      server: https://kubernetes.default.svc
+    - namespace: safework-dev
+      server: https://kubernetes.default.svc
+    - namespace: safework-staging
+      server: https://kubernetes.default.svc
+  clusterResourceWhitelist:
+    - group: ''
+      kind: Namespace
+    - group: 'networking.k8s.io'
+      kind: NetworkPolicy
+    - group: 'rbac.authorization.k8s.io'
+      kind: ClusterRole
+    - group: 'rbac.authorization.k8s.io'
+      kind: ClusterRoleBinding
+  namespaceResourceWhitelist:
+    - group: ''
+      kind: ConfigMap
+    - group: ''
+      kind: Secret
+    - group: ''
+      kind: Service
+    - group: ''
+      kind: ServiceAccount
+    - group: ''
+      kind: PersistentVolumeClaim
+    - group: 'apps'
+      kind: Deployment
+    - group: 'apps'
+      kind: StatefulSet
+    - group: 'apps'
+      kind: DaemonSet
+    - group: 'networking.k8s.io'
+      kind: Ingress
+    - group: 'rbac.authorization.k8s.io'
+      kind: Role
+    - group: 'rbac.authorization.k8s.io'
+      kind: RoleBinding
+    - group: 'batch'
+      kind: Job
+    - group: 'batch'
+      kind: CronJob
+    - group: 'policy'
+      kind: PodDisruptionBudget
+    - group: 'autoscaling'
+      kind: HorizontalPodAutoscaler
+  roles:
+    - name: safework-admin
+      description: Admin role for SafeWork project
+      policies:
+        - p, proj:safework-project:safework-admin, applications, *, safework-project/*, allow
+        - p, proj:safework-project:safework-admin, repositories, *, *, allow
+        - p, proj:safework-project:safework-admin, clusters, *, *, allow
+      groups:
+        - safework-admins
+    - name: safework-developer
+      description: Developer role for SafeWork project
+      policies:
+        - p, proj:safework-project:safework-developer, applications, get, safework-project/*, allow
+        - p, proj:safework-project:safework-developer, applications, sync, safework-project/*, allow
+        - p, proj:safework-project:safework-developer, repositories, get, *, allow
+      groups:
+        - safework-developers
+  orphanedResources:
+    warn: true
+    ignore:
+      - group: ''
+        kind: Secret
+        name: argocd-image-updater-secret
+      - group: ''
+        kind: ConfigMap
+        name: argocd-image-updater-config

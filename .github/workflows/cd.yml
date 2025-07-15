@@ -1,0 +1,82 @@
+name: CD Pipeline
+
+on:
+  push:
+    branches: [ main ]
+    paths:
+      - 'k8s/safework/**'
+      - 'charts/safework/**'
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: 'Target environment'
+        required: true
+        default: 'production'
+        type: choice
+        options:
+          - production
+          - development
+          - staging
+      sync_policy:
+        description: 'Sync policy'
+        required: true
+        default: 'automatic'
+        type: choice
+        options:
+          - automatic
+          - manual
+
+env:
+  ARGOCD_SERVER: argo.jclee.me
+  ARGOCD_APP_NAME: safework-gitops
+
+jobs:
+  deploy:
+    name: Deploy to Kubernetes
+    runs-on: ubuntu-latest
+    environment: ${{ github.event.inputs.environment || 'production' }}
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Install ArgoCD CLI
+      run: |
+        curl -sSL -o argocd-linux-amd64 https://github.com/argoproj/argo-cd/releases/latest/download/argocd-linux-amd64
+        sudo install -m 555 argocd-linux-amd64 /usr/local/bin/argocd
+        rm argocd-linux-amd64
+
+    - name: Login to ArgoCD
+      run: |
+        argocd login ${{ env.ARGOCD_SERVER }} \
+          --username ${{ secrets.ARGOCD_USERNAME }} \
+          --password ${{ secrets.ARGOCD_PASSWORD }} \
+          --insecure
+
+    - name: Sync ArgoCD Application
+      run: |
+        argocd app sync ${{ env.ARGOCD_APP_NAME }} --prune
+        argocd app wait ${{ env.ARGOCD_APP_NAME }} --health --timeout 600
+
+    - name: Get deployment status
+      run: |
+        argocd app get ${{ env.ARGOCD_APP_NAME }}
+        
+    - name: Verify deployment
+      run: |
+        echo "✅ Deployment completed successfully"
+        echo "Application: ${{ env.ARGOCD_APP_NAME }}"
+        echo "Environment: ${{ github.event.inputs.environment || 'production' }}"
+        echo "Production URL: https://safework.jclee.me"
+        echo "Health Check: https://safework.jclee.me/health"
+
+    - name: Notify deployment status
+      if: always()
+      run: |
+        if [ "${{ job.status }}" == "success" ]; then
+          echo "🎉 SafeWork deployment successful!"
+          curl -X POST https://safework.jclee.me/health || echo "Health check will be available shortly"
+        else
+          echo "❌ SafeWork deployment failed!"
+          echo "Check ArgoCD dashboard: https://argo.jclee.me/applications/safework"
+        fi

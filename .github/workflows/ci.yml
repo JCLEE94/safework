@@ -1,0 +1,255 @@
+name: CI Pipeline
+
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main ]
+
+env:
+  REGISTRY_URL: registry.jclee.me
+  IMAGE_NAME: safework
+  DOCKER_BUILDKIT: 1
+
+jobs:
+  test:
+    name: Test & Code Quality
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:15
+        env:
+          POSTGRES_USER: admin
+          POSTGRES_PASSWORD: password
+          POSTGRES_DB: health_management
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 5432:5432
+      
+      redis:
+        image: redis:7-alpine
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 6379:6379
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Set up Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: '3.11'
+
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install pytest pytest-asyncio pytest-cov pytest-timeout
+        pip install -r requirements.txt
+
+    - name: Set environment variables
+      run: |
+        echo "DATABASE_URL=postgresql://admin:password@localhost:5432/health_management" >> $GITHUB_ENV
+        echo "REDIS_URL=redis://localhost:6379/0" >> $GITHUB_ENV
+        echo "JWT_SECRET=test-secret-key" >> $GITHUB_ENV
+        echo "ENVIRONMENT=development" >> $GITHUB_ENV
+        echo "PYTHONPATH=${{ github.workspace }}" >> $GITHUB_ENV
+
+    - name: Wait for services
+      run: |
+        timeout 60 bash -c 'until nc -z localhost 5432; do sleep 1; done'
+        timeout 60 bash -c 'until nc -z localhost 6379; do sleep 1; done'
+
+    - name: Run tests with coverage
+      run: |
+        pytest tests/ -v --cov=src --cov-report=xml --cov-report=term --timeout=60 -x
+
+    - name: Upload coverage reports
+      uses: codecov/codecov-action@v4
+      if: always()
+      with:
+        file: ./coverage.xml
+        fail_ci_if_error: false
+
+  security:
+    name: Security Scan
+    runs-on: ubuntu-latest
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Build Docker image for scanning
+      run: |
+        docker build -t ${{ env.IMAGE_NAME }}:scan -f deployment/Dockerfile.prod .
+
+    - name: Run Trivy vulnerability scanner
+      uses: aquasecurity/trivy-action@master
+      with:
+        image-ref: '${{ env.IMAGE_NAME }}:scan'
+        format: 'sarif'
+        output: 'trivy-results.sarif'
+
+    - name: Upload Trivy scan results
+      uses: github/codeql-action/upload-sarif@v3
+      if: always()
+      with:
+        sarif_file: 'trivy-results.sarif'
+
+  build:
+    name: Build & Push Image
+    runs-on: ubuntu-latest
+    needs: [test, security]
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    outputs:
+      image-tag: ${{ steps.meta.outputs.date_tag }}
+      image-digest: ${{ steps.build.outputs.digest }}
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Set up Docker Buildx
+      uses: docker/setup-buildx-action@v3
+
+    - name: Login to Private Registry
+      uses: docker/login-action@v3
+      with:
+        registry: ${{ env.REGISTRY_URL }}
+        username: ${{ secrets.DOCKER_USERNAME }}
+        password: ${{ secrets.DOCKER_PASSWORD }}
+
+    - name: Generate image tags
+      id: meta
+      run: |
+        DATE=$(date +%Y%m%d)
+        SHORT_SHA=$(echo ${{ github.sha }} | cut -c1-7)
+        BUILD_NUMBER=${{ github.run_number }}
+        
+        echo "date_tag=prod-${DATE}-${SHORT_SHA}" >> $GITHUB_OUTPUT
+        echo "semantic_tag=1.${DATE}.${BUILD_NUMBER}" >> $GITHUB_OUTPUT
+        echo "latest_tag=latest" >> $GITHUB_OUTPUT
+
+    - name: Build and push Docker image
+      id: build
+      uses: docker/build-push-action@v5
+      with:
+        context: .
+        file: deployment/Dockerfile.prod
+        platforms: linux/amd64
+        push: true
+        tags: |
+          ${{ env.REGISTRY_URL }}/${{ env.IMAGE_NAME }}:${{ steps.meta.outputs.date_tag }}
+          ${{ env.REGISTRY_URL }}/${{ env.IMAGE_NAME }}:${{ steps.meta.outputs.semantic_tag }}
+          ${{ env.REGISTRY_URL }}/${{ env.IMAGE_NAME }}:${{ steps.meta.outputs.latest_tag }}
+        cache-from: type=registry,ref=${{ env.REGISTRY_URL }}/${{ env.IMAGE_NAME }}:cache
+        cache-to: type=registry,ref=${{ env.REGISTRY_URL }}/${{ env.IMAGE_NAME }}:cache,mode=max
+        build-args: |
+          BUILDKIT_INLINE_CACHE=1
+
+    - name: Generate deployment manifest
+      run: |
+        mkdir -p deployment-artifacts
+        cat > deployment-artifacts/deployment-info.json << EOF
+        {
+          "image": "${{ env.REGISTRY_URL }}/${{ env.IMAGE_NAME }}:${{ steps.meta.outputs.date_tag }}",
+          "tag": "${{ steps.meta.outputs.date_tag }}",
+          "commit": "${{ github.sha }}",
+          "build_number": "${{ github.run_number }}",
+          "timestamp": "$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+        }
+        EOF
+
+    - name: Upload deployment artifacts
+      uses: actions/upload-artifact@v4
+      with:
+        name: deployment-info
+        path: deployment-artifacts/
+
+  deploy:
+    name: Deploy via GitOps
+    runs-on: ubuntu-latest
+    needs: [build]
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    environment: production
+    
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+      with:
+        token: ${{ secrets.GITOPS_TOKEN }}
+        fetch-depth: 0
+
+    - name: Download deployment artifacts
+      uses: actions/download-artifact@v4
+      with:
+        name: deployment-info
+        path: deployment-artifacts/
+
+    - name: Update Kubernetes manifests
+      run: |
+        IMAGE_TAG="${{ needs.build.outputs.image-tag }}"
+        
+        # Update deployment manifest
+        sed -i "s|image: registry.jclee.me/safework:.*|image: registry.jclee.me/safework:${IMAGE_TAG}|g" k8s/safework/deployment.yaml
+        
+        # Update kustomization
+        sed -i "s|registry.jclee.me/safework:.*|registry.jclee.me/safework:${IMAGE_TAG}|g" k8s/safework/kustomization.yaml
+        
+        # Create deployment info
+        cat > k8s/safework/deployment-info.yaml << EOF
+        apiVersion: v1
+        kind: ConfigMap
+        metadata:
+          name: deployment-info
+          namespace: safework
+        data:
+          image: "registry.jclee.me/safework:${IMAGE_TAG}"
+          deployed-at: "$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+          commit: "${{ github.sha }}"
+          build-number: "${{ github.run_number }}"
+        EOF
+
+    - name: Commit and push changes
+      run: |
+        git config --local user.email "action@github.com"
+        git config --local user.name "GitHub Action"
+        
+        if git diff --quiet; then
+          echo "No changes to commit"
+        else
+          git add k8s/safework/deployment.yaml k8s/safework/kustomization.yaml k8s/safework/deployment-info.yaml
+          git commit -m "deploy: update image to ${{ needs.build.outputs.image-tag }}
+
+          - Image: registry.jclee.me/safework:${{ needs.build.outputs.image-tag }}
+          - Commit: ${{ github.sha }}
+          - Build: ${{ github.run_number }}
+          - Deployed by: GitHub Actions"
+          git push origin main
+        fi
+
+    - name: Trigger ArgoCD sync
+      run: |
+        # Install ArgoCD CLI
+        curl -sSL -o argocd-linux-amd64 https://github.com/argoproj/argo-cd/releases/latest/download/argocd-linux-amd64
+        sudo install -m 555 argocd-linux-amd64 /usr/local/bin/argocd
+        
+        # Login to ArgoCD
+        argocd login argo.jclee.me \
+          --username ${{ secrets.ARGOCD_USERNAME }} \
+          --password ${{ secrets.ARGOCD_PASSWORD }} \
+          --insecure || echo "ArgoCD login failed, will rely on auto-sync"
+        
+        # Sync application
+        argocd app sync safework-gitops || echo "Manual sync failed, auto-sync will handle deployment"
+        
+        echo "🚀 GitOps deployment triggered"
+        echo "Image: ${{ needs.build.outputs.image-tag }}"
+        echo "Monitor at: https://argo.jclee.me/applications/safework-gitops"
