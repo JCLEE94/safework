@@ -15,7 +15,7 @@ spec:
   project: default
   source:
     repoURL: https://charts.jclee.me
-    targetRevision: 0.1.0
+    targetRevision: 0.1.2
     chart: safework
     helm:
       releaseName: safework
