@@ -18,7 +18,7 @@ env:
   IMAGE_NAME: safework
   DOCKER_BUILDKIT: 1
   ARGOCD_SERVER: argo.jclee.me
-  ARGOCD_APP: safework-helm
+  ARGOCD_APP: argocd/safework
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
@@ -71,7 +71,7 @@ jobs:
 
     - name: Set environment variables
       run: |
-        echo "DATABASE_URL=postgresql://admin:password@localhost:5432/health_management" >> $GITHUB_ENV
+        echo "DATABASE_URL=postgresql+asyncpg://admin:password@localhost:5432/health_management" >> $GITHUB_ENV
         echo "REDIS_URL=redis://localhost:6379/0" >> $GITHUB_ENV
         echo "JWT_SECRET=test-secret-key" >> $GITHUB_ENV
         echo "ENVIRONMENT=development" >> $GITHUB_ENV
@@ -164,23 +164,43 @@ jobs:
         build-args: |
           BUILDKIT_INLINE_CACHE=1
 
+    - name: Install ArgoCD CLI
+      run: |
+        curl -sSL -o /tmp/argocd https://github.com/argoproj/argo-cd/releases/latest/download/argocd-linux-amd64
+        chmod +x /tmp/argocd
+        
     - name: Sync ArgoCD Application
       env:
         ARGOCD_AUTH_TOKEN: ${{ secrets.ARGOCD_TOKEN }}
       run: |
-        # ArgoCD sync with new image
+        # Login to ArgoCD
+        /tmp/argocd login ${{ env.ARGOCD_SERVER }} \
+          --auth-token ${{ env.ARGOCD_AUTH_TOKEN }} \
+          --insecure \
+          --grpc-web
+        
+        # Update image tag
+        echo "Updating image tag to: ${{ steps.meta.outputs.date_tag }}"
+        /tmp/argocd app set ${{ env.ARGOCD_APP }} \
+          --helm-set image.tag=${{ steps.meta.outputs.date_tag }} \
+          --insecure
+        
+        # Sync application
         echo "Syncing ArgoCD application: ${{ env.ARGOCD_APP }}"
+        /tmp/argocd app sync ${{ env.ARGOCD_APP }} \
+          --insecure \
+          --prune \
+          --timeout 300
         
-        # Trigger sync via API
-        curl -k -X POST "https://${{ env.ARGOCD_SERVER }}/api/v1/applications/${{ env.ARGOCD_APP }}/sync" \
-          -H "Authorization: Bearer ${{ env.ARGOCD_AUTH_TOKEN }}" \
-          -H "Content-Type: application/json" \
-          -d '{"revision":"HEAD","prune":true,"dryRun":false,"strategy":{"hook":{}}}' || echo "Sync API call failed"
+        # Wait for sync to complete
+        /tmp/argocd app wait ${{ env.ARGOCD_APP }} \
+          --sync \
+          --health \
+          --timeout 300 \
+          --insecure || echo "Application sync timeout"
         
-        # Check sync status
-        sleep 10
-        curl -k "https://${{ env.ARGOCD_SERVER }}/api/v1/applications/${{ env.ARGOCD_APP }}" \
-          -H "Authorization: Bearer ${{ env.ARGOCD_AUTH_TOKEN }}" | jq '.status.sync.status, .status.health.status' || echo "Status check failed"
+        # Get final status
+        /tmp/argocd app get ${{ env.ARGOCD_APP }} --insecure
 
     - name: Create deployment summary
       if: success()
