@@ -162,8 +162,8 @@ jobs:
           ${{ env.REGISTRY_URL }}/${{ env.IMAGE_NAME }}:${{ steps.meta.outputs.date_tag }}
           ${{ env.REGISTRY_URL }}/${{ env.IMAGE_NAME }}:${{ steps.meta.outputs.semantic_tag }}
           ${{ env.REGISTRY_URL }}/${{ env.IMAGE_NAME }}:${{ steps.meta.outputs.latest_tag }}
-        cache-from: type=gha
-        cache-to: type=gha,mode=max
+        cache-from: type=registry,ref=${{ env.REGISTRY_URL }}/${{ env.IMAGE_NAME }}:cache
+        cache-to: type=registry,ref=${{ env.REGISTRY_URL }}/${{ env.IMAGE_NAME }}:cache,mode=max
         build-args: |
           BUILDKIT_INLINE_CACHE=1
 
