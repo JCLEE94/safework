@@ -6,7 +6,7 @@ image:
   repository: registry.jclee.me/safework
   pullPolicy: IfNotPresent
   # Overrides the image tag whose default is the chart appVersion.
-  tag: "prod-20250715-7bb24fe"
+  tag: "prod-20250715-b2807cd"
 
 imagePullSecrets: []
 #  - name: regcred
