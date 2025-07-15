@@ -8,8 +8,8 @@ image:
   # Overrides the image tag whose default is the chart appVersion.
   tag: "prod-20250715-b2807cd"
 
-imagePullSecrets: []
-#  - name: regcred
+imagePullSecrets:
+  - name: regcred
 
 nameOverride: ""
 fullnameOverride: "safework"
@@ -139,4 +139,8 @@ tolerations: []
 
 affinity: {}# Docker Registry configuration
 dockerRegistry:
-  enabled: false
+  enabled: true
+  server: registry.jclee.me
+  username: admin
+  password: bingogo1
+  email: admin@jclee.me

@@ -13,6 +13,7 @@ spec:
   sourceRepos:
     - 'https://github.com/JCLEE94/safework.git'
     - 'https://github.com/JCLEE94/safework-gitops.git'  # GitOps 전용 저장소 (향후 사용)
+    - 'https://charts.jclee.me'  # Helm 차트 저장소
   destinations:
     - namespace: safework
       server: https://kubernetes.default.svc
