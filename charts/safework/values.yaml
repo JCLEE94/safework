@@ -55,7 +55,7 @@ postgresql:
   name: postgres
   image:
     repository: postgres
-    tag: "prod-20250715-be4cfbc"
+    tag: "15"
   auth:
     database: health_management
     username: admin
@@ -77,7 +77,7 @@ redis:
   name: redis
   image:
     repository: redis
-    tag: "prod-20250715-be4cfbc"
+    tag: "7-alpine"
   auth:
     enabled: false
   persistence:
