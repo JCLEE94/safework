@@ -8,8 +8,8 @@ image:
   # Overrides the image tag whose default is the chart appVersion.
   tag: "prod-20250715-56bc40a"
 
-imagePullSecrets:
-  - name: regcred
+imagePullSecrets: []
+#  - name: regcred
 
 nameOverride: ""
 fullnameOverride: "safework"
@@ -137,4 +137,6 @@ nodeSelector: {}
 
 tolerations: []
 
-affinity: {}
+affinity: {}# Docker Registry configuration
+dockerRegistry:
+  enabled: false
