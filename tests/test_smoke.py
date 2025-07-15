@@ -2,11 +2,13 @@
 Smoke tests for quick CI/CD validation
 These tests should complete within 30 seconds and verify core functionality
 """
+
 import pytest
 from httpx import AsyncClient
 from sqlalchemy.ext.asyncio import AsyncSession
 
 pytestmark = pytest.mark.smoke
+
 
 @pytest.mark.smoke
 @pytest.mark.asyncio
@@ -19,6 +21,7 @@ async def test_health_endpoint(async_client: AsyncClient):
     assert "timestamp" in data
     assert "version" in data
 
+
 @pytest.mark.smoke
 @pytest.mark.asyncio
 async def test_database_connection(async_session: AsyncSession):
@@ -26,12 +29,14 @@ async def test_database_connection(async_session: AsyncSession):
     result = await async_session.execute("SELECT 1")
     assert result.scalar() == 1
 
+
 @pytest.mark.smoke
-@pytest.mark.asyncio 
+@pytest.mark.asyncio
 async def test_api_docs(async_client: AsyncClient):
     """Test that API documentation is accessible"""
     response = await async_client.get("/api/docs")
     assert response.status_code == 200
+
 
 @pytest.mark.smoke
 @pytest.mark.critical
@@ -43,13 +48,13 @@ async def test_worker_api_basic(async_client: AsyncClient):
     assert response.status_code == 200
     assert isinstance(response.json(), list)
 
+
 @pytest.mark.smoke
 @pytest.mark.asyncio
 async def test_cors_headers(async_client: AsyncClient):
     """Test that CORS headers are properly set"""
     response = await async_client.options(
-        "/api/v1/workers/",
-        headers={"Origin": "http://localhost:5173"}
+        "/api/v1/workers/", headers={"Origin": "http://localhost:5173"}
     )
     assert response.status_code == 200
     assert "access-control-allow-origin" in response.headers

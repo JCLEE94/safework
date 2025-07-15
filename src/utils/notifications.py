@@ -3,7 +3,7 @@ Notification utilities for the SafeWork Pro system
 """
 
 import logging
-from typing import Dict, Any, Optional
+from typing import Any, Dict, Optional
 
 logger = logging.getLogger(__name__)
 
@@ -12,17 +12,17 @@ async def send_compliance_alert(
     category: str,
     message: str,
     level: str = "info",
-    details: Optional[Dict[str, Any]] = None
+    details: Optional[Dict[str, Any]] = None,
 ) -> bool:
     """
     Send compliance alert notification
-    
+
     Args:
         category: Alert category
         message: Alert message
         level: Alert level (info, warning, error)
         details: Additional details
-        
+
     Returns:
         bool: True if sent successfully
     """
@@ -37,20 +37,17 @@ async def send_compliance_alert(
 
 
 async def send_email_notification(
-    to: str,
-    subject: str,
-    body: str,
-    cc: Optional[str] = None
+    to: str, subject: str, body: str, cc: Optional[str] = None
 ) -> bool:
     """
     Send email notification
-    
+
     Args:
         to: Recipient email
         subject: Email subject
         body: Email body
         cc: CC recipients
-        
+
     Returns:
         bool: True if sent successfully
     """
@@ -63,17 +60,14 @@ async def send_email_notification(
         return False
 
 
-async def send_sms_notification(
-    phone: str,
-    message: str
-) -> bool:
+async def send_sms_notification(phone: str, message: str) -> bool:
     """
     Send SMS notification
-    
+
     Args:
         phone: Phone number
         message: SMS message
-        
+
     Returns:
         bool: True if sent successfully
     """
@@ -87,18 +81,16 @@ async def send_sms_notification(
 
 
 async def send_webhook_notification(
-    url: str,
-    payload: Dict[str, Any],
-    headers: Optional[Dict[str, str]] = None
+    url: str, payload: Dict[str, Any], headers: Optional[Dict[str, str]] = None
 ) -> bool:
     """
     Send webhook notification
-    
+
     Args:
         url: Webhook URL
         payload: Webhook payload
         headers: Optional headers
-        
+
     Returns:
         bool: True if sent successfully
     """

@@ -3,13 +3,14 @@
 Reporting and Dashboard Integration Tests
 """
 
-import pytest
 import asyncio
-from datetime import datetime, timedelta
-from fastapi.testclient import TestClient
-import json
-import pandas as pd
 import io
+import json
+from datetime import datetime, timedelta
+
+import pandas as pd
+import pytest
+from fastapi.testclient import TestClient
 
 from src.app import create_app
 
@@ -648,8 +649,8 @@ class TestReportingDashboard:
 
 if __name__ == "__main__":
     """인라인 테스트 실행 (Rust 스타일)"""
-    import sys
     import subprocess
+    import sys
     
     result = subprocess.run([
         sys.executable, "-m", "pytest", __file__, "-v", "--tb=short", "-x"

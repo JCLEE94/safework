@@ -3,13 +3,14 @@
 Real-time Monitoring and WebSocket Integration Tests
 """
 
-import pytest
 import asyncio
-from datetime import datetime, timedelta
-from fastapi.testclient import TestClient
-from fastapi.websockets import WebSocketDisconnect
 import json
 import random
+from datetime import datetime, timedelta
+
+import pytest
+from fastapi.testclient import TestClient
+from fastapi.websockets import WebSocketDisconnect
 
 from src.app import create_app
 
@@ -559,8 +560,8 @@ class TestRealTimeMonitoring:
 
 if __name__ == "__main__":
     """인라인 테스트 실행 (Rust 스타일)"""
-    import sys
     import subprocess
+    import sys
     
     result = subprocess.run([
         sys.executable, "-m", "pytest", __file__, "-v", "--tb=short", "-x"

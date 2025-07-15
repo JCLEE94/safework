@@ -3,39 +3,44 @@
 Legal Forms Management API Handlers
 """
 
-from fastapi import APIRouter, HTTPException, Depends, Query, UploadFile, File
-from fastapi.responses import FileResponse
-from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, func, and_, or_
-from sqlalchemy.orm import selectinload
-from typing import List, Optional, Dict, Any
 from datetime import datetime, timedelta
+from typing import Any, Dict, List, Optional
 from uuid import UUID
 
+from fastapi import APIRouter, Depends, File, HTTPException, Query, UploadFile
+from fastapi.responses import FileResponse
+from sqlalchemy import and_, func, or_, select
+from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import selectinload
+
 from ..config.database import get_db
-from ..models.legal_forms import (
-    LegalForm, LegalFormAttachment, LegalFormApproval, UnifiedDocument,
-    LegalFormStatus, LegalFormPriority, LegalFormCategory
-)
-from ..schemas.legal_forms import (
-    LegalFormCreate, LegalFormUpdate, LegalFormResponse, LegalFormListResponse,
-    LegalFormStatistics, DepartmentStatistics, LegalFormFilter,
-    PaginatedLegalFormResponse, UnifiedDocumentCreate, UnifiedDocumentUpdate,
-    UnifiedDocumentResponse, PaginatedDocumentResponse, DocumentCategoryStats
-)
+from ..models.legal_forms import (LegalForm, LegalFormApproval,
+                                  LegalFormAttachment, LegalFormCategory,
+                                  LegalFormPriority, LegalFormStatus,
+                                  UnifiedDocument)
+from ..schemas.legal_forms import (DepartmentStatistics, DocumentCategoryStats,
+                                   LegalFormCreate, LegalFormFilter,
+                                   LegalFormListResponse, LegalFormResponse,
+                                   LegalFormStatistics, LegalFormUpdate,
+                                   PaginatedDocumentResponse,
+                                   PaginatedLegalFormResponse,
+                                   UnifiedDocumentCreate,
+                                   UnifiedDocumentResponse,
+                                   UnifiedDocumentUpdate)
 
 router = APIRouter(prefix="/api/v1/legal-forms", tags=["legal-forms"])
 
 # 통합 문서 라우터
-unified_router = APIRouter(prefix="/api/v1/unified-documents", tags=["unified-documents"])
+unified_router = APIRouter(
+    prefix="/api/v1/unified-documents", tags=["unified-documents"]
+)
 
 
 # ===== 법정서식 API =====
 
+
 @router.get("/statistics", response_model=LegalFormStatistics)
-async def get_legal_form_statistics(
-    db: AsyncSession = Depends(get_db)
-):
+async def get_legal_form_statistics(db: AsyncSession = Depends(get_db)):
     """법정서식 통계 조회"""
     try:
         # 총 서식 수
@@ -44,35 +49,39 @@ async def get_legal_form_statistics(
 
         # 상태별 통계
         status_result = await db.execute(
-            select(LegalForm.status, func.count(LegalForm.id))
-            .group_by(LegalForm.status)
+            select(LegalForm.status, func.count(LegalForm.id)).group_by(
+                LegalForm.status
+            )
         )
         by_status = {row[0].value: row[1] for row in status_result.fetchall()}
 
         # 분류별 통계
         category_result = await db.execute(
-            select(LegalForm.category, func.count(LegalForm.id))
-            .group_by(LegalForm.category)
+            select(LegalForm.category, func.count(LegalForm.id)).group_by(
+                LegalForm.category
+            )
         )
         by_category = {row[0].value: row[1] for row in category_result.fetchall()}
 
         # 우선순위별 통계
         priority_result = await db.execute(
-            select(LegalForm.priority, func.count(LegalForm.id))
-            .group_by(LegalForm.priority)
+            select(LegalForm.priority, func.count(LegalForm.id)).group_by(
+                LegalForm.priority
+            )
         )
         by_priority = {row[0].value: row[1] for row in priority_result.fetchall()}
 
         # 마감 임박 서식 (7일 이내)
         upcoming_deadline = datetime.now() + timedelta(days=7)
         upcoming_result = await db.execute(
-            select(func.count(LegalForm.id))
-            .where(
+            select(func.count(LegalForm.id)).where(
                 and_(
                     LegalForm.submission_deadline.isnot(None),
                     LegalForm.submission_deadline <= upcoming_deadline,
                     LegalForm.submission_deadline > datetime.now(),
-                    LegalForm.status.in_([LegalFormStatus.DRAFT, LegalFormStatus.IN_PROGRESS])
+                    LegalForm.status.in_(
+                        [LegalFormStatus.DRAFT, LegalFormStatus.IN_PROGRESS]
+                    ),
                 )
             )
         )
@@ -80,29 +89,35 @@ async def get_legal_form_statistics(
 
         # 마감 초과 서식
         overdue_result = await db.execute(
-            select(func.count(LegalForm.id))
-            .where(
+            select(func.count(LegalForm.id)).where(
                 and_(
                     LegalForm.submission_deadline.isnot(None),
                     LegalForm.submission_deadline < datetime.now(),
-                    LegalForm.status.in_([LegalFormStatus.DRAFT, LegalFormStatus.IN_PROGRESS])
+                    LegalForm.status.in_(
+                        [LegalFormStatus.DRAFT, LegalFormStatus.IN_PROGRESS]
+                    ),
                 )
             )
         )
         overdue_forms = overdue_result.scalar() or 0
 
         # 완료율 계산
-        completed_count = by_status.get('completed', 0) + by_status.get('approved', 0)
-        completion_rate = (completed_count / total_forms * 100) if total_forms > 0 else 0
+        completed_count = by_status.get("completed", 0) + by_status.get("approved", 0)
+        completion_rate = (
+            (completed_count / total_forms * 100) if total_forms > 0 else 0
+        )
 
         # 이번 달 제출 수
-        month_start = datetime.now().replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+        month_start = datetime.now().replace(
+            day=1, hour=0, minute=0, second=0, microsecond=0
+        )
         monthly_result = await db.execute(
-            select(func.count(LegalForm.id))
-            .where(
+            select(func.count(LegalForm.id)).where(
                 and_(
                     LegalForm.submitted_at >= month_start,
-                    LegalForm.status.in_([LegalFormStatus.SUBMITTED, LegalFormStatus.APPROVED])
+                    LegalForm.status.in_(
+                        [LegalFormStatus.SUBMITTED, LegalFormStatus.APPROVED]
+                    ),
                 )
             )
         )
@@ -116,44 +131,50 @@ async def get_legal_form_statistics(
             upcoming_deadlines=upcoming_deadlines,
             overdue_forms=overdue_forms,
             completion_rate=completion_rate,
-            monthly_submissions=monthly_submissions
+            monthly_submissions=monthly_submissions,
         )
 
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"통계 조회 중 오류가 발생했습니다: {str(e)}")
+        raise HTTPException(
+            status_code=500, detail=f"통계 조회 중 오류가 발생했습니다: {str(e)}"
+        )
 
 
 @router.get("/department-stats", response_model=List[DepartmentStatistics])
-async def get_department_statistics(
-    db: AsyncSession = Depends(get_db)
-):
+async def get_department_statistics(db: AsyncSession = Depends(get_db)):
     """부서별 법정서식 통계 조회"""
     try:
         # 부서별 통계 계산
         dept_result = await db.execute(
             select(
                 LegalForm.department,
-                func.count(LegalForm.id).label('total'),
+                func.count(LegalForm.id).label("total"),
                 func.count(
-                    func.case(
-                        (LegalForm.status == LegalFormStatus.IN_PROGRESS, 1)
-                    )
-                ).label('pending'),
+                    func.case((LegalForm.status == LegalFormStatus.IN_PROGRESS, 1))
+                ).label("pending"),
                 func.count(
                     func.case(
                         (
                             and_(
                                 LegalForm.submission_deadline < datetime.now(),
-                                LegalForm.status.in_([LegalFormStatus.DRAFT, LegalFormStatus.IN_PROGRESS])
-                            ), 1
+                                LegalForm.status.in_(
+                                    [LegalFormStatus.DRAFT, LegalFormStatus.IN_PROGRESS]
+                                ),
+                            ),
+                            1,
                         )
                     )
-                ).label('overdue'),
+                ).label("overdue"),
                 func.count(
                     func.case(
-                        (LegalForm.status.in_([LegalFormStatus.COMPLETED, LegalFormStatus.APPROVED]), 1)
+                        (
+                            LegalForm.status.in_(
+                                [LegalFormStatus.COMPLETED, LegalFormStatus.APPROVED]
+                            ),
+                            1,
+                        )
                     )
-                ).label('completed')
+                ).label("completed"),
             )
             .where(LegalForm.department.isnot(None))
             .group_by(LegalForm.department)
@@ -163,19 +184,23 @@ async def get_department_statistics(
         for row in dept_result.fetchall():
             dept, total, pending, overdue, completed = row
             completion_rate = (completed / total * 100) if total > 0 else 0
-            
-            department_stats.append(DepartmentStatistics(
-                department=dept,
-                total_forms=total,
-                pending_forms=pending,
-                overdue_forms=overdue,
-                completion_rate=completion_rate
-            ))
+
+            department_stats.append(
+                DepartmentStatistics(
+                    department=dept,
+                    total_forms=total,
+                    pending_forms=pending,
+                    overdue_forms=overdue,
+                    completion_rate=completion_rate,
+                )
+            )
 
         return department_stats
 
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"부서별 통계 조회 중 오류가 발생했습니다: {str(e)}")
+        raise HTTPException(
+            status_code=500, detail=f"부서별 통계 조회 중 오류가 발생했습니다: {str(e)}"
+        )
 
 
 @router.get("/", response_model=PaginatedLegalFormResponse)
@@ -187,7 +212,7 @@ async def get_legal_forms(
     priority: Optional[LegalFormPriority] = Query(None, description="우선순위"),
     department: Optional[str] = Query(None, description="담당 부서"),
     search: Optional[str] = Query(None, description="검색어"),
-    db: AsyncSession = Depends(get_db)
+    db: AsyncSession = Depends(get_db),
 ):
     """법정서식 목록 조회 (페이지네이션)"""
     try:
@@ -197,7 +222,7 @@ async def get_legal_forms(
 
         # 필터 조건 적용
         conditions = []
-        
+
         if category:
             conditions.append(LegalForm.category == category)
         if status:
@@ -211,7 +236,7 @@ async def get_legal_forms(
                 LegalForm.form_name.ilike(f"%{search}%"),
                 LegalForm.form_name_korean.ilike(f"%{search}%"),
                 LegalForm.form_code.ilike(f"%{search}%"),
-                LegalForm.description.ilike(f"%{search}%")
+                LegalForm.description.ilike(f"%{search}%"),
             )
             conditions.append(search_condition)
 
@@ -236,21 +261,19 @@ async def get_legal_forms(
         pages = (total + size - 1) // size
 
         return PaginatedLegalFormResponse(
-            items=items,
-            total=total,
-            page=page,
-            size=size,
-            pages=pages
+            items=items, total=total, page=page, size=size, pages=pages
         )
 
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"법정서식 목록 조회 중 오류가 발생했습니다: {str(e)}")
+        raise HTTPException(
+            status_code=500,
+            detail=f"법정서식 목록 조회 중 오류가 발생했습니다: {str(e)}",
+        )
 
 
 @router.post("/", response_model=LegalFormResponse)
 async def create_legal_form(
-    form_data: LegalFormCreate,
-    db: AsyncSession = Depends(get_db)
+    form_data: LegalFormCreate, db: AsyncSession = Depends(get_db)
 ):
     """법정서식 생성"""
     try:
@@ -274,7 +297,7 @@ async def create_legal_form(
             regulatory_basis=form_data.regulatory_basis,
             template_path=form_data.template_path,
             priority=form_data.priority,
-            assignee=form_data.assignee
+            assignee=form_data.assignee,
         )
 
         db.add(new_form)
@@ -284,7 +307,10 @@ async def create_legal_form(
         # 관계 데이터와 함께 조회
         result = await db.execute(
             select(LegalForm)
-            .options(selectinload(LegalForm.attachments), selectinload(LegalForm.approval_history))
+            .options(
+                selectinload(LegalForm.attachments),
+                selectinload(LegalForm.approval_history),
+            )
             .where(LegalForm.id == new_form.id)
         )
         created_form = result.scalar_one()
@@ -295,23 +321,25 @@ async def create_legal_form(
         raise
     except Exception as e:
         await db.rollback()
-        raise HTTPException(status_code=500, detail=f"법정서식 생성 중 오류가 발생했습니다: {str(e)}")
+        raise HTTPException(
+            status_code=500, detail=f"법정서식 생성 중 오류가 발생했습니다: {str(e)}"
+        )
 
 
 @router.get("/{form_id}", response_model=LegalFormResponse)
-async def get_legal_form(
-    form_id: UUID,
-    db: AsyncSession = Depends(get_db)
-):
+async def get_legal_form(form_id: UUID, db: AsyncSession = Depends(get_db)):
     """법정서식 상세 조회"""
     try:
         result = await db.execute(
             select(LegalForm)
-            .options(selectinload(LegalForm.attachments), selectinload(LegalForm.approval_history))
+            .options(
+                selectinload(LegalForm.attachments),
+                selectinload(LegalForm.approval_history),
+            )
             .where(LegalForm.id == form_id)
         )
         form = result.scalar_one_or_none()
-        
+
         if not form:
             raise HTTPException(status_code=404, detail="법정서식을 찾을 수 없습니다")
 
@@ -320,29 +348,31 @@ async def get_legal_form(
     except HTTPException:
         raise
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"법정서식 조회 중 오류가 발생했습니다: {str(e)}")
+        raise HTTPException(
+            status_code=500, detail=f"법정서식 조회 중 오류가 발생했습니다: {str(e)}"
+        )
 
 
 @router.put("/{form_id}", response_model=LegalFormResponse)
 async def update_legal_form(
-    form_id: UUID,
-    form_data: LegalFormUpdate,
-    db: AsyncSession = Depends(get_db)
+    form_id: UUID, form_data: LegalFormUpdate, db: AsyncSession = Depends(get_db)
 ):
     """법정서식 수정"""
     try:
         result = await db.execute(select(LegalForm).where(LegalForm.id == form_id))
         form = result.scalar_one_or_none()
-        
+
         if not form:
             raise HTTPException(status_code=404, detail="법정서식을 찾을 수 없습니다")
 
         # 업데이트할 필드만 적용
         update_data = form_data.model_dump(exclude_unset=True)
-        
+
         # required_fields는 특별 처리
-        if 'required_fields' in update_data and update_data['required_fields']:
-            update_data['required_fields'] = [field.model_dump() for field in form_data.required_fields]
+        if "required_fields" in update_data and update_data["required_fields"]:
+            update_data["required_fields"] = [
+                field.model_dump() for field in form_data.required_fields
+            ]
 
         for field, value in update_data.items():
             setattr(form, field, value)
@@ -356,7 +386,10 @@ async def update_legal_form(
         # 관계 데이터와 함께 조회
         updated_result = await db.execute(
             select(LegalForm)
-            .options(selectinload(LegalForm.attachments), selectinload(LegalForm.approval_history))
+            .options(
+                selectinload(LegalForm.attachments),
+                selectinload(LegalForm.approval_history),
+            )
             .where(LegalForm.id == form_id)
         )
         updated_form = updated_result.scalar_one()
@@ -367,19 +400,18 @@ async def update_legal_form(
         raise
     except Exception as e:
         await db.rollback()
-        raise HTTPException(status_code=500, detail=f"법정서식 수정 중 오류가 발생했습니다: {str(e)}")
+        raise HTTPException(
+            status_code=500, detail=f"법정서식 수정 중 오류가 발생했습니다: {str(e)}"
+        )
 
 
 @router.delete("/{form_id}")
-async def delete_legal_form(
-    form_id: UUID,
-    db: AsyncSession = Depends(get_db)
-):
+async def delete_legal_form(form_id: UUID, db: AsyncSession = Depends(get_db)):
     """법정서식 삭제"""
     try:
         result = await db.execute(select(LegalForm).where(LegalForm.id == form_id))
         form = result.scalar_one_or_none()
-        
+
         if not form:
             raise HTTPException(status_code=404, detail="법정서식을 찾을 수 없습니다")
 
@@ -392,10 +424,13 @@ async def delete_legal_form(
         raise
     except Exception as e:
         await db.rollback()
-        raise HTTPException(status_code=500, detail=f"법정서식 삭제 중 오류가 발생했습니다: {str(e)}")
+        raise HTTPException(
+            status_code=500, detail=f"법정서식 삭제 중 오류가 발생했습니다: {str(e)}"
+        )
 
 
 # ===== 통합 문서 API =====
+
 
 @unified_router.get("/", response_model=PaginatedDocumentResponse)
 async def get_unified_documents(
@@ -404,7 +439,7 @@ async def get_unified_documents(
     category: Optional[str] = Query(None, description="문서 카테고리"),
     doc_type: Optional[str] = Query(None, description="문서 타입"),
     search: Optional[str] = Query(None, description="검색어"),
-    db: AsyncSession = Depends(get_db)
+    db: AsyncSession = Depends(get_db),
 ):
     """통합 문서 목록 조회"""
     try:
@@ -414,7 +449,7 @@ async def get_unified_documents(
 
         # 필터 조건 적용
         conditions = []
-        
+
         if category:
             conditions.append(UnifiedDocument.category == category)
         if doc_type:
@@ -422,7 +457,7 @@ async def get_unified_documents(
         if search:
             search_condition = or_(
                 UnifiedDocument.title.ilike(f"%{search}%"),
-                UnifiedDocument.description.ilike(f"%{search}%")
+                UnifiedDocument.description.ilike(f"%{search}%"),
             )
             conditions.append(search_condition)
 
@@ -436,7 +471,9 @@ async def get_unified_documents(
 
         # 페이지네이션 적용
         offset = (page - 1) * size
-        query = query.offset(offset).limit(size).order_by(UnifiedDocument.created_at.desc())
+        query = (
+            query.offset(offset).limit(size).order_by(UnifiedDocument.created_at.desc())
+        )
 
         # 데이터 조회
         result = await db.execute(query)
@@ -447,21 +484,19 @@ async def get_unified_documents(
         pages = (total + size - 1) // size
 
         return PaginatedDocumentResponse(
-            items=items,
-            total=total,
-            page=page,
-            size=size,
-            pages=pages
+            items=items, total=total, page=page, size=size, pages=pages
         )
 
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"통합 문서 목록 조회 중 오류가 발생했습니다: {str(e)}")
+        raise HTTPException(
+            status_code=500,
+            detail=f"통합 문서 목록 조회 중 오류가 발생했습니다: {str(e)}",
+        )
 
 
 @unified_router.post("/", response_model=UnifiedDocumentResponse)
 async def create_unified_document(
-    document_data: UnifiedDocumentCreate,
-    db: AsyncSession = Depends(get_db)
+    document_data: UnifiedDocumentCreate, db: AsyncSession = Depends(get_db)
 ):
     """통합 문서 생성"""
     try:
@@ -470,14 +505,14 @@ async def create_unified_document(
             type=document_data.type,
             category=document_data.category,
             file_path="",  # 실제 파일 업로드 시 설정
-            file_size=0,   # 실제 파일 업로드 시 설정
+            file_size=0,  # 실제 파일 업로드 시 설정
             mime_type="application/octet-stream",  # 실제 파일 업로드 시 설정
             description=document_data.description,
             tags=document_data.tags,
             created_by=current_user_id,  # 실제 사용자 정보로 대체
             is_template=document_data.is_template,
             access_level=document_data.access_level,
-            metadata=document_data.metadata
+            metadata=document_data.metadata,
         )
 
         db.add(new_document)
@@ -488,37 +523,41 @@ async def create_unified_document(
 
     except Exception as e:
         await db.rollback()
-        raise HTTPException(status_code=500, detail=f"통합 문서 생성 중 오류가 발생했습니다: {str(e)}")
+        raise HTTPException(
+            status_code=500, detail=f"통합 문서 생성 중 오류가 발생했습니다: {str(e)}"
+        )
 
 
 @unified_router.get("/categories/stats", response_model=List[DocumentCategoryStats])
-async def get_category_statistics(
-    db: AsyncSession = Depends(get_db)
-):
+async def get_category_statistics(db: AsyncSession = Depends(get_db)):
     """문서 카테고리별 통계 조회"""
     try:
         result = await db.execute(
             select(
                 UnifiedDocument.category,
-                func.count(UnifiedDocument.id).label('total'),
-                func.count(
-                    func.case((UnifiedDocument.is_template == True, 1))
-                ).label('templates')
-            )
-            .group_by(UnifiedDocument.category)
+                func.count(UnifiedDocument.id).label("total"),
+                func.count(func.case((UnifiedDocument.is_template == True, 1))).label(
+                    "templates"
+                ),
+            ).group_by(UnifiedDocument.category)
         )
 
         stats = []
         for row in result.fetchall():
             category, total, templates = row
-            stats.append(DocumentCategoryStats(
-                category_id=category,
-                category_name=category,
-                count=total,
-                templates=templates
-            ))
+            stats.append(
+                DocumentCategoryStats(
+                    category_id=category,
+                    category_name=category,
+                    count=total,
+                    templates=templates,
+                )
+            )
 
         return stats
 
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"카테고리 통계 조회 중 오류가 발생했습니다: {str(e)}")
+        raise HTTPException(
+            status_code=500,
+            detail=f"카테고리 통계 조회 중 오류가 발생했습니다: {str(e)}",
+        )

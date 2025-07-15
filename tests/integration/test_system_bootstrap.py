@@ -3,18 +3,19 @@
 System Bootstrap and Health Check Integration Tests
 """
 
-import pytest
 import asyncio
-import docker
 import time
-from fastapi.testclient import TestClient
-from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import text
+
+import docker
+import pytest
 import redis.asyncio as redis
+from fastapi.testclient import TestClient
+from sqlalchemy import text
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.app import create_app
-from src.config.settings import get_settings
 from src.config.database import get_db, init_db
+from src.config.settings import get_settings
 
 
 class TestSystemBootstrap:
@@ -67,7 +68,7 @@ class TestSystemBootstrap:
     async def _wait_for_containers(self, containers, timeout=30):
         """컨테이너 준비 대기"""
         import psycopg2
-        
+
         # PostgreSQL 준비 대기
         for _ in range(timeout):
             try:
@@ -222,9 +223,9 @@ class TestSystemBootstrap:
 
 if __name__ == "__main__":
     """인라인 테스트 실행 (Rust 스타일)"""
-    import sys
     import subprocess
-    
+    import sys
+
     # 현재 파일의 테스트만 실행
     result = subprocess.run([
         sys.executable, "-m", "pytest", __file__, "-v", "--tb=short"

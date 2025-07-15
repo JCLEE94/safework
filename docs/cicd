@@ -1,0 +1,66 @@
+
+## Docker Registry
+```
+URL: https://registry.jclee.me
+Username: admin
+Password: bingogo1
+Basic Auth Header: Authorization: Basic YWRtaW46YmluZ29nbzE=
+Bearer Token (JSON): eyJ1c2VybmFtZSI6ImFkbWluIiwicGFzc3dvcmQiOiJiaW5nb2dvMSJ9
+API Endpoint: https://registry.jclee.me/v2/
+```
+
+## ChartMuseum
+```
+URL: https://charts.jclee.me
+Username: admin
+Password: bingogo1
+Basic Auth Header: Authorization: Basic YWRtaW46YmluZ29nbzE=
+```
+���� �� CICD�籸�� 
+# Helm ����
+export HELM_REPO_USERNAME=admin
+export HELM_REPO_PASSWORD=bingogo1
+
+# Docker Registry (���� Ȱ��ȭ ��)
+export DOCKER_REGISTRY_USER=admin
+export DOCKER_REGISTRY_PASS=bingogo1
+
+## Cloudflare DNS
+```
+API Token: xCex7Ii4hdamVzfn5sjnImyiZyGzZaWDf0WRzHP5
+����: Zone.Zone:Read, Zone.DNS:Edit
+�뵵: Let's Encrypt DNS-01 ç����
+```
+
+## ���� �׽�Ʈ ���ɾ�
+```bash
+# Registry ���� Ȯ�� (���� �ʿ�)
+curl -s -u admin:bingogo1 https://registry.jclee.me/v2/_catalog | jq .
+# �Ǵ�
+curl -s -H "Authorization: Basic YWRtaW46YmluZ29nbzE=" https://registry.jclee.me/v2/_catalog | jq .
+
+# ChartMuseum ���� �׽�Ʈ
+curl -s -u admin:bingogo1 https://charts.jclee.me/api/charts | jq .
+# �Ǵ�
+curl -s -H "Authorization: Basic YWRtaW46YmluZ29nbzE=" https://charts.jclee.me/api/charts | jq .
+
+# NPMplus ���� Ȯ��
+curl -s https://npm.jclee.me/api/ | jq .
+
+# Docker �α���
+docker login registry.jclee.me -u admin -p bingogo1
+```
+
+## ȯ�� ���� ����
+```bash
+# Helm ����
+export HELM_REPO_USERNAME=admin
+export HELM_REPO_PASSWORD=bingogo1
+
+# Docker Registry (���� Ȱ��ȭ ��)
+export DOCKER_REGISTRY_USER=admin
+export DOCKER_REGISTRY_PASS=bingogo1
+
+# ChartMuseum API
+export CHARTMUSEUM_AUTH="Authorization: Basic YWRtaW46YmluZ29nbzE="
+```

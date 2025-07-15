@@ -3,17 +3,18 @@
 Worker Management Lifecycle Integration Tests
 """
 
-import pytest
 import asyncio
 from datetime import datetime, timedelta
+
+import pytest
 from fastapi.testclient import TestClient
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.app import create_app
-from src.models.worker import Worker
-from src.models.health import HealthExam
-from src.schemas.worker import WorkerCreate, WorkerUpdate
 from src.config.database import get_db
+from src.models.health import HealthExam
+from src.models.worker import Worker
+from src.schemas.worker import WorkerCreate, WorkerUpdate
 
 
 class TestWorkerManagementLifecycle:
@@ -414,8 +415,8 @@ class TestWorkerManagementLifecycle:
 
 if __name__ == "__main__":
     """인라인 테스트 실행 (Rust 스타일)"""
-    import sys
     import subprocess
+    import sys
     
     result = subprocess.run([
         sys.executable, "-m", "pytest", __file__, "-v", "--tb=short", "-x"

@@ -4,16 +4,17 @@ CI/CD Pipeline Integration Tests
 Tests the SafeWork Pro CI/CD pipeline components in isolation and integration
 """
 
-import os
-import sys
-import subprocess
 import json
-import yaml
+import os
+import subprocess
+import sys
 import time
-import requests
-from typing import Dict, List, Optional, Tuple
 from dataclasses import dataclass
 from pathlib import Path
+from typing import Dict, List, Optional, Tuple
+
+import requests
+import yaml
 
 
 @dataclass

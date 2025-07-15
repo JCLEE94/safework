@@ -1,27 +1,43 @@
 from datetime import datetime
-from typing import Optional, List, Literal
+from typing import List, Literal, Optional
+
 from pydantic import BaseModel, Field
 
 
 class WorkEnvironmentBase(BaseModel):
     measurement_date: datetime = Field(..., description="측정일")
     location: str = Field(..., description="측정위치")
-    measurement_type: Literal["소음", "분진", "화학물질", "유기용제", "금속", "산알칼리", "가스", "방사선", "고온", "진동", "조도", "기타"] = Field(..., description="측정항목")
+    measurement_type: Literal[
+        "소음",
+        "분진",
+        "화학물질",
+        "유기용제",
+        "금속",
+        "산알칼리",
+        "가스",
+        "방사선",
+        "고온",
+        "진동",
+        "조도",
+        "기타",
+    ] = Field(..., description="측정항목")
     measurement_agency: str = Field(..., description="측정기관")
-    
+
     measured_value: Optional[float] = Field(None, description="측정값")
     measurement_unit: Optional[str] = Field(None, description="측정단위")
     standard_value: Optional[float] = Field(None, description="기준값")
     standard_unit: Optional[str] = Field(None, description="기준단위")
-    
-    result: Literal["적합", "부적합", "주의", "측정중"] = Field(..., description="측정결과")
+
+    result: Literal["적합", "부적합", "주의", "측정중"] = Field(
+        ..., description="측정결과"
+    )
     improvement_measures: Optional[str] = Field(None, description="개선조치")
-    re_measurement_required: Optional[str] = Field('N', description="재측정필요")
+    re_measurement_required: Optional[str] = Field("N", description="재측정필요")
     re_measurement_date: Optional[datetime] = Field(None, description="재측정일")
-    
+
     report_number: Optional[str] = Field(None, description="보고서번호")
     report_file_path: Optional[str] = Field(None, description="보고서파일")
-    
+
     notes: Optional[str] = Field(None, description="비고")
 
 

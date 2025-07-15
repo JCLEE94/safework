@@ -8,9 +8,11 @@ from sqlalchemy import text
 
 async def create_users_table(db):
     """사용자 관련 테이블 생성"""
-    
+
     # 1. users 테이블 생성
-    await db.execute(text("""
+    await db.execute(
+        text(
+            """
         CREATE TABLE IF NOT EXISTS users (
             id SERIAL PRIMARY KEY,
             email VARCHAR(255) UNIQUE NOT NULL,
@@ -41,10 +43,14 @@ async def create_users_table(db):
             language VARCHAR(10) DEFAULT 'ko',
             timezone VARCHAR(50) DEFAULT 'Asia/Seoul'
         )
-    """))
-    
+    """
+        )
+    )
+
     # 2. user_sessions 테이블 생성
-    await db.execute(text("""
+    await db.execute(
+        text(
+            """
         CREATE TABLE IF NOT EXISTS user_sessions (
             id SERIAL PRIMARY KEY,
             user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
@@ -65,10 +71,14 @@ async def create_users_table(db):
             is_active BOOLEAN DEFAULT TRUE,
             logout_at TIMESTAMP WITH TIME ZONE
         )
-    """))
-    
+    """
+        )
+    )
+
     # 3. user_login_history 테이블 생성
-    await db.execute(text("""
+    await db.execute(
+        text(
+            """
         CREATE TABLE IF NOT EXISTS user_login_history (
             id SERIAL PRIMARY KEY,
             user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
@@ -88,19 +98,41 @@ async def create_users_table(db):
             success BOOLEAN DEFAULT TRUE,
             failure_reason VARCHAR(200)
         )
-    """))
-    
+    """
+        )
+    )
+
     # 4. 인덱스 생성
     await db.execute(text("CREATE INDEX IF NOT EXISTS idx_users_email ON users(email)"))
     await db.execute(text("CREATE INDEX IF NOT EXISTS idx_users_role ON users(role)"))
-    await db.execute(text("CREATE INDEX IF NOT EXISTS idx_users_active ON users(is_active)"))
-    await db.execute(text("CREATE INDEX IF NOT EXISTS idx_sessions_user_id ON user_sessions(user_id)"))
-    await db.execute(text("CREATE INDEX IF NOT EXISTS idx_sessions_token ON user_sessions(session_token)"))
-    await db.execute(text("CREATE INDEX IF NOT EXISTS idx_login_history_user_id ON user_login_history(user_id)"))
-    await db.execute(text("CREATE INDEX IF NOT EXISTS idx_login_history_time ON user_login_history(login_time)"))
-    
+    await db.execute(
+        text("CREATE INDEX IF NOT EXISTS idx_users_active ON users(is_active)")
+    )
+    await db.execute(
+        text(
+            "CREATE INDEX IF NOT EXISTS idx_sessions_user_id ON user_sessions(user_id)"
+        )
+    )
+    await db.execute(
+        text(
+            "CREATE INDEX IF NOT EXISTS idx_sessions_token ON user_sessions(session_token)"
+        )
+    )
+    await db.execute(
+        text(
+            "CREATE INDEX IF NOT EXISTS idx_login_history_user_id ON user_login_history(user_id)"
+        )
+    )
+    await db.execute(
+        text(
+            "CREATE INDEX IF NOT EXISTS idx_login_history_time ON user_login_history(login_time)"
+        )
+    )
+
     # 5. 기본 관리자 계정 생성
-    await db.execute(text("""
+    await db.execute(
+        text(
+            """
         INSERT INTO users (email, password_hash, name, role, is_active, is_verified, created_at)
         VALUES (
             'admin@safework.local',
@@ -112,8 +144,10 @@ async def create_users_table(db):
             NOW()
         )
         ON CONFLICT (email) DO NOTHING
-    """))
-    
+    """
+        )
+    )
+
     await db.commit()
     print("✅ 사용자 테이블 생성 완료")
 

@@ -3,35 +3,36 @@ API 엔드포인트 테스트
 API endpoint tests
 """
 
+import json
+from datetime import date, datetime
+
 import pytest
 from httpx import AsyncClient
-from datetime import datetime, date
-import json
 
 
 class TestWorkerAPI:
     """근로자 API 테스트"""
-    
+
     async def test_get_workers_list(self, client: AsyncClient):
         """근로자 목록 조회 테스트"""
         response = await client.get("/api/v1/workers/")
-        
+
         # Auth might be required
         if response.status_code == 401:
             pytest.skip("Authentication required")
-            
+
         assert response.status_code == 200
         data = response.json()
-        
+
         assert "items" in data
         assert "total" in data
         assert "page" in data
         assert "page_size" in data
-        
+
         # Check pagination headers if present
         if "X-Total-Count" in response.headers:
             assert int(response.headers["X-Total-Count"]) >= 0
-            
+
     async def test_get_workers_with_filters(self, client: AsyncClient):
         """필터를 사용한 근로자 조회 테스트"""
         params = {
@@ -39,18 +40,18 @@ class TestWorkerAPI:
             "work_type": "construction",
             "health_status": "normal",
             "skip": 0,
-            "limit": 10
+            "limit": 10,
         }
-        
+
         response = await client.get("/api/v1/workers/", params=params)
-        
+
         if response.status_code == 401:
             pytest.skip("Authentication required")
-            
+
         assert response.status_code == 200
         data = response.json()
         assert isinstance(data["items"], list)
-        
+
     async def test_create_worker_validation(self, client: AsyncClient):
         """근로자 생성 유효성 검사 테스트"""
         # Invalid data
@@ -59,15 +60,15 @@ class TestWorkerAPI:
             "employee_number": "12345",
             "gender": "invalid",  # Invalid enum
         }
-        
+
         response = await client.post("/api/v1/workers/", json=invalid_worker)
-        
+
         if response.status_code == 401:
             pytest.skip("Authentication required")
-            
+
         # Should fail validation
         assert response.status_code == 422
-        
+
     async def test_worker_crud_operations(self, client: AsyncClient):
         """근로자 CRUD 작업 테스트"""
         # Create worker
@@ -87,28 +88,30 @@ class TestWorkerAPI:
             "blood_type": "A",
             "employment_type": "regular",
             "work_type": "construction",
-            "health_status": "normal"
+            "health_status": "normal",
         }
-        
+
         # Create
         response = await client.post("/api/v1/workers/", json=worker_data)
         if response.status_code == 401:
             pytest.skip("Authentication required")
-            
+
         if response.status_code == 201:
             created_worker = response.json()
             worker_id = created_worker["id"]
-            
+
             # Read
             response = await client.get(f"/api/v1/workers/{worker_id}")
             assert response.status_code == 200
             assert response.json()["name"] == worker_data["name"]
-            
+
             # Update
             update_data = {"name": "수정된 이름"}
-            response = await client.patch(f"/api/v1/workers/{worker_id}", json=update_data)
+            response = await client.patch(
+                f"/api/v1/workers/{worker_id}", json=update_data
+            )
             assert response.status_code == 200
-            
+
             # Delete
             response = await client.delete(f"/api/v1/workers/{worker_id}")
             assert response.status_code == 204
@@ -116,108 +119,107 @@ class TestWorkerAPI:
 
 class TestHealthExamAPI:
     """건강진단 API 테스트"""
-    
+
     async def test_get_health_exams(self, client: AsyncClient):
         """건강진단 목록 조회 테스트"""
         response = await client.get("/api/v1/health-exams/")
-        
+
         if response.status_code == 401:
             pytest.skip("Authentication required")
-            
+
         assert response.status_code == 200
         data = response.json()
         assert isinstance(data, list) or "items" in data
-        
+
     async def test_create_health_exam_validation(self, client: AsyncClient):
         """건강진단 생성 유효성 검사"""
         invalid_exam = {
             "worker_id": 999999,  # Non-existent worker
             "exam_date": "invalid-date",
-            "exam_type": "invalid-type"
+            "exam_type": "invalid-type",
         }
-        
+
         response = await client.post("/api/v1/health-exams/", json=invalid_exam)
-        
+
         if response.status_code == 401:
             pytest.skip("Authentication required")
-            
+
         assert response.status_code in [400, 422, 404]
 
 
 class TestDocumentAPI:
     """문서 API 테스트"""
-    
+
     async def test_get_pdf_forms(self, client: AsyncClient):
         """PDF 양식 목록 조회 테스트"""
         response = await client.get("/api/v1/documents/pdf-forms")
-        
+
         if response.status_code == 401:
             pytest.skip("Authentication required")
-            
+
         assert response.status_code == 200
         forms = response.json()
         assert isinstance(forms, list)
-        
+
         # Check expected forms
         expected_forms = [
             "health_consultation_log",
             "health_findings_ledger",
             "msds_management_ledger",
-            "special_substance_log"
+            "special_substance_log",
         ]
-        
+
         form_names = [form["value"] for form in forms]
         for expected in expected_forms:
             assert expected in form_names
-            
+
     async def test_fill_pdf_validation(self, client: AsyncClient):
         """PDF 양식 채우기 유효성 검사"""
         # Invalid form name
         response = await client.post(
-            "/api/v1/documents/fill-pdf/invalid_form",
-            json={"entries": []}
+            "/api/v1/documents/fill-pdf/invalid_form", json={"entries": []}
         )
-        
+
         if response.status_code == 401:
             pytest.skip("Authentication required")
-            
+
         assert response.status_code == 404
-        
+
         # Invalid data structure
         response = await client.post(
             "/api/v1/documents/fill-pdf/health_consultation_log",
-            json={"invalid": "data"}
+            json={"invalid": "data"},
         )
-        
+
         if response.status_code != 401:
             assert response.status_code == 422
 
 
 class TestMonitoringAPI:
     """모니터링 API 테스트"""
-    
+
     async def test_get_metrics(self, client: AsyncClient):
         """시스템 메트릭 조회 테스트"""
         response = await client.get("/api/v1/monitoring/metrics")
-        
+
         if response.status_code == 401:
             pytest.skip("Authentication required")
-            
+
         assert response.status_code == 200
         metrics = response.json()
-        
+
         # Check metric structure
         expected_fields = ["cpu_percent", "memory", "disk", "timestamp"]
         for field in expected_fields:
             assert field in metrics
-            
+
     async def test_get_alerts(self, client: AsyncClient):
         """알림 조회 테스트"""
         response = await client.get("/api/v1/monitoring/alerts")
-        
+
         if response.status_code == 401:
             pytest.skip("Authentication required")
-            
+
         assert response.status_code == 200
         data = response.json()
         assert "alerts" in data
@@ -226,44 +228,43 @@ class TestMonitoringAPI:
 
 class TestAuthAPI:
     """인증 API 테스트"""
-    
+
     async def test_login_validation(self, client: AsyncClient):
         """로그인 유효성 검사"""
         # Empty credentials
         response = await client.post(
-            "/api/v1/auth/login",
-            json={"email": "", "password": ""}
+            "/api/v1/auth/login", json={"email": "", "password": ""}
         )
         assert response.status_code == 422
-        
+
         # Invalid email format
         response = await client.post(
             "/api/v1/auth/login",
-            json={"email": "invalid-email", "password": "password123"}
+            json={"email": "invalid-email", "password": "password123"},
         )
         assert response.status_code == 422
-        
+
     async def test_registration_password_validation(self, client: AsyncClient):
         """회원가입 비밀번호 검증"""
         weak_passwords = [
-            "short",      # Too short
+            "short",  # Too short
             "alllowercase",  # No uppercase
             "ALLUPPERCASE",  # No lowercase
-            "NoNumbers!",    # No digits
+            "NoNumbers!",  # No digits
             "NoSpecial123",  # No special chars
         ]
-        
+
         for password in weak_passwords:
             response = await client.post(
                 "/api/v1/auth/register",
                 json={
                     "email": "test@example.com",
                     "password": password,
-                    "name": "Test User"
-                }
+                    "name": "Test User",
+                },
             )
             assert response.status_code == 400
-            
+
     async def test_logout(self, client: AsyncClient):
         """로그아웃 테스트"""
         response = await client.post("/api/v1/auth/logout")
@@ -273,44 +274,47 @@ class TestAuthAPI:
 
 class TestCacheHeaders:
     """캐시 헤더 테스트"""
-    
+
     async def test_cache_headers_on_get_requests(self, client: AsyncClient):
         """GET 요청 캐시 헤더 테스트"""
         endpoints = [
             "/api/v1/workers/",
             "/api/v1/health-exams/",
-            "/api/v1/documents/pdf-forms"
+            "/api/v1/documents/pdf-forms",
         ]
-        
+
         for endpoint in endpoints:
             response = await client.get(endpoint)
-            
+
             if response.status_code == 200:
                 # Check for cache headers
-                assert "X-Cache-Status" in response.headers or "Cache-Control" in response.headers
+                assert (
+                    "X-Cache-Status" in response.headers
+                    or "Cache-Control" in response.headers
+                )
 
 
 class TestErrorHandling:
     """에러 처리 테스트"""
-    
+
     async def test_404_error(self, client: AsyncClient):
         """404 에러 처리 테스트"""
         response = await client.get("/api/v1/nonexistent-endpoint")
         assert response.status_code == 404
-        
+
     async def test_method_not_allowed(self, client: AsyncClient):
         """405 에러 처리 테스트"""
         # Try to POST to an endpoint that only accepts GET
         response = await client.post("/health", json={})
         assert response.status_code == 405
-        
+
     async def test_malformed_json(self, client: AsyncClient):
         """잘못된 JSON 처리 테스트"""
         response = await client.post(
             "/api/v1/workers/",
             content="invalid json",
-            headers={"Content-Type": "application/json"}
+            headers={"Content-Type": "application/json"},
         )
-        
+
         if response.status_code != 401:  # If not auth error
             assert response.status_code in [400, 422]

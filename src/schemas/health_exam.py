@@ -1,7 +1,9 @@
 from datetime import datetime
-from typing import Optional, List
+from typing import List, Optional
+
 from pydantic import BaseModel, Field
-from src.models.health import ExamType, ExamResult
+
+from src.models.health import ExamResult, ExamType
 
 
 class VitalSignsBase(BaseModel):
@@ -62,14 +64,14 @@ class HealthExamBase(BaseModel):
     exam_result: Optional[ExamResult] = Field(None, description="검진결과")
     exam_agency: str = Field(..., description="검진기관")
     doctor_name: Optional[str] = Field(None, description="검진의사")
-    
+
     overall_opinion: Optional[str] = Field(None, description="종합소견")
     disease_diagnosis: Optional[str] = Field(None, description="질병진단")
     work_fitness: Optional[str] = Field(None, description="업무적합성")
     restrictions: Optional[str] = Field(None, description="업무제한사항")
-    followup_required: Optional[str] = Field('N', description="추적검사필요")
+    followup_required: Optional[str] = Field("N", description="추적검사필요")
     followup_date: Optional[datetime] = Field(None, description="추적검사일")
-    
+
     notes: Optional[str] = Field(None, description="비고")
 
 

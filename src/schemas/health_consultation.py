@@ -3,18 +3,20 @@
 Health Consultation Schemas
 """
 
-from datetime import datetime, date
-from typing import Optional, List
-from pydantic import BaseModel, Field
+from datetime import date, datetime
 from enum import Enum
+from typing import List, Optional
+
+from pydantic import BaseModel, Field
 
 from .base import BaseResponse
 
 
 class ConsultationType(str, Enum):
     """상담 유형"""
+
     ROUTINE = "정기상담"
-    EMERGENCY = "응급상담" 
+    EMERGENCY = "응급상담"
     FOLLOW_UP = "사후관리"
     HEALTH_ISSUE = "건강문제"
     OCCUPATIONAL_DISEASE = "직업병관련"
@@ -22,6 +24,7 @@ class ConsultationType(str, Enum):
 
 class ConsultationStatus(str, Enum):
     """상담 상태"""
+
     SCHEDULED = "예정"
     IN_PROGRESS = "진행중"
     COMPLETED = "완료"
@@ -31,6 +34,7 @@ class ConsultationStatus(str, Enum):
 
 class HealthIssueCategory(str, Enum):
     """건강 문제 카테고리"""
+
     RESPIRATORY = "호흡기"
     MUSCULOSKELETAL = "근골격계"
     SKIN = "피부"
@@ -43,6 +47,7 @@ class HealthIssueCategory(str, Enum):
 
 class HealthConsultationBase(BaseModel):
     """보건상담 기본 스키마"""
+
     worker_id: int = Field(..., description="근로자 ID")
     consultation_date: datetime = Field(..., description="상담 일시")
     consultation_type: ConsultationType = Field(..., description="상담 유형")
@@ -53,9 +58,12 @@ class HealthConsultationBase(BaseModel):
 
 class HealthConsultationCreate(HealthConsultationBase):
     """보건상담 생성 스키마"""
+
     symptoms: Optional[str] = Field(None, description="증상 상세")
     work_related_factors: Optional[str] = Field(None, description="작업 관련 요인")
-    health_issue_category: Optional[HealthIssueCategory] = Field(None, description="건강 문제 분류")
+    health_issue_category: Optional[HealthIssueCategory] = Field(
+        None, description="건강 문제 분류"
+    )
     vital_signs: Optional[str] = Field(None, description="활력징후 (혈압, 맥박 등)")
     physical_examination: Optional[str] = Field(None, description="신체검사 소견")
     consultation_notes: Optional[str] = Field(None, description="상담 내용")
@@ -70,6 +78,7 @@ class HealthConsultationCreate(HealthConsultationBase):
 
 class HealthConsultationUpdate(BaseModel):
     """보건상담 수정 스키마"""
+
     consultation_date: Optional[datetime] = None
     consultation_type: Optional[ConsultationType] = None
     chief_complaint: Optional[str] = None
@@ -93,6 +102,7 @@ class HealthConsultationUpdate(BaseModel):
 
 class HealthConsultationResponse(HealthConsultationBase):
     """보건상담 응답 스키마"""
+
     id: int
     symptoms: Optional[str] = None
     work_related_factors: Optional[str] = None
@@ -111,7 +121,7 @@ class HealthConsultationResponse(HealthConsultationBase):
     created_at: datetime
     updated_at: datetime
     created_by: Optional[str] = None
-    
+
     # 관련 데이터
     worker_name: Optional[str] = None
     worker_department: Optional[str] = None
@@ -123,6 +133,7 @@ class HealthConsultationResponse(HealthConsultationBase):
 
 class HealthConsultationListResponse(BaseResponse):
     """보건상담 목록 응답 스키마"""
+
     items: List[HealthConsultationResponse]
     total: int
     page: int
@@ -132,6 +143,7 @@ class HealthConsultationListResponse(BaseResponse):
 
 class ConsultationStatistics(BaseModel):
     """상담 통계 스키마"""
+
     total_consultations: int = Field(..., description="총 상담 건수")
     by_type: dict = Field(..., description="유형별 상담 건수")
     by_category: dict = Field(..., description="카테고리별 건수")
@@ -144,6 +156,7 @@ class ConsultationStatistics(BaseModel):
 
 class ConsultationSchedule(BaseModel):
     """상담 일정 스키마"""
+
     consultation_id: int
     worker_id: int
     worker_name: str
@@ -157,6 +170,7 @@ class ConsultationSchedule(BaseModel):
 
 class FollowUpSchedule(BaseModel):
     """추적관찰 일정 스키마"""
+
     original_consultation_id: int
     worker_id: int
     worker_name: str

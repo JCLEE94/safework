@@ -3,33 +3,42 @@
 Checklist Management API Handlers
 """
 
-from fastapi import APIRouter, HTTPException, Depends, Query, UploadFile, File
-from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, func, and_, or_
-from sqlalchemy.orm import selectinload
-from typing import List, Optional, Dict, Any
-from datetime import datetime, timedelta
-from uuid import UUID
 import json
+from datetime import datetime, timedelta
+from typing import Any, Dict, List, Optional
+from uuid import UUID
+
+from fastapi import APIRouter, Depends, File, HTTPException, Query, UploadFile
+from sqlalchemy import and_, func, or_, select
+from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import selectinload
 
 from ..config.database import get_db
-from ..models.checklist import (
-    ChecklistTemplate, ChecklistTemplateItem, ChecklistInstance, ChecklistInstanceItem,
-    ChecklistAttachment, ChecklistSchedule, ChecklistType, ChecklistStatus, ChecklistPriority
-)
+from ..models.checklist import (ChecklistAttachment, ChecklistInstance,
+                                ChecklistInstanceItem, ChecklistPriority,
+                                ChecklistSchedule, ChecklistStatus,
+                                ChecklistTemplate, ChecklistTemplateItem,
+                                ChecklistType)
+from ..schemas.checklist import (ChecklistFilter, ChecklistInstanceCreate,
+                                 ChecklistInstanceItemCheck,
+                                 ChecklistInstanceListResponse,
+                                 ChecklistInstanceResponse,
+                                 ChecklistInstanceUpdate,
+                                 ChecklistScheduleCreate,
+                                 ChecklistScheduleResponse,
+                                 ChecklistStatistics, ChecklistTemplateCreate,
+                                 ChecklistTemplateResponse,
+                                 ChecklistTemplateUpdate,
+                                 DepartmentChecklistStats,
+                                 PaginatedChecklistInstanceResponse,
+                                 PaginatedChecklistTemplateResponse)
 from ..utils.auth_deps import get_current_user_id
-from ..schemas.checklist import (
-    ChecklistTemplateCreate, ChecklistTemplateUpdate, ChecklistTemplateResponse,
-    ChecklistInstanceCreate, ChecklistInstanceUpdate, ChecklistInstanceResponse,
-    ChecklistInstanceListResponse, ChecklistStatistics, DepartmentChecklistStats,
-    ChecklistFilter, PaginatedChecklistTemplateResponse, PaginatedChecklistInstanceResponse,
-    ChecklistScheduleCreate, ChecklistScheduleResponse, ChecklistInstanceItemCheck
-)
 
 router = APIRouter(prefix="/api/v1/checklists", tags=["checklists"])
 
 
 # ===== 체크리스트 템플릿 API =====
+
 
 @router.get("/templates", response_model=PaginatedChecklistTemplateResponse)
 async def get_checklist_templates(
@@ -38,7 +47,7 @@ async def get_checklist_templates(
     type: Optional[ChecklistType] = Query(None, description="체크리스트 유형"),
     is_active: Optional[bool] = Query(None, description="활성 상태"),
     search: Optional[str] = Query(None, description="검색어"),
-    db: AsyncSession = Depends(get_db)
+    db: AsyncSession = Depends(get_db),
 ):
     """체크리스트 템플릿 목록 조회"""
     try:
@@ -48,7 +57,7 @@ async def get_checklist_templates(
 
         # 필터 조건 적용
         conditions = []
-        
+
         if type:
             conditions.append(ChecklistTemplate.type == type)
         if is_active is not None:
@@ -57,7 +66,7 @@ async def get_checklist_templates(
             search_condition = or_(
                 ChecklistTemplate.name.ilike(f"%{search}%"),
                 ChecklistTemplate.name_korean.ilike(f"%{search}%"),
-                ChecklistTemplate.description.ilike(f"%{search}%")
+                ChecklistTemplate.description.ilike(f"%{search}%"),
             )
             conditions.append(search_condition)
 
@@ -71,33 +80,38 @@ async def get_checklist_templates(
 
         # 페이지네이션 적용
         offset = (page - 1) * size
-        query = query.offset(offset).limit(size).order_by(ChecklistTemplate.created_at.desc())
+        query = (
+            query.offset(offset)
+            .limit(size)
+            .order_by(ChecklistTemplate.created_at.desc())
+        )
 
         # 데이터 조회
         result = await db.execute(query)
         templates = result.scalars().all()
 
         # 응답 데이터 변환
-        items = [ChecklistTemplateResponse.model_validate(template) for template in templates]
+        items = [
+            ChecklistTemplateResponse.model_validate(template) for template in templates
+        ]
         pages = (total + size - 1) // size
 
         return PaginatedChecklistTemplateResponse(
-            items=items,
-            total=total,
-            page=page,
-            size=size,
-            pages=pages
+            items=items, total=total, page=page, size=size, pages=pages
         )
 
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"체크리스트 템플릿 목록 조회 중 오류가 발생했습니다: {str(e)}")
+        raise HTTPException(
+            status_code=500,
+            detail=f"체크리스트 템플릿 목록 조회 중 오류가 발생했습니다: {str(e)}",
+        )
 
 
 @router.post("/templates", response_model=ChecklistTemplateResponse)
 async def create_checklist_template(
     template_data: ChecklistTemplateCreate,
     current_user_id: str = Depends(get_current_user_id),  # 실제로는 JWT에서 추출
-    db: AsyncSession = Depends(get_db)
+    db: AsyncSession = Depends(get_db),
 ):
     """체크리스트 템플릿 생성"""
     try:
@@ -111,7 +125,7 @@ async def create_checklist_template(
             is_mandatory=template_data.is_mandatory,
             frequency_days=template_data.frequency_days,
             legal_basis=template_data.legal_basis,
-            created_by=user_id
+            created_by=user_id,
         )
 
         db.add(new_template)
@@ -120,8 +134,7 @@ async def create_checklist_template(
         # 템플릿 항목들 생성
         for item_data in template_data.items:
             new_item = ChecklistTemplateItem(
-                template_id=new_template.id,
-                **item_data.model_dump()
+                template_id=new_template.id, **item_data.model_dump()
             )
             db.add(new_item)
 
@@ -140,14 +153,14 @@ async def create_checklist_template(
 
     except Exception as e:
         await db.rollback()
-        raise HTTPException(status_code=500, detail=f"체크리스트 템플릿 생성 중 오류가 발생했습니다: {str(e)}")
+        raise HTTPException(
+            status_code=500,
+            detail=f"체크리스트 템플릿 생성 중 오류가 발생했습니다: {str(e)}",
+        )
 
 
 @router.get("/templates/{template_id}", response_model=ChecklistTemplateResponse)
-async def get_checklist_template(
-    template_id: UUID,
-    db: AsyncSession = Depends(get_db)
-):
+async def get_checklist_template(template_id: UUID, db: AsyncSession = Depends(get_db)):
     """체크리스트 템플릿 상세 조회"""
     try:
         result = await db.execute(
@@ -156,19 +169,25 @@ async def get_checklist_template(
             .where(ChecklistTemplate.id == template_id)
         )
         template = result.scalar_one_or_none()
-        
+
         if not template:
-            raise HTTPException(status_code=404, detail="체크리스트 템플릿을 찾을 수 없습니다")
+            raise HTTPException(
+                status_code=404, detail="체크리스트 템플릿을 찾을 수 없습니다"
+            )
 
         return ChecklistTemplateResponse.model_validate(template)
 
     except HTTPException:
         raise
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"체크리스트 템플릿 조회 중 오류가 발생했습니다: {str(e)}")
+        raise HTTPException(
+            status_code=500,
+            detail=f"체크리스트 템플릿 조회 중 오류가 발생했습니다: {str(e)}",
+        )
 
 
 # ===== 체크리스트 인스턴스 API =====
+
 
 @router.get("/instances", response_model=PaginatedChecklistInstanceResponse)
 async def get_checklist_instances(
@@ -179,7 +198,7 @@ async def get_checklist_instances(
     assignee: Optional[str] = Query(None, description="담당자"),
     department: Optional[str] = Query(None, description="부서"),
     search: Optional[str] = Query(None, description="검색어"),
-    db: AsyncSession = Depends(get_db)
+    db: AsyncSession = Depends(get_db),
 ):
     """체크리스트 인스턴스 목록 조회"""
     try:
@@ -187,14 +206,14 @@ async def get_checklist_instances(
         query = select(
             ChecklistInstance,
             ChecklistTemplate.name.label("template_name"),
-            ChecklistTemplate.type.label("template_type")
+            ChecklistTemplate.type.label("template_type"),
         ).join(ChecklistTemplate)
-        
+
         count_query = select(func.count(ChecklistInstance.id))
 
         # 필터 조건 적용
         conditions = []
-        
+
         if status:
             conditions.append(ChecklistInstance.status == status)
         if priority:
@@ -206,7 +225,7 @@ async def get_checklist_instances(
         if search:
             search_condition = or_(
                 ChecklistInstance.title.ilike(f"%{search}%"),
-                ChecklistInstance.notes.ilike(f"%{search}%")
+                ChecklistInstance.notes.ilike(f"%{search}%"),
             )
             conditions.append(search_condition)
 
@@ -220,7 +239,11 @@ async def get_checklist_instances(
 
         # 페이지네이션 적용
         offset = (page - 1) * size
-        query = query.offset(offset).limit(size).order_by(ChecklistInstance.created_at.desc())
+        query = (
+            query.offset(offset)
+            .limit(size)
+            .order_by(ChecklistInstance.created_at.desc())
+        )
 
         # 데이터 조회
         result = await db.execute(query)
@@ -232,32 +255,33 @@ async def get_checklist_instances(
             instance = row[0]
             template_name = row[1]
             template_type = row[2]
-            
-            instance_dict = ChecklistInstanceListResponse.model_validate(instance).model_dump()
-            instance_dict['template_name'] = template_name
-            instance_dict['template_type'] = template_type
-            
+
+            instance_dict = ChecklistInstanceListResponse.model_validate(
+                instance
+            ).model_dump()
+            instance_dict["template_name"] = template_name
+            instance_dict["template_type"] = template_type
+
             items.append(ChecklistInstanceListResponse(**instance_dict))
 
         pages = (total + size - 1) // size
 
         return PaginatedChecklistInstanceResponse(
-            items=items,
-            total=total,
-            page=page,
-            size=size,
-            pages=pages
+            items=items, total=total, page=page, size=size, pages=pages
         )
 
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"체크리스트 인스턴스 목록 조회 중 오류가 발생했습니다: {str(e)}")
+        raise HTTPException(
+            status_code=500,
+            detail=f"체크리스트 인스턴스 목록 조회 중 오류가 발생했습니다: {str(e)}",
+        )
 
 
 @router.post("/instances", response_model=ChecklistInstanceResponse)
 async def create_checklist_instance(
     instance_data: ChecklistInstanceCreate,
     current_user_id: str = Depends(get_current_user_id),  # 실제로는 JWT에서 추출
-    db: AsyncSession = Depends(get_db)
+    db: AsyncSession = Depends(get_db),
 ):
     """체크리스트 인스턴스 생성"""
     try:
@@ -268,9 +292,11 @@ async def create_checklist_instance(
             .where(ChecklistTemplate.id == instance_data.template_id)
         )
         template = template_result.scalar_one_or_none()
-        
+
         if not template:
-            raise HTTPException(status_code=404, detail="체크리스트 템플릿을 찾을 수 없습니다")
+            raise HTTPException(
+                status_code=404, detail="체크리스트 템플릿을 찾을 수 없습니다"
+            )
 
         # 새 인스턴스 생성
         new_instance = ChecklistInstance(
@@ -283,7 +309,7 @@ async def create_checklist_instance(
             priority=instance_data.priority,
             notes=instance_data.notes,
             location=instance_data.location,
-            created_by=user_id
+            created_by=user_id,
         )
 
         db.add(new_instance)
@@ -295,7 +321,7 @@ async def create_checklist_instance(
             instance_item = ChecklistInstanceItem(
                 instance_id=new_instance.id,
                 template_item_id=template_item.id,
-                is_checked=False
+                is_checked=False,
             )
             db.add(instance_item)
             max_total_score += template_item.max_score
@@ -320,35 +346,40 @@ async def create_checklist_instance(
         raise
     except Exception as e:
         await db.rollback()
-        raise HTTPException(status_code=500, detail=f"체크리스트 인스턴스 생성 중 오류가 발생했습니다: {str(e)}")
+        raise HTTPException(
+            status_code=500,
+            detail=f"체크리스트 인스턴스 생성 중 오류가 발생했습니다: {str(e)}",
+        )
 
 
 @router.get("/instances/{instance_id}", response_model=ChecklistInstanceResponse)
-async def get_checklist_instance(
-    instance_id: UUID,
-    db: AsyncSession = Depends(get_db)
-):
+async def get_checklist_instance(instance_id: UUID, db: AsyncSession = Depends(get_db)):
     """체크리스트 인스턴스 상세 조회"""
     try:
         result = await db.execute(
             select(ChecklistInstance)
             .options(
                 selectinload(ChecklistInstance.items),
-                selectinload(ChecklistInstance.template)
+                selectinload(ChecklistInstance.template),
             )
             .where(ChecklistInstance.id == instance_id)
         )
         instance = result.scalar_one_or_none()
-        
+
         if not instance:
-            raise HTTPException(status_code=404, detail="체크리스트 인스턴스를 찾을 수 없습니다")
+            raise HTTPException(
+                status_code=404, detail="체크리스트 인스턴스를 찾을 수 없습니다"
+            )
 
         return ChecklistInstanceResponse.model_validate(instance)
 
     except HTTPException:
         raise
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"체크리스트 인스턴스 조회 중 오류가 발생했습니다: {str(e)}")
+        raise HTTPException(
+            status_code=500,
+            detail=f"체크리스트 인스턴스 조회 중 오류가 발생했습니다: {str(e)}",
+        )
 
 
 @router.put("/instances/{instance_id}", response_model=ChecklistInstanceResponse)
@@ -356,7 +387,7 @@ async def update_checklist_instance(
     instance_id: UUID,
     instance_data: ChecklistInstanceUpdate,
     current_user_id: str = Depends(get_current_user_id),  # 실제로는 JWT에서 추출
-    db: AsyncSession = Depends(get_db)
+    db: AsyncSession = Depends(get_db),
 ):
     """체크리스트 인스턴스 수정 (점검 결과 포함)"""
     try:
@@ -366,12 +397,14 @@ async def update_checklist_instance(
             .where(ChecklistInstance.id == instance_id)
         )
         instance = result.scalar_one_or_none()
-        
+
         if not instance:
-            raise HTTPException(status_code=404, detail="체크리스트 인스턴스를 찾을 수 없습니다")
+            raise HTTPException(
+                status_code=404, detail="체크리스트 인스턴스를 찾을 수 없습니다"
+            )
 
         # 기본 정보 업데이트
-        update_data = instance_data.model_dump(exclude_unset=True, exclude={'items'})
+        update_data = instance_data.model_dump(exclude_unset=True, exclude={"items"})
         for field, value in update_data.items():
             setattr(instance, field, value)
 
@@ -379,7 +412,7 @@ async def update_checklist_instance(
         if instance_data.items:
             total_score = 0
             checked_count = 0
-            
+
             for item_check in instance_data.items:
                 # 해당 인스턴스 항목 찾기
                 instance_item = None
@@ -387,7 +420,7 @@ async def update_checklist_instance(
                     if item.template_item_id == item_check.template_item_id:
                         instance_item = item
                         break
-                
+
                 if instance_item:
                     # 점검 결과 업데이트
                     instance_item.is_checked = item_check.is_checked
@@ -396,21 +429,23 @@ async def update_checklist_instance(
                     instance_item.findings = item_check.findings
                     instance_item.corrective_action = item_check.corrective_action
                     instance_item.corrective_due_date = item_check.corrective_due_date
-                    
+
                     if item_check.is_checked:
                         instance_item.checked_at = datetime.now()
                         instance_item.checked_by = user_id
                         checked_count += 1
-                        
+
                         if item_check.score is not None:
                             total_score += item_check.score
 
             # 총점 및 완료율 계산
             instance.total_score = total_score
-            
+
             if len(instance.items) > 0:
-                instance.completion_rate = int((checked_count / len(instance.items)) * 100)
-                
+                instance.completion_rate = int(
+                    (checked_count / len(instance.items)) * 100
+                )
+
                 # 모든 항목이 완료되면 상태를 완료로 변경
                 if checked_count == len(instance.items):
                     instance.status = ChecklistStatus.COMPLETED
@@ -437,15 +472,17 @@ async def update_checklist_instance(
         raise
     except Exception as e:
         await db.rollback()
-        raise HTTPException(status_code=500, detail=f"체크리스트 인스턴스 수정 중 오류가 발생했습니다: {str(e)}")
+        raise HTTPException(
+            status_code=500,
+            detail=f"체크리스트 인스턴스 수정 중 오류가 발생했습니다: {str(e)}",
+        )
 
 
 # ===== 체크리스트 통계 API =====
 
+
 @router.get("/statistics", response_model=ChecklistStatistics)
-async def get_checklist_statistics(
-    db: AsyncSession = Depends(get_db)
-):
+async def get_checklist_statistics(db: AsyncSession = Depends(get_db)):
     """체크리스트 통계 조회"""
     try:
         # 총 인스턴스 수
@@ -454,8 +491,9 @@ async def get_checklist_statistics(
 
         # 상태별 통계
         status_result = await db.execute(
-            select(ChecklistInstance.status, func.count(ChecklistInstance.id))
-            .group_by(ChecklistInstance.status)
+            select(ChecklistInstance.status, func.count(ChecklistInstance.id)).group_by(
+                ChecklistInstance.status
+            )
         )
         by_status = {row[0].value: row[1] for row in status_result.fetchall()}
 
@@ -469,18 +507,20 @@ async def get_checklist_statistics(
 
         # 우선순위별 통계
         priority_result = await db.execute(
-            select(ChecklistInstance.priority, func.count(ChecklistInstance.id))
-            .group_by(ChecklistInstance.priority)
+            select(
+                ChecklistInstance.priority, func.count(ChecklistInstance.id)
+            ).group_by(ChecklistInstance.priority)
         )
         by_priority = {row[0].value: row[1] for row in priority_result.fetchall()}
 
         # 기한 초과 수
         overdue_result = await db.execute(
-            select(func.count(ChecklistInstance.id))
-            .where(
+            select(func.count(ChecklistInstance.id)).where(
                 and_(
                     ChecklistInstance.due_date < datetime.now(),
-                    ChecklistInstance.status.in_([ChecklistStatus.PENDING, ChecklistStatus.IN_PROGRESS])
+                    ChecklistInstance.status.in_(
+                        [ChecklistStatus.PENDING, ChecklistStatus.IN_PROGRESS]
+                    ),
                 )
             )
         )
@@ -489,13 +529,14 @@ async def get_checklist_statistics(
         # 마감 임박 수 (3일 이내)
         due_soon_date = datetime.now() + timedelta(days=3)
         due_soon_result = await db.execute(
-            select(func.count(ChecklistInstance.id))
-            .where(
+            select(func.count(ChecklistInstance.id)).where(
                 and_(
                     ChecklistInstance.due_date.isnot(None),
                     ChecklistInstance.due_date <= due_soon_date,
                     ChecklistInstance.due_date > datetime.now(),
-                    ChecklistInstance.status.in_([ChecklistStatus.PENDING, ChecklistStatus.IN_PROGRESS])
+                    ChecklistInstance.status.in_(
+                        [ChecklistStatus.PENDING, ChecklistStatus.IN_PROGRESS]
+                    ),
                 )
             )
         )
@@ -503,19 +544,21 @@ async def get_checklist_statistics(
 
         # 평균 완료율
         completion_result = await db.execute(
-            select(func.avg(ChecklistInstance.completion_rate))
-            .where(ChecklistInstance.completion_rate.isnot(None))
+            select(func.avg(ChecklistInstance.completion_rate)).where(
+                ChecklistInstance.completion_rate.isnot(None)
+            )
         )
         completion_rate = completion_result.scalar() or 0.0
 
         # 이번 달 완료 수
-        month_start = datetime.now().replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+        month_start = datetime.now().replace(
+            day=1, hour=0, minute=0, second=0, microsecond=0
+        )
         this_month_result = await db.execute(
-            select(func.count(ChecklistInstance.id))
-            .where(
+            select(func.count(ChecklistInstance.id)).where(
                 and_(
                     ChecklistInstance.completed_at >= month_start,
-                    ChecklistInstance.status == ChecklistStatus.COMPLETED
+                    ChecklistInstance.status == ChecklistStatus.COMPLETED,
                 )
             )
         )
@@ -529,40 +572,45 @@ async def get_checklist_statistics(
             overdue_count=overdue_count,
             due_soon_count=due_soon_count,
             completion_rate=float(completion_rate),
-            this_month_completed=this_month_completed
+            this_month_completed=this_month_completed,
         )
 
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"체크리스트 통계 조회 중 오류가 발생했습니다: {str(e)}")
+        raise HTTPException(
+            status_code=500,
+            detail=f"체크리스트 통계 조회 중 오류가 발생했습니다: {str(e)}",
+        )
 
 
 @router.get("/department-stats", response_model=List[DepartmentChecklistStats])
-async def get_department_checklist_statistics(
-    db: AsyncSession = Depends(get_db)
-):
+async def get_department_checklist_statistics(db: AsyncSession = Depends(get_db)):
     """부서별 체크리스트 통계 조회"""
     try:
         # 부서별 통계 계산
         dept_result = await db.execute(
             select(
                 ChecklistInstance.department,
-                func.count(ChecklistInstance.id).label('total'),
+                func.count(ChecklistInstance.id).label("total"),
                 func.count(
-                    func.case(
-                        (ChecklistInstance.status == ChecklistStatus.PENDING, 1)
-                    )
-                ).label('pending'),
+                    func.case((ChecklistInstance.status == ChecklistStatus.PENDING, 1))
+                ).label("pending"),
                 func.count(
                     func.case(
                         (
                             and_(
                                 ChecklistInstance.due_date < datetime.now(),
-                                ChecklistInstance.status.in_([ChecklistStatus.PENDING, ChecklistStatus.IN_PROGRESS])
-                            ), 1
+                                ChecklistInstance.status.in_(
+                                    [
+                                        ChecklistStatus.PENDING,
+                                        ChecklistStatus.IN_PROGRESS,
+                                    ]
+                                ),
+                            ),
+                            1,
                         )
                     )
-                ).label('overdue'),
-                func.avg(ChecklistInstance.completion_rate).label('avg_completion')
+                ).label("overdue"),
+                func.avg(ChecklistInstance.completion_rate).label("avg_completion"),
             )
             .where(ChecklistInstance.department.isnot(None))
             .group_by(ChecklistInstance.department)
@@ -572,16 +620,21 @@ async def get_department_checklist_statistics(
         for row in dept_result.fetchall():
             dept, total, pending, overdue, avg_completion = row
             completion_rate = avg_completion if avg_completion is not None else 0.0
-            
-            department_stats.append(DepartmentChecklistStats(
-                department=dept,
-                total_instances=total,
-                pending_instances=pending,
-                overdue_instances=overdue,
-                completion_rate=float(completion_rate)
-            ))
+
+            department_stats.append(
+                DepartmentChecklistStats(
+                    department=dept,
+                    total_instances=total,
+                    pending_instances=pending,
+                    overdue_instances=overdue,
+                    completion_rate=float(completion_rate),
+                )
+            )
 
         return department_stats
 
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"부서별 체크리스트 통계 조회 중 오류가 발생했습니다: {str(e)}")
+        raise HTTPException(
+            status_code=500,
+            detail=f"부서별 체크리스트 통계 조회 중 오류가 발생했습니다: {str(e)}",
+        )

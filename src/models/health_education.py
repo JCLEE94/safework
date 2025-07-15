@@ -1,9 +1,13 @@
+import enum
 from datetime import datetime
 from typing import Optional
-from sqlalchemy import Column, Integer, String, Float, DateTime, ForeignKey, Enum as SQLEnum, Text
+
+from sqlalchemy import Column, DateTime
+from sqlalchemy import Enum as SQLEnum
+from sqlalchemy import Float, ForeignKey, Integer, String, Text
 from sqlalchemy.orm import relationship
+
 from src.config.database import Base
-import enum
 
 
 class EducationType(enum.Enum):
@@ -37,28 +41,28 @@ class EducationStatus(enum.Enum):
 
 class HealthEducation(Base):
     __tablename__ = "health_educations"
-    
+
     id = Column(Integer, primary_key=True, index=True)
     education_date = Column(DateTime, nullable=False)
     education_type = Column(SQLEnum(EducationType), nullable=False)
     education_title = Column(String(300), nullable=False)
     education_content = Column(Text)
-    
+
     # Education details
     education_method = Column(SQLEnum(EducationMethod), nullable=False)
     education_hours = Column(Float, nullable=False)
     instructor_name = Column(String(100))
     instructor_qualification = Column(String(200))
     education_location = Column(String(200))
-    
+
     # Requirements
-    required_by_law = Column(String(1), default='Y')
+    required_by_law = Column(String(1), default="Y")
     legal_requirement_hours = Column(Float)
-    
+
     # Materials
     education_material_path = Column(String(500))
     attendance_sheet_path = Column(String(500))
-    
+
     # Common fields
     notes = Column(Text)
     created_at = Column(DateTime, default=datetime.utcnow)
@@ -69,24 +73,26 @@ class HealthEducation(Base):
 
 class HealthEducationAttendance(Base):
     __tablename__ = "health_education_attendances"
-    
+
     id = Column(Integer, primary_key=True, index=True)
-    education_id = Column(Integer, ForeignKey("health_educations.id", ondelete="CASCADE"))
+    education_id = Column(
+        Integer, ForeignKey("health_educations.id", ondelete="CASCADE")
+    )
     worker_id = Column(Integer, ForeignKey("workers.id", ondelete="CASCADE"))
-    
+
     status = Column(SQLEnum(EducationStatus), nullable=False)
     attendance_hours = Column(Float)
     test_score = Column(Float)
     certificate_number = Column(String(100))
     certificate_issue_date = Column(DateTime)
-    
+
     # Feedback
     satisfaction_score = Column(Integer)  # 1-5
     feedback_comments = Column(Text)
-    
+
     created_at = Column(DateTime, default=datetime.utcnow)
     created_by = Column(String(100))
-    
+
     # Relationships
     education = relationship("HealthEducation", backref="attendances")
     worker = relationship("Worker", backref="education_records")

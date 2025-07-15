@@ -3,9 +3,12 @@
 Authentication dependency injection utilities
 """
 
-from typing import Dict, Any
+from typing import Any, Dict
+
 from fastapi import Depends, Request
-from ..services.auth_service import get_current_user_id_from_request, get_current_user_info_from_request
+
+from ..services.auth_service import (get_current_user_id_from_request,
+                                     get_current_user_info_from_request)
 
 
 def get_current_user_id(request: Request) -> str:

@@ -3,17 +3,20 @@
 Worker-related Pydantic schemas
 """
 
-from pydantic import BaseModel, Field, ConfigDict
-from typing import Optional, List
 from datetime import date, datetime
 from enum import Enum
+from typing import List, Optional
+
+from pydantic import BaseModel, ConfigDict, Field
+
 
 # Enums - matching database model values
 class EmploymentType(str, Enum):
     REGULAR = "regular"
-    CONTRACT = "contract" 
+    CONTRACT = "contract"
     TEMPORARY = "temporary"
     DAILY = "daily"
+
 
 class WorkType(str, Enum):
     CONSTRUCTION = "construction"
@@ -25,11 +28,13 @@ class WorkType(str, Enum):
     EARTH_WORK = "earth_work"
     CONCRETE = "concrete"
 
+
 class HealthStatus(str, Enum):
     NORMAL = "normal"
     CAUTION = "caution"
     OBSERVATION = "observation"
     TREATMENT = "treatment"
+
 
 class ConsultationType(str, Enum):
     REGULAR = "정기"
@@ -37,10 +42,12 @@ class ConsultationType(str, Enum):
     REQUEST = "요청"
     FOLLOWUP = "사후관리"
 
+
 # Base schemas
 class GenderType(str, Enum):
     MALE = "male"
     FEMALE = "female"
+
 
 class WorkerBase(BaseModel):
     name: str = Field(..., description="근로자명")
@@ -57,12 +64,16 @@ class WorkerBase(BaseModel):
     health_status: Optional[str] = Field(None, description="건강상태")
     is_active: bool = Field(True, description="재직여부")
 
+
 class WorkerCreate(WorkerBase):
     """근로자 생성 스키마"""
+
     pass
+
 
 class WorkerUpdate(BaseModel):
     """근로자 수정 스키마"""
+
     name: Optional[str] = None
     gender: Optional[str] = None
     department: Optional[str] = None
@@ -74,20 +85,25 @@ class WorkerUpdate(BaseModel):
     health_status: Optional[str] = None
     is_active: Optional[bool] = None
 
+
 class WorkerResponse(WorkerBase):
     """근로자 응답 스키마"""
+
     id: int
     created_at: datetime
     updated_at: Optional[datetime] = None
-    
+
     model_config = ConfigDict(from_attributes=True)
+
 
 class WorkerListResponse(BaseModel):
     """근로자 목록 응답 스키마"""
+
     items: List[WorkerResponse]
     total: int
     skip: int
     limit: int
+
 
 # Health Consultation schemas
 class HealthConsultationBase(BaseModel):
@@ -98,12 +114,16 @@ class HealthConsultationBase(BaseModel):
     action_taken: Optional[str] = Field(None, description="조치사항")
     counselor_name: str = Field(..., description="상담자명")
 
+
 class HealthConsultationCreate(HealthConsultationBase):
     """건강상담 생성 스키마"""
+
     worker_id: int = Field(..., description="근로자 ID")
+
 
 class HealthConsultationUpdate(BaseModel):
     """건강상담 수정 스키마"""
+
     consultation_date: Optional[date] = None
     consultation_type: Optional[ConsultationType] = None
     symptoms: Optional[str] = None
@@ -111,23 +131,27 @@ class HealthConsultationUpdate(BaseModel):
     action_taken: Optional[str] = None
     counselor_name: Optional[str] = None
 
+
 class HealthConsultationResponse(HealthConsultationBase):
     """건강상담 응답 스키마"""
+
     id: int
     worker_id: int
     worker_name: Optional[str] = Field(None, description="근로자명")
     worker_employee_id: Optional[str] = Field(None, description="사번")
     created_at: datetime
     updated_at: Optional[datetime] = None
-    
+
     model_config = ConfigDict(from_attributes=True)
+
 
 class HealthConsultationListResponse(BaseModel):
     """건강상담 목록 응답 스키마"""
+
     items: List[HealthConsultationResponse]
     total: int
     skip: int
     limit: int
-    
+
     # 통계 정보
     statistics: Optional[dict] = Field(None, description="통계 정보")

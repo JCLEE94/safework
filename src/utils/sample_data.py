@@ -5,30 +5,31 @@ Sample data generation script for all modules
 
 import asyncio
 from datetime import datetime, timedelta
-from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select
 
-from src.config.database import init_db, get_db
-from src.models import (
-    Worker, HealthExam, WorkEnvironment, HealthEducation,
-    ChemicalSubstance, AccidentReport, HealthConsultation
-)
+from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from src.config.database import get_db, init_db
+from src.models import (AccidentReport, ChemicalSubstance, HealthConsultation,
+                        HealthEducation, HealthExam, WorkEnvironment, Worker)
 
 
 async def create_sample_data():
     """모든 모듈의 샘플 데이터 생성"""
     await init_db()
-    
+
     async for db in get_db():
         try:
             # 1. Workers (이미 존재하는지 확인)
-            result = await db.execute(select(Worker).where(Worker.employee_id == "EMP001"))
+            result = await db.execute(
+                select(Worker).where(Worker.employee_id == "EMP001")
+            )
             worker = result.scalar_one_or_none()
-            
+
             if not worker:
                 worker = Worker(
                     name="김철수",
-                    employee_id="EMP001", 
+                    employee_id="EMP001",
                     gender="male",
                     department="건설팀",
                     position="주임",
@@ -38,13 +39,15 @@ async def create_sample_data():
                     birth_date=datetime(1990, 1, 15).date(),
                     phone="010-1234-9999",
                     health_status="normal",
-                    is_active=True
+                    is_active=True,
                 )
                 db.add(worker)
                 await db.flush()
-            
+
             # 2. Health Exams
-            result = await db.execute(select(HealthExam).where(HealthExam.worker_id == worker.id))
+            result = await db.execute(
+                select(HealthExam).where(HealthExam.worker_id == worker.id)
+            )
             if not result.scalar_one_or_none():
                 health_exam = HealthExam(
                     worker_id=worker.id,
@@ -56,10 +59,10 @@ async def create_sample_data():
                     recommendations="정기검진 지속",
                     next_exam_date=(datetime.now() + timedelta(days=365)).date(),
                     created_at=datetime.now(),
-                    updated_at=datetime.now()
+                    updated_at=datetime.now(),
                 )
                 db.add(health_exam)
-            
+
             # 3. Work Environment
             result = await db.execute(select(WorkEnvironment))
             if not result.scalar_one_or_none():
@@ -75,10 +78,10 @@ async def create_sample_data():
                     next_measurement_date=(datetime.now() + timedelta(days=180)).date(),
                     remarks="정상 범위 내",
                     created_at=datetime.now(),
-                    updated_at=datetime.now()
+                    updated_at=datetime.now(),
                 )
                 db.add(work_env)
-            
+
             # 4. Health Education
             result = await db.execute(select(HealthEducation))
             if not result.scalar_one_or_none():
@@ -95,10 +98,10 @@ async def create_sample_data():
                     effectiveness_score=4.5,
                     next_education_date=(datetime.now() + timedelta(days=90)).date(),
                     created_at=datetime.now(),
-                    updated_at=datetime.now()
+                    updated_at=datetime.now(),
                 )
                 db.add(health_edu)
-            
+
             # 5. Chemical Substances
             result = await db.execute(select(ChemicalSubstance))
             if not result.scalar_one_or_none():
@@ -119,10 +122,10 @@ async def create_sample_data():
                     last_updated=datetime.now().date(),
                     status="active",
                     created_at=datetime.now(),
-                    updated_at=datetime.now()
+                    updated_at=datetime.now(),
                 )
                 db.add(chemical)
-            
+
             # 6. Accident Reports
             result = await db.execute(select(AccidentReport))
             if not result.scalar_one_or_none():
@@ -145,10 +148,10 @@ async def create_sample_data():
                     cost_estimate=50000.0,
                     prevention_measures="작업 전 안전점검 의무화",
                     created_at=datetime.now(),
-                    updated_at=datetime.now()
+                    updated_at=datetime.now(),
                 )
                 db.add(accident)
-            
+
             # 7. Health Consultations
             result = await db.execute(select(HealthConsultation))
             if not result.scalar_one_or_none():
@@ -165,14 +168,14 @@ async def create_sample_data():
                     recommendations="정기적인 스트레칭, 작업환경 개선",
                     status="ongoing",
                     created_at=datetime.now(),
-                    updated_at=datetime.now()
+                    updated_at=datetime.now(),
                 )
                 db.add(consultation)
-            
+
             await db.commit()
             print("✅ 모든 모듈의 샘플 데이터 생성 완료!")
             break
-            
+
         except Exception as e:
             await db.rollback()
             print(f"❌ 샘플 데이터 생성 실패: {e}")
@@ -182,27 +185,27 @@ async def create_sample_data():
 async def clear_all_data():
     """모든 데이터 삭제 (테스트용)"""
     await init_db()
-    
+
     async for db in get_db():
         try:
             # 외래키 순서를 고려하여 삭제 (자식 테이블부터)
             tables_to_clear = [
                 HealthConsultation,
-                AccidentReport, 
+                AccidentReport,
                 ChemicalSubstance,
                 HealthEducation,
                 WorkEnvironment,
                 HealthExam,
-                Worker
+                Worker,
             ]
-            
+
             for table in tables_to_clear:
                 await db.execute(f"DELETE FROM {table.__tablename__}")
-            
+
             await db.commit()
             print("✅ 모든 데이터 삭제 완료!")
             break
-            
+
         except Exception as e:
             await db.rollback()
             print(f"❌ 데이터 삭제 실패: {e}")
@@ -211,6 +214,7 @@ async def clear_all_data():
 
 if __name__ == "__main__":
     import sys
+
     if len(sys.argv) > 1 and sys.argv[1] == "clear":
         asyncio.run(clear_all_data())
     else:

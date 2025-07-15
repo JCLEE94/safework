@@ -3,16 +3,17 @@
 Authentication System Integration Tests
 """
 
-import pytest
-import jwt
-from datetime import datetime, timedelta
-from fastapi.testclient import TestClient
-from fastapi import status
 import asyncio
+from datetime import datetime, timedelta
+
+import jwt
+import pytest
+from fastapi import status
+from fastapi.testclient import TestClient
 
 from src.app import create_app
-from src.services.auth_service import AuthService
 from src.config.settings import get_settings
+from src.services.auth_service import AuthService
 
 
 class TestAuthenticationFlow:
@@ -282,8 +283,8 @@ class TestAuthenticationFlow:
 
 if __name__ == "__main__":
     """인라인 테스트 실행 (Rust 스타일)"""
-    import sys
     import subprocess
+    import sys
     
     result = subprocess.run([
         sys.executable, "-m", "pytest", __file__, "-v", "--tb=short"

@@ -1,24 +1,24 @@
+import asyncio
+import os
+import sys
+from datetime import date, datetime
+from typing import AsyncGenerator
+
 import pytest
 import pytest_asyncio
-from datetime import datetime, date
-from httpx import AsyncClient, ASGITransport
-from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine, async_sessionmaker
+from httpx import ASGITransport, AsyncClient
+from sqlalchemy.ext.asyncio import (AsyncSession, async_sessionmaker,
+                                    create_async_engine)
 from sqlalchemy.pool import StaticPool
-import asyncio
-import sys
-import os
-from typing import AsyncGenerator
 
 # Add parent directory to path for imports
 sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
 
 from src.app import create_app
-from src.models import (
-    Base, Worker, HealthExam, VitalSigns, LabResult,
-    WorkEnvironment, HealthEducation, ChemicalSubstance, AccidentReport
-)
 from src.config.database import get_db
-
+from src.models import (AccidentReport, Base, ChemicalSubstance,
+                        HealthEducation, HealthExam, LabResult, VitalSigns,
+                        WorkEnvironment, Worker)
 
 # Test database URL - using StaticPool for better SQLite async compatibility
 TEST_DATABASE_URL = "sqlite+aiosqlite:///:memory:"
@@ -41,16 +41,16 @@ async def engine():
         poolclass=StaticPool,  # Better for SQLite in tests
         connect_args={"check_same_thread": False},  # SQLite specific
     )
-    
+
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
-    
+
     yield engine
-    
+
     # Cleanup
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.drop_all)
-    
+
     await engine.dispose()
 
 
@@ -58,11 +58,9 @@ async def engine():
 async def db_session(engine) -> AsyncGenerator[AsyncSession, None]:
     """Create test database session"""
     async_session_maker = async_sessionmaker(
-        engine,
-        class_=AsyncSession,
-        expire_on_commit=False
+        engine, class_=AsyncSession, expire_on_commit=False
     )
-    
+
     async with async_session_maker() as session:
         yield session
         await session.rollback()
@@ -72,19 +70,17 @@ async def db_session(engine) -> AsyncGenerator[AsyncSession, None]:
 async def client(engine) -> AsyncGenerator[AsyncClient, None]:
     """Create test client"""
     app = create_app()
-    
+
     # Override the database dependency
     async def override_get_db():
         async_session_maker = async_sessionmaker(
-            engine,
-            class_=AsyncSession,
-            expire_on_commit=False
+            engine, class_=AsyncSession, expire_on_commit=False
         )
         async with async_session_maker() as session:
             yield session
-    
+
     app.dependency_overrides[get_db] = override_get_db
-    
+
     # Use ASGITransport for better async support
     transport = ASGITransport(app=app)
     async with AsyncClient(transport=transport, base_url="http://test") as client:
@@ -105,7 +101,7 @@ async def test_worker(db_session: AsyncSession) -> Worker:
         health_status="normal",
         phone="010-1234-5678",
         department="건설팀",
-        is_special_exam_target=False
+        is_special_exam_target=False,
     )
     db_session.add(worker)
     await db_session.commit()
@@ -127,7 +123,7 @@ async def test_health_exam(db_session: AsyncSession, test_worker: Worker) -> Hea
         blood_pressure_dia=80,
         height=170.0,
         weight=70.0,
-        bmi=24.2
+        bmi=24.2,
     )
     db_session.add(exam)
     await db_session.commit()
@@ -147,7 +143,7 @@ async def test_work_environment(db_session: AsyncSession) -> WorkEnvironment:
         standard_value=90.0,
         measurement_agency="테스트측정업체",
         inspector_name="박측정원",
-        exceeds_standard=False
+        exceeds_standard=False,
     )
     db_session.add(env)
     await db_session.commit()
@@ -165,7 +161,7 @@ async def test_health_education(db_session: AsyncSession) -> HealthEducation:
         instructor="안전강사",
         duration_hours=3,
         location="교육장",
-        target_audience="전체 근로자"
+        target_audience="전체 근로자",
     )
     db_session.add(education)
     await db_session.commit()
@@ -186,7 +182,7 @@ async def test_chemical_substance(db_session: AsyncSession) -> ChemicalSubstance
         physical_state="액체",
         storage_location="보관소 A",
         current_quantity=50.0,
-        quantity_unit="L"
+        quantity_unit="L",
     )
     db_session.add(chemical)
     await db_session.commit()
@@ -195,7 +191,9 @@ async def test_chemical_substance(db_session: AsyncSession) -> ChemicalSubstance
 
 
 @pytest_asyncio.fixture
-async def test_accident_report(db_session: AsyncSession, test_worker: Worker) -> AccidentReport:
+async def test_accident_report(
+    db_session: AsyncSession, test_worker: Worker
+) -> AccidentReport:
     """Create test accident report"""
     report = AccidentReport(
         accident_datetime=datetime.now(),
@@ -205,7 +203,7 @@ async def test_accident_report(db_session: AsyncSession, test_worker: Worker) ->
         accident_type="FALL",
         injury_type="BRUISE",
         severity="MINOR",
-        accident_description="사고 설명"
+        accident_description="사고 설명",
     )
     db_session.add(report)
     await db_session.commit()
