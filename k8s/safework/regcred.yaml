@@ -5,4 +5,4 @@ metadata:
   namespace: safework
 type: kubernetes.io/dockerconfigjson
 data:
-  .dockerconfigjson: eyJhdXRocyI6eyJyZWdpc3RyeS5qY2xlZS5tZSI6eyJ1c2VybmFtZSI6InF3czk0MTEiLCJwYXNzd29yZCI6ImJpbmdvZ28xIiwiYXV0aCI6ImNYZHpPVFF4TVRwaWFXNW5iMmR2TVE9PSJ9fX0K
+  .dockerconfigjson: eyJhdXRocyI6eyJyZWdpc3RyeS5qY2xlZS5tZSI6eyJ1c2VybmFtZSI6ImFkbWluIiwicGFzc3dvcmQiOiJiaW5nb2dvMSIsImF1dGgiOiJZV1J0YVc0NlltbHVaMjluYnpFPSJ9fX0K
