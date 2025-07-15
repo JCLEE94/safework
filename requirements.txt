@@ -53,6 +53,8 @@ pytesseract==0.3.10
 pdfplumber==0.9.0
 fillpdf==0.7.0
 pypdf==3.17.4
+numpy==1.24.3
+pandas==2.0.3
 # boto3==1.34.14  # For S3 file storage if needed - removed to reduce size
 # celery==5.3.4  # For background tasks if needed - removed to reduce size
 # flower==2.0.1  # For Celery monitoring if needed - removed to reduce size
