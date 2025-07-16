@@ -211,7 +211,11 @@ jobs:
         echo "- **Commit**: \`${{ github.sha }}\`" >> $GITHUB_STEP_SUMMARY
         echo "- **Build**: #${{ github.run_number }}" >> $GITHUB_STEP_SUMMARY
         echo "- **ArgoCD**: [View Application](https://${{ env.ARGOCD_SERVER }}/applications/${{ env.ARGOCD_APP }})" >> $GITHUB_STEP_SUMMARY
-        echo "- **Production**: [https://safework.jclee.me](https://safework.jclee.me)" >> $GITHUB_STEP_SUMMARY
+        echo "- **Deployment Status**: Application deployed to Kubernetes (namespace: safework)" >> $GITHUB_STEP_SUMMARY
+        echo "- **Service Type**: NodePort (32301) - Ingress configuration required for external access" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        echo "### ⚠️ Note" >> $GITHUB_STEP_SUMMARY
+        echo "External access requires Ingress configuration. The application is running but not accessible from outside the cluster." >> $GITHUB_STEP_SUMMARY
 
   notify:
     name: Notification
