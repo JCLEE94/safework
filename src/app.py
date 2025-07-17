@@ -199,6 +199,7 @@ def create_app() -> FastAPI:
 
     # API 라우터 등록
     from .handlers.accident_reports import router as accident_reports_router
+    from .handlers.at_risk_employee import router as at_risk_employee_router
     from .handlers.auth import router as auth_router
     from .handlers.checklist import router as checklist_router
     from .handlers.chemical_substances import \
@@ -223,6 +224,7 @@ def create_app() -> FastAPI:
     # from .handlers.pdf_auto_fill import router as pdf_auto_router
     # from .handlers.pdf_precise import router as pdf_precise_router
     from .handlers.monitoring import router as monitoring_router
+    from .handlers.musculoskeletal_stress import router as musculoskeletal_stress_router
     from .handlers.pipeline import router as pipeline_router
     from .handlers.reports import router as reports_router
     from .handlers.settings import router as settings_router
@@ -238,6 +240,8 @@ def create_app() -> FastAPI:
     app.include_router(health_exam_management_router, tags=["건강검진관리"])
     app.include_router(health_consultations_router, tags=["보건상담"])
     app.include_router(health_room_router, tags=["보건관리실"])
+    app.include_router(at_risk_employee_router, tags=["요관리대상자"])
+    app.include_router(musculoskeletal_stress_router, tags=["근골격계및스트레스"])
     app.include_router(work_environments_router, tags=["작업환경측정"])
     app.include_router(health_education_router, tags=["보건교육"])
     app.include_router(chemical_substances_router, tags=["화학물질관리"])
