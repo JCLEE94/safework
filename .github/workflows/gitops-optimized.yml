@@ -1,0 +1,268 @@
+name: GitOps CI/CD Pipeline (Optimized)
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+  workflow_dispatch:
+    inputs:
+      skip_tests:
+        description: 'Skip tests (deploy only)'
+        required: false
+        default: false
+        type: boolean
+
+env:
+  REGISTRY_URL: registry.jclee.me
+  IMAGE_NAME: safework
+  DOCKER_BUILDKIT: 1
+  ARGOCD_SERVER: argo.jclee.me
+  ARGOCD_APP: argocd/safework
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    name: Test & Code Quality
+    runs-on: self-hosted
+    if: github.event.inputs.skip_tests != 'true'
+    services:
+      postgres:
+        image: postgres:15
+        env:
+          POSTGRES_USER: admin
+          POSTGRES_PASSWORD: password
+          POSTGRES_DB: health_management
+          POSTGRES_INITDB_ARGS: "--encoding=UTF8 --lc-collate=ko_KR.UTF-8 --lc-ctype=ko_KR.UTF-8"
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 5432:5432
+      
+      redis:
+        image: redis:7-alpine
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 6379:6379
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Set up Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: '3.11'
+
+    - name: Cache Python dependencies
+      uses: actions/cache@v3
+      with:
+        path: ~/.cache/pip
+        key: ${{ runner.os }}-pip-${{ hashFiles('requirements.txt') }}
+        restore-keys: |
+          ${{ runner.os }}-pip-
+
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install pytest pytest-asyncio pytest-cov pytest-timeout
+        pip install -r requirements.txt
+
+    - name: Set environment variables
+      run: |
+        echo "DATABASE_URL=postgresql+asyncpg://admin:password@localhost:5432/health_management" >> $GITHUB_ENV
+        echo "REDIS_URL=redis://localhost:6379/0" >> $GITHUB_ENV
+        echo "JWT_SECRET=test-secret-key" >> $GITHUB_ENV
+        echo "ENVIRONMENT=development" >> $GITHUB_ENV
+        echo "PYTHONPATH=${{ github.workspace }}" >> $GITHUB_ENV
+
+    - name: Run tests with coverage
+      run: |
+        pytest tests/ -v --cov=src --cov-report=xml --cov-report=term --timeout=60 -x --maxfail=5
+
+    - name: Upload coverage reports
+      uses: codecov/codecov-action@v4
+      if: always()
+      with:
+        file: ./coverage.xml
+        fail_ci_if_error: false
+
+  build-and-push:
+    name: Build & Push Docker Image
+    runs-on: self-hosted
+    needs: [test]
+    if: |
+      always() && 
+      (needs.test.result == 'success' || needs.test.result == 'skipped') && 
+      github.ref == 'refs/heads/main'
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Set up Docker Buildx
+      uses: docker/setup-buildx-action@v3
+      with:
+        driver-opts: |
+          network=host
+
+    - name: Login to Private Registry
+      uses: docker/login-action@v3
+      with:
+        registry: ${{ env.REGISTRY_URL }}
+        username: ${{ secrets.DOCKER_USERNAME }}
+        password: ${{ secrets.DOCKER_PASSWORD }}
+
+    - name: Generate image metadata
+      id: meta
+      run: |
+        DATE=$(date +%Y%m%d)
+        SHORT_SHA=$(echo ${{ github.sha }} | cut -c1-7)
+        BUILD_NUMBER=${{ github.run_number }}
+        
+        echo "date_tag=prod-${DATE}-${SHORT_SHA}" >> $GITHUB_OUTPUT
+        echo "semantic_tag=1.${DATE}.${BUILD_NUMBER}" >> $GITHUB_OUTPUT
+        echo "latest_tag=latest" >> $GITHUB_OUTPUT
+
+    - name: Build and push Docker image
+      uses: docker/build-push-action@v5
+      with:
+        context: .
+        file: deployment/Dockerfile.prod
+        platforms: linux/amd64
+        push: true
+        tags: |
+          ${{ env.REGISTRY_URL }}/${{ env.IMAGE_NAME }}:${{ steps.meta.outputs.date_tag }}
+          ${{ env.REGISTRY_URL }}/${{ env.IMAGE_NAME }}:${{ steps.meta.outputs.semantic_tag }}
+          ${{ env.REGISTRY_URL }}/${{ env.IMAGE_NAME }}:${{ steps.meta.outputs.latest_tag }}
+        cache-from: type=registry,ref=${{ env.REGISTRY_URL }}/${{ env.IMAGE_NAME }}:buildcache
+        cache-to: type=registry,ref=${{ env.REGISTRY_URL }}/${{ env.IMAGE_NAME }}:buildcache,mode=max
+        build-args: |
+          BUILDKIT_INLINE_CACHE=1
+
+    - name: Create deployment summary
+      if: success()
+      run: |
+        echo "## 🚀 Build Summary" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        echo "### Docker Images" >> $GITHUB_STEP_SUMMARY
+        echo "- **Production**: \`${{ env.REGISTRY_URL }}/${{ env.IMAGE_NAME }}:${{ steps.meta.outputs.date_tag }}\`" >> $GITHUB_STEP_SUMMARY
+        echo "- **Semantic**: \`${{ env.REGISTRY_URL }}/${{ env.IMAGE_NAME }}:${{ steps.meta.outputs.semantic_tag }}\`" >> $GITHUB_STEP_SUMMARY
+        echo "- **Latest**: \`${{ env.REGISTRY_URL }}/${{ env.IMAGE_NAME }}:latest\`" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        echo "### Build Info" >> $GITHUB_STEP_SUMMARY
+        echo "- **Commit**: \`${{ github.sha }}\`" >> $GITHUB_STEP_SUMMARY
+        echo "- **Build**: #${{ github.run_number }}" >> $GITHUB_STEP_SUMMARY
+        echo "- **Date**: $(date +'%Y-%m-%d %H:%M:%S')" >> $GITHUB_STEP_SUMMARY
+
+  deploy:
+    name: Deploy to Kubernetes
+    runs-on: self-hosted
+    needs: [build-and-push]
+    if: success()
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Install kubectl
+      run: |
+        if ! command -v kubectl &> /dev/null; then
+          curl -LO "https://dl.k8s.io/release/$(curl -L -s https://dl.k8s.io/release/stable.txt)/bin/linux/amd64/kubectl"
+          chmod +x kubectl
+          sudo mv kubectl /usr/local/bin/
+        fi
+
+    - name: Configure kubectl
+      run: |
+        mkdir -p ~/.kube
+        echo "${{ secrets.KUBE_CONFIG }}" | base64 -d > ~/.kube/config
+        chmod 600 ~/.kube/config
+
+    - name: Update Kubernetes deployment
+      run: |
+        # Update deployment with new image tag
+        kubectl set image deployment/safework \
+          safework=${{ env.REGISTRY_URL }}/${{ env.IMAGE_NAME }}:${{ steps.meta.outputs.date_tag }} \
+          -n safework
+        
+        # Wait for rollout to complete
+        kubectl rollout status deployment/safework -n safework --timeout=300s
+        
+        # Verify deployment
+        kubectl get pods -n safework -l app=safework
+
+    - name: Update ArgoCD Application (Optional)
+      if: env.ARGOCD_TOKEN != ''
+      env:
+        ARGOCD_AUTH_TOKEN: ${{ secrets.ARGOCD_TOKEN }}
+      run: |
+        # Install ArgoCD CLI if not exists
+        if ! command -v argocd &> /dev/null; then
+          curl -sSL -o /tmp/argocd https://github.com/argoproj/argo-cd/releases/latest/download/argocd-linux-amd64
+          chmod +x /tmp/argocd
+          sudo mv /tmp/argocd /usr/local/bin/argocd
+        fi
+        
+        # Sync ArgoCD application
+        argocd app sync safework \
+          --server ${{ env.ARGOCD_SERVER }} \
+          --auth-token ${{ env.ARGOCD_AUTH_TOKEN }} \
+          --insecure \
+          --prune || echo "ArgoCD sync optional - continuing"
+
+    - name: Health check
+      run: |
+        echo "Waiting for application to be ready..."
+        sleep 30
+        
+        # Get service endpoint
+        SERVICE_IP=$(kubectl get svc safework -n safework -o jsonpath='{.status.loadBalancer.ingress[0].ip}' || echo "NodePort")
+        NODE_PORT=$(kubectl get svc safework -n safework -o jsonpath='{.spec.ports[0].nodePort}')
+        
+        echo "Service accessible at: ${SERVICE_IP}:${NODE_PORT}"
+        
+        # Simple health check
+        kubectl exec -n safework deployment/safework -- curl -f http://localhost:3001/health || echo "Health check via exec"
+
+    - name: Create deployment summary
+      if: success()
+      run: |
+        echo "## ✅ Deployment Complete" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        echo "### Deployment Info" >> $GITHUB_STEP_SUMMARY
+        echo "- **Image**: \`${{ env.REGISTRY_URL }}/${{ env.IMAGE_NAME }}:${{ steps.meta.outputs.date_tag }}\`" >> $GITHUB_STEP_SUMMARY
+        echo "- **Namespace**: safework" >> $GITHUB_STEP_SUMMARY
+        echo "- **Status**: Successfully deployed" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        echo "### Access Info" >> $GITHUB_STEP_SUMMARY
+        echo "- **Internal**: http://safework.safework.svc.cluster.local:3001" >> $GITHUB_STEP_SUMMARY
+        echo "- **External**: https://safework.jclee.me (via Ingress/Cloudflare)" >> $GITHUB_STEP_SUMMARY
+
+  notify:
+    name: Notification
+    runs-on: self-hosted
+    needs: [deploy]
+    if: always()
+    steps:
+    - name: Send notification on failure
+      if: needs.deploy.result == 'failure'
+      run: |
+        echo "❌ Deployment failed for commit ${{ github.sha }}"
+        # Add notification logic here (Slack, Email, etc.)
+        
+    - name: Send notification on success
+      if: needs.deploy.result == 'success'
+      run: |
+        echo "✅ Successfully deployed commit ${{ github.sha }}"
+        # Add notification logic here

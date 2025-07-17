@@ -1,0 +1,29 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+namespace: safework
+
+resources:
+  - ../../base
+
+patchesStrategicMerge:
+  - deployment-patch.yaml
+
+images:
+  - name: registry.jclee.me/safework
+    newTag: latest  # ArgoCD Image Updater will manage this
+
+secretGenerator:
+  - name: safework-secrets
+    literals:
+      - jwt-secret=production-jwt-secret-change-this
+    options:
+      disableNameSuffixHash: true
+
+configMapGenerator:
+  - name: safework-config
+    behavior: merge
+    literals:
+      - ENVIRONMENT=production
+      - LOG_LEVEL=warning
+      - WORKERS=2

@@ -1,0 +1,79 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: safework
+  labels:
+    app: safework
+    component: all-in-one
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: safework
+  template:
+    metadata:
+      labels:
+        app: safework
+        component: all-in-one
+    spec:
+      imagePullSecrets:
+      - name: harbor-registry
+      containers:
+      - name: safework
+        image: registry.jclee.me/safework:latest
+        ports:
+        - containerPort: 3001
+          name: http
+          protocol: TCP
+        env:
+        - name: ENVIRONMENT
+          value: "production"
+        - name: DATABASE_URL
+          value: "postgresql://admin:password@localhost:5432/health_management"
+        - name: REDIS_URL
+          value: "redis://localhost:6379/0"
+        - name: JWT_SECRET
+          valueFrom:
+            secretKeyRef:
+              name: safework-secrets
+              key: jwt-secret
+        - name: TZ
+          value: "Asia/Seoul"
+        envFrom:
+        - configMapRef:
+            name: safework-config
+        resources:
+          requests:
+            memory: "1Gi"
+            cpu: "500m"
+          limits:
+            memory: "2Gi"
+            cpu: "1000m"
+        livenessProbe:
+          httpGet:
+            path: /health
+            port: 3001
+          initialDelaySeconds: 30
+          periodSeconds: 10
+          timeoutSeconds: 5
+          failureThreshold: 3
+        readinessProbe:
+          httpGet:
+            path: /health
+            port: 3001
+          initialDelaySeconds: 10
+          periodSeconds: 5
+          timeoutSeconds: 3
+          failureThreshold: 3
+        volumeMounts:
+        - name: postgres-data
+          mountPath: /var/lib/postgresql/data
+        - name: redis-data
+          mountPath: /data
+      volumes:
+      - name: postgres-data
+        persistentVolumeClaim:
+          claimName: postgres-pvc
+      - name: redis-data
+        persistentVolumeClaim:
+          claimName: redis-pvc
