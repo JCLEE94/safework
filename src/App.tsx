@@ -17,6 +17,8 @@ import { EnhancedReports } from './components/EnhancedReports';
 import { Settings } from './components/Settings';
 import ErrorBoundary from './components/ErrorBoundary';
 import { LoginForm } from './components/Auth/LoginForm';
+import QRRegistration from './components/QRRegistration';
+import WorkerRegistration from './components/WorkerRegistration';
 import { authService } from './services/authService';
 
 function App() {
@@ -35,6 +37,11 @@ function App() {
     
     checkAuth();
   }, []);
+
+  // Worker Registration 페이지인지 확인
+  const isWorkerRegistrationPage = () => {
+    return window.location.pathname === '/worker-registration';
+  };
   
   const handleLoginSuccess = () => {
     setIsAuthenticated(true);
@@ -77,6 +84,8 @@ function App() {
         return <EnhancedReports />;
       case 'monitoring':
         return <AdvancedMonitoring />;
+      case 'qr-registration':
+        return <QRRegistration />;
       case 'settings':
         return <Settings />;
       default:
@@ -84,6 +93,11 @@ function App() {
     }
   };
   
+  // 근로자 등록 페이지는 인증 없이 접근 가능
+  if (isWorkerRegistrationPage()) {
+    return <WorkerRegistration />;
+  }
+
   if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center">

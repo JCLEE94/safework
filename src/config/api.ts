@@ -63,6 +63,55 @@ export const wsUrl = (endpoint: string): string => {
 export const isDevelopment = import.meta.env.DEV;
 export const isProduction = import.meta.env.PROD;
 
+// 간단한 API 클라이언트
+export const api = {
+  get: async (endpoint: string) => {
+    const response = await fetch(apiUrl(endpoint));
+    if (!response.ok) {
+      throw new Error(`API Error: ${response.status}`);
+    }
+    return response.json();
+  },
+  
+  post: async (endpoint: string, data?: any) => {
+    const response = await fetch(apiUrl(endpoint), {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: data ? JSON.stringify(data) : undefined,
+    });
+    if (!response.ok) {
+      throw new Error(`API Error: ${response.status}`);
+    }
+    return response.json();
+  },
+  
+  put: async (endpoint: string, data?: any) => {
+    const response = await fetch(apiUrl(endpoint), {
+      method: 'PUT',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: data ? JSON.stringify(data) : undefined,
+    });
+    if (!response.ok) {
+      throw new Error(`API Error: ${response.status}`);
+    }
+    return response.json();
+  },
+  
+  delete: async (endpoint: string) => {
+    const response = await fetch(apiUrl(endpoint), {
+      method: 'DELETE',
+    });
+    if (!response.ok) {
+      throw new Error(`API Error: ${response.status}`);
+    }
+    return response.json();
+  }
+};
+
 console.log('🔗 API Configuration:', {
   baseUrl: API_CONFIG.BASE_URL,
   apiUrl: API_CONFIG.API_URL,

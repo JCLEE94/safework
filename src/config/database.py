@@ -53,7 +53,7 @@ async def init_db():
     )
 
     # 모든 모델 임포트 (테이블 생성을 위해)
-    from ..models import worker
+    from ..models import worker, qr_registration
 
     # 데이터베이스 연결 대기 및 재시도
     max_retries = 30
