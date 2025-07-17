@@ -177,7 +177,7 @@ async def complete_registration(
         )
         
         # 근로자 등록
-        new_worker = await worker_service.create_worker(worker_create, db)
+        new_worker = await worker_service.create_worker(db, worker_create)
         
         # 등록 완료 처리
         success = await qr_service.complete_registration(

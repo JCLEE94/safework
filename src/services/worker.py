@@ -299,3 +299,7 @@ class WorkerService:
 
 # 싱글톤 인스턴스
 worker_service = WorkerService()
+
+def get_worker_service() -> WorkerService:
+    """WorkerService 인스턴스 반환"""
+    return worker_service

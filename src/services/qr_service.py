@@ -45,7 +45,7 @@ class QRCodeService:
     """QR코드 생성 및 관리 서비스"""
     
     def __init__(self):
-        self.base_url = settings.base_url or "https://safework.jclee.me"
+        self.base_url = getattr(settings, 'base_url', "https://safework.jclee.me")
         self.token_expiry_hours = 24  # 24시간 유효
         
     async def generate_qr_registration_token(
