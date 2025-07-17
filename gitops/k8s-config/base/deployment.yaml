@@ -1,0 +1,79 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: safework
+  labels:
+    app: safework
+    component: backend
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: safework
+      component: backend
+  template:
+    metadata:
+      labels:
+        app: safework
+        component: backend
+    spec:
+      imagePullSecrets:
+      - name: harbor-registry
+      containers:
+      - name: safework
+        image: registry.jclee.me/safework:latest
+        ports:
+        - containerPort: 3001
+          name: http
+          protocol: TCP
+        - containerPort: 8081
+          name: api
+          protocol: TCP
+        env:
+        - name: PORT
+          value: "3001"
+        - name: API_PORT
+          value: "8081"
+        - name: ENVIRONMENT
+          valueFrom:
+            configMapKeyRef:
+              name: safework-config
+              key: environment
+        envFrom:
+        - configMapRef:
+            name: safework-config
+        - secretRef:
+            name: safework-secret
+        resources:
+          requests:
+            memory: "512Mi"
+            cpu: "250m"
+          limits:
+            memory: "1Gi"
+            cpu: "500m"
+        livenessProbe:
+          httpGet:
+            path: /health
+            port: 8081
+          initialDelaySeconds: 60
+          periodSeconds: 30
+          timeoutSeconds: 10
+          failureThreshold: 3
+        readinessProbe:
+          httpGet:
+            path: /api/v1/health
+            port: 8081
+          initialDelaySeconds: 30
+          periodSeconds: 10
+          timeoutSeconds: 5
+          failureThreshold: 3
+        volumeMounts:
+        - name: data
+          mountPath: /app/data
+        - name: logs
+          mountPath: /app/logs
+      volumes:
+      - name: data
+        emptyDir: {}
+      - name: logs
+        emptyDir: {}

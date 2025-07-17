@@ -356,37 +356,6 @@ async def cancel_registration(
         )
 
 
-@router.get("/validate/{token}")
-async def validate_registration_token(
-    token: str,
-    qr_service: QRCodeService = Depends(get_qr_service),
-    db: AsyncSession = Depends(get_db)
-):
-    """
-    등록 토큰 검증
-    
-    토큰이 유효한지 확인합니다.
-    """
-    try:
-        db_token = await qr_service.validate_registration_token(token, db)
-        
-        if db_token:
-            return {
-                "valid": True,
-                "token_id": str(db_token.id),
-                "department": db_token.department,
-                "worker_data": db_token.get_worker_data(),
-                "expires_at": db_token.expires_at.isoformat()
-            }
-        else:
-            return {"valid": False, "message": "유효하지 않거나 만료된 토큰입니다"}
-            
-    except Exception as e:
-        logger.error(f"토큰 검증 실패: {str(e)}")
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="토큰 검증 중 오류가 발생했습니다"
-        )
 
 
 if __name__ == "__main__":
@@ -400,4 +369,4 @@ if __name__ == "__main__":
     print("  - GET /api/v1/qr-registration/statistics")
     print("  - DELETE /api/v1/qr-registration/token/{token}")
     print("  - GET /api/v1/qr-registration/validate/{token}")
-    print("✅ QR코드 등록 API 핸들러 검증 완료")
+    print("✅ QR코드 등록 API 핸들러 검증 완료 (중복 엔드포인트 제거됨)")

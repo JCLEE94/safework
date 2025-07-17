@@ -1,0 +1,22 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: safework
+spec:
+  replicas: 1
+  template:
+    spec:
+      containers:
+      - name: safework
+        env:
+        - name: ENVIRONMENT
+          value: "development"
+        - name: LOG_LEVEL
+          value: "debug"
+        resources:
+          requests:
+            memory: "256Mi"
+            cpu: "100m"
+          limits:
+            memory: "512Mi"
+            cpu: "250m"

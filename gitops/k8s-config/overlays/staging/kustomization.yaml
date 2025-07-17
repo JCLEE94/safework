@@ -1,0 +1,33 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+namespace: staging
+
+resources:
+  - ../../base
+
+patchesStrategicMerge:
+  - deployment-patch.yaml
+
+images:
+  - name: registry.jclee.me/safework
+    newTag: staging-latest
+
+configMapGenerator:
+  - name: safework-config
+    behavior: merge
+    literals:
+      - environment=staging
+      - log_level=info
+      - cors_origins=https://staging.safework.jclee.me
+      - database_host=postgres-staging
+      - redis_host=redis-staging
+
+secretGenerator:
+  - name: safework-secret
+    envs:
+      - .env.secret
+
+replicas:
+  - name: safework
+    count: 2

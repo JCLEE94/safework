@@ -1,0 +1,29 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: safework-prod
+  namespace: argocd
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+  annotations:
+    argocd-image-updater.argoproj.io/image-list: safework=registry.jclee.me/safework
+    argocd-image-updater.argoproj.io/safework.update-strategy: latest
+    argocd-image-updater.argoproj.io/safework.pull-secret: pullsecret:argocd/harbor-registry
+    argocd-image-updater.argoproj.io/safework.allow-tags: regexp:^prod-[0-9]{8}-[a-f0-9]{7}$
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/JCLEE94/safework
+    targetRevision: main
+    path: gitops/k8s-config/overlays/prod
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: production
+  syncPolicy:
+    automated:
+      prune: false
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
+      - PruneLast=true
+  revisionHistoryLimit: 20
