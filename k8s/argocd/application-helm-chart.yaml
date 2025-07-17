@@ -1,0 +1,92 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: safework
+  namespace: argocd
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+  annotations:
+    # ArgoCD Image Updater 설정
+    argocd-image-updater.argoproj.io/image-list: safework=registry.jclee.me/safework
+    argocd-image-updater.argoproj.io/safework.update-strategy: latest
+    argocd-image-updater.argoproj.io/safework.allow-tags: "regexp:^prod-[0-9]{8}-[a-f0-9]{7}$"
+    argocd-image-updater.argoproj.io/write-back-method: argocd
+    argocd-image-updater.argoproj.io/safework.pull-secret: pullsecret:safework/harbor-registry
+spec:
+  project: default
+  
+  source:
+    repoURL: https://charts.jclee.me
+    chart: safework
+    targetRevision: "*"  # Latest version
+    helm:
+      releaseName: safework
+      values: |
+        image:
+          repository: registry.jclee.me/safework
+          tag: latest
+          pullPolicy: Always
+        
+        imagePullSecrets:
+          - name: harbor-registry
+        
+        service:
+          type: NodePort
+          port: 3001
+          nodePort: 32301
+        
+        ingress:
+          enabled: false
+        
+        resources:
+          requests:
+            memory: "1Gi"
+            cpu: "500m"
+          limits:
+            memory: "2Gi"
+            cpu: "1000m"
+        
+        env:
+          - name: ENVIRONMENT
+            value: "production"
+          - name: DATABASE_URL
+            value: "postgresql://admin:password@localhost:5432/health_management"
+          - name: REDIS_URL
+            value: "redis://localhost:6379/0"
+          - name: JWT_SECRET
+            valueFrom:
+              secretKeyRef:
+                name: safework-secrets
+                key: jwt-secret
+          - name: TZ
+            value: "Asia/Seoul"
+        
+        persistence:
+          postgres:
+            enabled: true
+            size: 10Gi
+          redis:
+            enabled: true
+            size: 1Gi
+  
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: safework
+  
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+      allowEmpty: false
+    syncOptions:
+      - CreateNamespace=true
+      - PrunePropagationPolicy=foreground
+      - PruneLast=true
+    retry:
+      limit: 5
+      backoff:
+        duration: 5s
+        factor: 2
+        maxDuration: 3m
+  
+  revisionHistoryLimit: 10
