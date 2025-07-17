@@ -12,7 +12,7 @@ from sqlalchemy.orm import relationship
 from datetime import datetime
 import enum
 
-from .database import Base
+from src.config.database import Base
 
 
 class MedicationType(str, enum.Enum):
