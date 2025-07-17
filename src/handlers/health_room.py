@@ -14,7 +14,7 @@ from sqlalchemy.orm import selectinload
 from typing import List, Optional
 from datetime import datetime, date, timedelta
 
-from src.models.database import get_db
+from src.config.database import get_db
 from src.models import health_room as models
 from src.schemas import health_room as schemas
 from src.utils.auth_deps import CurrentUserId

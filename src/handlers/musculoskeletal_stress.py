@@ -15,7 +15,7 @@ from typing import List, Optional, Dict, Any
 from datetime import datetime, date, timedelta
 import json
 
-from src.models.database import get_db
+from src.config.database import get_db
 from src.models import musculoskeletal_stress as models
 from src.models.worker import Worker
 from src.schemas import musculoskeletal_stress as schemas

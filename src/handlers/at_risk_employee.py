@@ -14,7 +14,7 @@ from sqlalchemy.orm import selectinload
 from typing import List, Optional, Dict, Any
 from datetime import datetime, date, timedelta
 
-from src.models.database import get_db
+from src.config.database import get_db
 from src.models import at_risk_employee as models
 from src.models.worker import Worker
 from src.models.health import HealthExam

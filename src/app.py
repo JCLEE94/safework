@@ -231,10 +231,12 @@ def create_app() -> FastAPI:
     from .handlers.special_materials import router as special_materials_router
     from .handlers.work_environments import router as work_environments_router
     from .handlers.workers import router as workers_router
+    from .handlers.qr_registration import router as qr_registration_router
 
     # from .handlers.integrated_documents import router as integrated_documents_router  # Temporarily disabled due to import issue
 
     app.include_router(workers_router, prefix="/api/v1/workers", tags=["근로자관리"])
+    app.include_router(qr_registration_router, tags=["QR코드등록"])
     app.include_router(health_exams_router, tags=["건강진단"])
     app.include_router(health_exam_appointments_router, tags=["건강진단예약"])
     app.include_router(health_exam_management_router, tags=["건강검진관리"])

@@ -16,7 +16,7 @@ from datetime import datetime, date, timedelta
 import uuid
 import json
 
-from src.models.database import get_db
+from src.config.database import get_db
 from src.models import health_exam_management as models
 from src.models.worker import Worker
 from src.schemas import health_exam_management as schemas
