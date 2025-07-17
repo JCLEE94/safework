@@ -214,6 +214,7 @@ def create_app() -> FastAPI:
     from .handlers.health_education import router as health_education_router
     from .handlers.health_exam_appointments import \
         router as health_exam_appointments_router
+    from .handlers.health_exam_management import router as health_exam_management_router
     from .handlers.health_exams import router as health_exams_router
     from .handlers.health_room import router as health_room_router
     from .handlers.legal_forms import router as legal_forms_router
@@ -234,6 +235,7 @@ def create_app() -> FastAPI:
     app.include_router(workers_router, prefix="/api/v1/workers", tags=["근로자관리"])
     app.include_router(health_exams_router, tags=["건강진단"])
     app.include_router(health_exam_appointments_router, tags=["건강진단예약"])
+    app.include_router(health_exam_management_router, tags=["건강검진관리"])
     app.include_router(health_consultations_router, tags=["보건상담"])
     app.include_router(health_room_router, tags=["보건관리실"])
     app.include_router(work_environments_router, tags=["작업환경측정"])
