@@ -29,6 +29,9 @@ from src.models.special_materials import (ControlMeasure, ControlMeasureType,
 from src.models.work_environment import (WorkEnvironment,
                                          WorkEnvironmentWorkerExposure)
 from src.models.worker import Worker
+from src.models.cardiovascular import CardiovascularRiskAssessment
+from src.models.qr_registration import QRRegistrationToken
+from src.models.confined_space import ConfinedSpace
 
 __all__ = [
     "Base",
@@ -80,4 +83,7 @@ __all__ = [
     "ExposureLevel",
     "MonitoringStatus",
     "ControlMeasureType",
+    "CardiovascularRiskAssessment",
+    "QRRegistrationToken",
+    "ConfinedSpace",
 ]

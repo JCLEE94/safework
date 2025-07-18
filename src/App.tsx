@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { BrowserRouter as Router, Routes, Route, useLocation } from 'react-router-dom';
 
 // Components
 import { Layout } from './components/Layout';
@@ -19,13 +20,17 @@ import ErrorBoundary from './components/ErrorBoundary';
 import { LoginForm } from './components/Auth/LoginForm';
 import QRRegistration from './components/QRRegistration';
 import WorkerRegistration from './components/WorkerRegistration';
+import ConfinedSpace from './components/ConfinedSpace';
+// import CardiovascularPage from './pages/CardiovascularPage';
+import { QRRegistrationPage } from './pages/QRRegistrationPage';
 import { authService } from './services/authService';
 
-function App() {
+function MainApp() {
   const [activeMenu, setActiveMenu] = useState('dashboard');
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [loading, setLoading] = useState(true);
+  const location = useLocation();
   
   useEffect(() => {
     // 초기 인증 상태 확인
@@ -40,7 +45,7 @@ function App() {
 
   // Worker Registration 페이지인지 확인
   const isWorkerRegistrationPage = () => {
-    return window.location.pathname === '/worker-registration';
+    return location.pathname === '/worker-registration';
   };
   
   const handleLoginSuccess = () => {
@@ -86,6 +91,10 @@ function App() {
         return <AdvancedMonitoring />;
       case 'qr-registration':
         return <QRRegistration />;
+      case 'confined-space':
+        return <ConfinedSpace />;
+      case 'cardiovascular':
+        return <div>심혈관 시스템 (임시 비활성화)</div>;
       case 'settings':
         return <Settings />;
       default:
@@ -125,6 +134,17 @@ function App() {
         {renderContent()}
       </Layout>
     </ErrorBoundary>
+  );
+}
+
+function App() {
+  return (
+    <Router>
+      <Routes>
+        <Route path="/qr-register/:token" element={<QRRegistrationPage />} />
+        <Route path="/*" element={<MainApp />} />
+      </Routes>
+    </Router>
   );
 }
 

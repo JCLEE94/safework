@@ -232,11 +232,16 @@ def create_app() -> FastAPI:
     from .handlers.work_environments import router as work_environments_router
     from .handlers.workers import router as workers_router
     from .handlers.qr_registration import router as qr_registration_router
+    from .handlers.confined_space import router as confined_space_router
+    from .handlers.cardiovascular import router as cardiovascular_router
+    from .handlers.sample_data import router as sample_data_router
 
     # from .handlers.integrated_documents import router as integrated_documents_router  # Temporarily disabled due to import issue
 
     app.include_router(workers_router, prefix="/api/v1/workers", tags=["근로자관리"])
     app.include_router(qr_registration_router, tags=["QR코드등록"])
+    app.include_router(confined_space_router, tags=["밀폐공간관리"])
+    app.include_router(cardiovascular_router, tags=["뇌심혈관계관리"])
     app.include_router(health_exams_router, tags=["건강진단"])
     app.include_router(health_exam_appointments_router, tags=["건강진단예약"])
     app.include_router(health_exam_management_router, tags=["건강검진관리"])
@@ -265,6 +270,7 @@ def create_app() -> FastAPI:
     app.include_router(special_materials_router, tags=["특별관리물질"])
     app.include_router(error_reporting_router, tags=["에러리포팅"])
     app.include_router(document_editor_router, tags=["문서편집"])
+    app.include_router(sample_data_router, tags=["샘플데이터"])  # 개발용
     # app.include_router(integrated_documents_router, tags=["통합문서관리"])  # Temporarily disabled
 
     # 정적 파일 서빙 (React 빌드된 파일들) - Mount after all API routes

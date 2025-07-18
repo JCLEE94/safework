@@ -35,6 +35,8 @@ export const MENU_ITEMS = [
   { id: 'reports', name: '종합보고서', icon: 'BarChart3', color: 'text-indigo-600' },
   { id: 'monitoring', name: '실시간모니터링', icon: 'MonitorDot', color: 'text-pink-600' },
   { id: 'qr-registration', name: 'QR코드 등록', icon: 'QrCode', color: 'text-blue-500' },
+  { id: 'confined-space', name: '밀폐공간 관리', icon: 'Shield', color: 'text-orange-600' },
+  { id: 'cardiovascular', name: '뇌심혈관계 관리', icon: 'Heart', color: 'text-red-500' },
   { id: 'settings', name: '시스템설정', icon: 'Settings', color: 'text-gray-600' },
 ] as const;
 
