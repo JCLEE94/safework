@@ -10,7 +10,7 @@ on:
       skip_tests:
         description: 'Skip tests (deploy only)'
         required: false
-        default: false
+        default: true
         type: boolean
 
 env:

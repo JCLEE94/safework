@@ -12,11 +12,13 @@ spec:
       maxUnavailable: 0
   selector:
     matchLabels:
-      app: safework
+      app.kubernetes.io/instance: safework
+      app.kubernetes.io/name: safework
   template:
     metadata:
       labels:
-        app: safework
+        app.kubernetes.io/instance: safework
+        app.kubernetes.io/name: safework
     spec:
       imagePullSecrets:
       - name: regcred
