@@ -27,6 +27,46 @@ logger = logging.getLogger(__name__)
 router = APIRouter()
 
 
+@router.post("/public-registration", response_model=WorkerResponse, status_code=status.HTTP_201_CREATED)
+async def public_worker_registration(
+    worker_data: WorkerCreate, 
+    db: AsyncSession = Depends(get_db)
+):
+    """공개 근로자 등록 (인증 불필요)"""
+    try:
+        # 사번이 있는 경우 중복 체크
+        if worker_data.employee_id:
+            existing_worker = await worker_repository.get_by_employee_id(
+                db, employee_id=worker_data.employee_id
+            )
+            if existing_worker:
+                logger.warning(f"중복된 사번: {worker_data.employee_id}")
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="이미 존재하는 사번입니다.",
+                )
+
+        # 근로자 생성
+        worker = await worker_repository.create(db, obj_in=worker_data)
+        
+        # 캐시 무효화
+        await invalidate_worker_cache()
+        
+        logger.info(f"공개 등록 완료: {worker.name} (ID: {worker.id})")
+        
+        return WorkerResponse.model_validate(worker, from_attributes=True)
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"공개 근로자 등록 실패: {e}")
+        await db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="근로자 등록 중 오류가 발생했습니다.",
+        )
+
+
 @router.get("/", response_model=WorkerListResponse)
 async def get_workers(
     skip: int = Query(0, ge=0),

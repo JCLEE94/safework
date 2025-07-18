@@ -23,6 +23,7 @@ import WorkerRegistration from './components/WorkerRegistration';
 import ConfinedSpace from './components/ConfinedSpace';
 // import CardiovascularPage from './pages/CardiovascularPage';
 import { QRRegistrationPage } from './pages/QRRegistrationPage';
+import { PublicQRRegistration } from './pages/PublicQRRegistration';
 import { authService } from './services/authService';
 
 function MainApp() {
@@ -141,6 +142,7 @@ function App() {
   return (
     <Router>
       <Routes>
+        <Route path="/qr-register" element={<PublicQRRegistration />} />
         <Route path="/qr-register/:token" element={<QRRegistrationPage />} />
         <Route path="/*" element={<MainApp />} />
       </Routes>
