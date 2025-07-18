@@ -45,7 +45,7 @@ spec:
           echo "Redis is ready!"
       containers:
       - name: safework
-        image: registry.jclee.me/safework:latest
+        image: registry.jclee.me/safework:prod-20250718-e667947  # QR 등록 시스템 완성
         imagePullPolicy: Always
         ports:
         - containerPort: 3001
