@@ -1,0 +1,2 @@
+FROM registry.jclee.me/safework:prod-20250718-e667947
+COPY frontend/dist /app/static
