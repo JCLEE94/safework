@@ -283,8 +283,25 @@ def create_app() -> FastAPI:
         )
 
         if os.path.exists(static_dir):
-            app.mount("/", StaticFiles(directory=static_dir, html=True), name="static")
-            logger.info(f"정적 파일 마운트 완료: {static_dir} -> /")
+            # React Router를 위한 catch-all 라우트 추가
+            from fastapi.responses import FileResponse
+            
+            @app.get("/{full_path:path}")
+            async def serve_spa(full_path: str):
+                """React Router를 위한 SPA 라우팅"""
+                # API 경로는 제외
+                if full_path.startswith("api/"):
+                    raise HTTPException(status_code=404, detail="Not found")
+                
+                # 정적 파일 경로 확인
+                file_path = os.path.join(static_dir, full_path)
+                if os.path.exists(file_path) and os.path.isfile(file_path):
+                    return FileResponse(file_path)
+                
+                # 모든 다른 경로는 index.html 반환 (React Router 처리)
+                return FileResponse(os.path.join(static_dir, "index.html"))
+            
+            logger.info(f"정적 파일 마운트 완료 (SPA 모드): {static_dir} -> /")
         else:
             logger.warning(f"정적 파일 디렉토리가 없습니다: {static_dir}")
 
