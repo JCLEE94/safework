@@ -12,6 +12,7 @@ export const PublicQRRegistration: React.FC = () => {
     department: '',
     position: '',
     employment_type: '정규직',
+    work_type: '일반작업',  // work_type 추가
     hire_date: '',
     emergency_contact: '',
     address: ''
