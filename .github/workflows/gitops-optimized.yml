@@ -10,7 +10,7 @@ on:
       skip_tests:
         description: 'Skip tests (deploy only)'
         required: false
-        default: true
+        default: 'true'
         type: boolean
 
 env:
@@ -28,7 +28,7 @@ jobs:
   test:
     name: Test & Code Quality
     runs-on: self-hosted
-    if: github.event.inputs.skip_tests != 'true'
+    if: ${{ github.event.inputs.skip_tests == 'false' }}
     services:
       postgres:
         image: postgres:15
