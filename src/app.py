@@ -227,6 +227,7 @@ def create_app() -> FastAPI:
     from .handlers.musculoskeletal_stress import router as musculoskeletal_stress_router
     from .handlers.pipeline import router as pipeline_router
     from .handlers.reports import router as reports_router
+    from .handlers.qr_routes import router as qr_router
     from .handlers.settings import router as settings_router
     from .handlers.special_materials import router as special_materials_router
     from .handlers.work_environments import router as work_environments_router
@@ -240,6 +241,7 @@ def create_app() -> FastAPI:
 
     app.include_router(workers_router, prefix="/api/v1/workers", tags=["근로자관리"])
     app.include_router(qr_registration_router, tags=["QR코드등록"])
+    app.include_router(qr_router, tags=["QR페이지"])  # QR 페이지 라우트
     app.include_router(confined_space_router, tags=["밀폐공간관리"])
     app.include_router(cardiovascular_router, tags=["뇌심혈관계관리"])
     app.include_router(health_exams_router, tags=["건강진단"])
@@ -283,15 +285,7 @@ def create_app() -> FastAPI:
         )
 
         if os.path.exists(static_dir):
-            # React Router를 위한 특별 라우트를 먼저 정의 (StaticFiles 마운트 전에!)
-            from fastapi.responses import FileResponse
-            
-            @app.get("/qr-register")
-            async def serve_qr_register():
-                """QR 등록 페이지를 위한 특별 라우트"""
-                return FileResponse(os.path.join(static_dir, "index.html"))
-            
-            # 정적 파일 마운트는 모든 라우트 정의 후에
+            # 정적 파일 마운트
             app.mount("/", StaticFiles(directory=static_dir, html=True), name="static")
             logger.info(f"정적 파일 마운트 완료: {static_dir} -> /")
             
