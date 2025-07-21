@@ -168,8 +168,8 @@ jobs:
         echo "- **Build**: #${{ github.run_number }}" >> $GITHUB_STEP_SUMMARY
         echo "- **Date**: $(date +'%Y-%m-%d %H:%M:%S')" >> $GITHUB_STEP_SUMMARY
 
-  verify-deployment:
-    name: Verify ArgoCD Deployment
+  deploy:
+    name: Deploy to Kubernetes
     runs-on: self-hosted
     needs: [build-and-push]
     if: success()
@@ -178,43 +178,44 @@ jobs:
     - name: Checkout code
       uses: actions/checkout@v4
 
-    - name: Wait for ArgoCD Image Updater
+    - name: Deploy to Kubernetes
       run: |
-        echo "## 🔄 ArgoCD Image Updater 자동 배포 대기 중" >> $GITHUB_STEP_SUMMARY
-        echo "" >> $GITHUB_STEP_SUMMARY
-        echo "ArgoCD Image Updater가 새 이미지를 감지하고 자동으로 배포합니다." >> $GITHUB_STEP_SUMMARY
-        echo "" >> $GITHUB_STEP_SUMMARY
-        echo "### 배포된 이미지 정보" >> $GITHUB_STEP_SUMMARY
-        echo "- **Production Tag**: \`${{ needs.build-and-push.outputs.date_tag }}\`" >> $GITHUB_STEP_SUMMARY
-        echo "- **Registry**: \`${{ env.REGISTRY_URL }}/${{ env.IMAGE_NAME }}\`" >> $GITHUB_STEP_SUMMARY
-        echo "" >> $GITHUB_STEP_SUMMARY
-        echo "### ArgoCD 대시보드" >> $GITHUB_STEP_SUMMARY
-        echo "- **URL**: https://argo.jclee.me/applications/safework" >> $GITHUB_STEP_SUMMARY
-        echo "" >> $GITHUB_STEP_SUMMARY
-        echo "### 배포 확인 방법" >> $GITHUB_STEP_SUMMARY
-        echo "1. ArgoCD 대시보드에서 자동 동기화 확인" >> $GITHUB_STEP_SUMMARY
-        echo "2. 프로덕션 사이트 접속: https://safework.jclee.me" >> $GITHUB_STEP_SUMMARY
-        echo "3. 헬스체크 확인: https://safework.jclee.me/health" >> $GITHUB_STEP_SUMMARY
+        # Update K8s deployment with new image
+        kubectl set image deployment/safework \
+          safework=${{ env.REGISTRY_URL }}/${{ env.IMAGE_NAME }}:${{ needs.build-and-push.outputs.date_tag }} \
+          -n safework
         
-        # ArgoCD Image Updater는 주기적으로 실행되므로 즉시 반영되지 않을 수 있음
-        echo ""
-        echo "ℹ️  ArgoCD Image Updater는 2분마다 새 이미지를 확인합니다."
-        echo "🚀 자동 배포가 곧 시작됩니다!"
+        # Wait for rollout
+        kubectl rollout status deployment/safework -n safework --timeout=300s
+        
+        # Verify deployment
+        echo "### 🚀 Deployment Complete" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        echo "- **Image**: \`${{ env.REGISTRY_URL }}/${{ env.IMAGE_NAME }}:${{ needs.build-and-push.outputs.date_tag }}\`" >> $GITHUB_STEP_SUMMARY
+        echo "- **Production**: https://safework.jclee.me" >> $GITHUB_STEP_SUMMARY
 
-    - name: Check ArgoCD Image Updater logs (Optional)
-      if: always()
-      continue-on-error: true
+    - name: Health Check
       run: |
-        if command -v kubectl &> /dev/null; then
-          echo "### ArgoCD Image Updater 최근 로그:"
-          kubectl logs -n argocd deployment/argocd-image-updater --tail=20 | grep -i safework || true
+        echo "Waiting for application to be ready..."
+        sleep 30
+        
+        # Check pod status
+        kubectl get pods -n safework -l app=safework
+        
+        # Verify deployment
+        DEPLOYMENT_STATUS=$(kubectl get deployment safework -n safework -o jsonpath='{.status.conditions[?(@.type=="Available")].status}')
+        if [ "$DEPLOYMENT_STATUS" = "True" ]; then
+          echo "✅ Deployment successful"
+        else
+          echo "❌ Deployment verification failed"
+          exit 1
         fi
 
 
   notify:
     name: Notification
     runs-on: self-hosted
-    needs: [verify-deployment]
+    needs: [deploy]
     if: always()
     steps:
     - name: Send notification on failure
@@ -224,8 +225,8 @@ jobs:
         # Add notification logic here (Slack, Email, etc.)
         
     - name: Send notification on success
-      if: needs.verify-deployment.result == 'success'
+      if: needs.deploy.result == 'success'
       run: |
-        echo "✅ Successfully built and pushed image for commit ${{ github.sha }}"
-        echo "🔄 ArgoCD Image Updater will deploy automatically"
+        echo "✅ Successfully deployed commit ${{ github.sha }}"
+        echo "🚀 Application is now running at https://safework.jclee.me"
         # Add notification logic here
