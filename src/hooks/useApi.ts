@@ -37,10 +37,21 @@ export function useApi() {
       });
       
       if (!response.ok) {
-        // 401 인증 오류시 로그아웃
+        // 401 인증 오류시 로그아웃 (특정 경로 제외)
         if (response.status === 401) {
-          authService.clearAuth();
-          window.location.reload();
+          const excludedPaths = [
+            '/api/v1/unified-documents',
+            '/api/v1/confined-spaces',
+            '/api/v1/legal-forms',
+            '/api/v1/documents'
+          ];
+          
+          const isExcluded = excludedPaths.some(path => endpoint.includes(path));
+          
+          if (!isExcluded) {
+            authService.clearAuth();
+            window.location.reload();
+          }
         }
         throw new Error(`API Error: ${response.status} ${response.statusText}`);
       }

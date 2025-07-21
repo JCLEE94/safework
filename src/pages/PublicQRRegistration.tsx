@@ -99,7 +99,7 @@ export const PublicQRRegistration: React.FC = () => {
       </div>
 
       {/* 메인 폼 */}
-      <div className="px-4 py-6 pb-20">
+      <div className="px-4 py-6 pb-safe">
         <div className="max-w-md mx-auto">
           {/* 안내 카드 */}
           <div className="bg-white/90 backdrop-blur-md rounded-3xl shadow-xl p-6 mb-6">
