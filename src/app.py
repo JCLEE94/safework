@@ -236,6 +236,7 @@ def create_app() -> FastAPI:
     from .handlers.confined_space import router as confined_space_router
     from .handlers.cardiovascular import router as cardiovascular_router
     from .handlers.sample_data import router as sample_data_router
+    from .handlers.worker_feedback import router as worker_feedback_router
 
     # from .handlers.integrated_documents import router as integrated_documents_router  # Temporarily disabled due to import issue
 
@@ -273,6 +274,7 @@ def create_app() -> FastAPI:
     app.include_router(error_reporting_router, tags=["에러리포팅"])
     app.include_router(document_editor_router, tags=["문서편집"])
     app.include_router(sample_data_router, tags=["샘플데이터"])  # 개발용
+    app.include_router(worker_feedback_router, tags=["근로자피드백"])
     # app.include_router(integrated_documents_router, tags=["통합문서관리"])  # Temporarily disabled
 
     # 정적 파일 서빙 (React 빌드된 파일들) - Mount after all API routes
@@ -292,6 +294,12 @@ def create_app() -> FastAPI:
             async def serve_qr_register():
                 """QR 등록 페이지를 위한 특별 라우트"""
                 return FileResponse(os.path.join(static_dir, "index.html"))
+            
+            # 업로드 디렉토리 생성 및 마운트
+            upload_dir = "uploads"
+            os.makedirs(upload_dir, exist_ok=True)
+            os.makedirs(os.path.join(upload_dir, "feedbacks"), exist_ok=True)
+            app.mount("/uploads", StaticFiles(directory=upload_dir), name="uploads")
             
             # 정적 파일 마운트 (QR 라우트 정의 후에)
             app.mount("/", StaticFiles(directory=static_dir, html=True), name="static")

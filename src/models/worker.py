@@ -114,6 +114,9 @@ class Worker(Base):
     exam_appointments = relationship(
         "HealthExamAppointment", back_populates="worker", cascade="all, delete-orphan"
     )
+    feedbacks = relationship(
+        "WorkerFeedback", back_populates="worker", cascade="all, delete-orphan"
+    )
 
     # 복합 인덱스
     __table_args__ = (

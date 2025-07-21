@@ -7,13 +7,22 @@ export const PublicQRRegistration: React.FC = () => {
     birth_date: '',
     gender: '',
     phone: '',
+    email: '',
+    address: '',
+    company_name: '',
+    work_category: '',
     department: '',
     position: '',
     employment_type: '정규직',
-    work_type: '일반작업',
+    work_type: 'construction',
     hire_date: '',
     emergency_contact: '',
-    address: ''
+    emergency_relationship: '',
+    blood_type: '',
+    health_status: 'normal',
+    visa_type: '',
+    safety_education_cert: null as File | null,
+    visa_cert: null as File | null,
   });
 
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -28,18 +37,35 @@ export const PublicQRRegistration: React.FC = () => {
     }));
   };
 
+  const handleFileChange = (field: 'safety_education_cert' | 'visa_cert') => (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (e.target.files && e.target.files[0]) {
+      setFormData(prev => ({ ...prev, [field]: e.target.files![0] }));
+    }
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsSubmitting(true);
     setError('');
 
     try {
+      const submitData = new FormData();
+      Object.entries(formData).forEach(([key, value]) => {
+        if (value !== null && value !== undefined && !(value instanceof File)) {
+          submitData.append(key, value.toString());
+        }
+      });
+      
+      if (formData.safety_education_cert) {
+        submitData.append('safety_education_cert', formData.safety_education_cert);
+      }
+      if (formData.visa_cert) {
+        submitData.append('visa_cert', formData.visa_cert);
+      }
+
       const response = await fetch('/api/v1/workers/public-registration', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(formData)
+        body: submitData
       });
 
       if (!response.ok) {

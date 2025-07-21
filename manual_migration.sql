@@ -21,3 +21,16 @@ ALTER COLUMN company_name SET NOT NULL,
 ALTER COLUMN work_category SET NOT NULL,
 ALTER COLUMN address SET NOT NULL,
 ALTER COLUMN department SET NOT NULL;
+
+-- 피드백 테이블 생성
+CREATE TABLE IF NOT EXISTS worker_feedbacks (
+    id SERIAL PRIMARY KEY,
+    worker_id INTEGER NOT NULL REFERENCES workers(id),
+    content TEXT NOT NULL,
+    photo_url TEXT,
+    created_by VARCHAR(50),
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX IF NOT EXISTS ix_worker_feedbacks_worker_id ON worker_feedbacks(worker_id);
