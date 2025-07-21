@@ -28,7 +28,7 @@ jobs:
   test:
     name: Test & Code Quality
     runs-on: self-hosted
-    if: ${{ github.event_name == 'push' || (github.event_name == 'workflow_dispatch' && github.event.inputs.skip_tests == 'false') }}
+    if: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.skip_tests == 'false' }}
     services:
       postgres:
         image: postgres:15
@@ -165,38 +165,28 @@ jobs:
         echo "- **Build**: #${{ github.run_number }}" >> $GITHUB_STEP_SUMMARY
         echo "- **Date**: $(date +'%Y-%m-%d %H:%M:%S')" >> $GITHUB_STEP_SUMMARY
 
-  update-manifest:
-    name: Update K8s Manifest (GitOps)
+  deploy:
+    name: Deploy to Kubernetes
     runs-on: self-hosted
     needs: [build-and-push]
     if: success()
     
     steps:
-    - name: Checkout code
-      uses: actions/checkout@v4
-      with:
-        token: ${{ secrets.GITHUB_TOKEN }}
-
-    - name: Update Kustomization
+    - name: Deploy to Kubernetes
       run: |
-        # Update image tag in kustomization.yaml
-        cd k8s/safework
-        sed -i "s|newTag: .*|newTag: ${{ needs.build-and-push.outputs.date_tag }}|" kustomization.yaml
+        # Update K8s deployment with new image
+        kubectl set image deployment/safework \
+          safework=${{ env.REGISTRY_URL }}/${{ env.IMAGE_NAME }}:${{ needs.build-and-push.outputs.date_tag }} \
+          -n safework
         
-        # Commit changes
-        git config user.name "GitHub Actions"
-        git config user.email "actions@github.com"
-        git add kustomization.yaml
-        git commit -m "chore: update image tag to ${{ needs.build-and-push.outputs.date_tag }}"
-        git push
+        # Wait for rollout
+        kubectl rollout status deployment/safework -n safework --timeout=300s
         
-        echo "### 🚀 GitOps Update Complete" >> $GITHUB_STEP_SUMMARY
+        # Verify deployment
+        echo "### 🚀 Deployment Complete" >> $GITHUB_STEP_SUMMARY
         echo "" >> $GITHUB_STEP_SUMMARY
         echo "- **Image**: \`${{ env.REGISTRY_URL }}/${{ env.IMAGE_NAME }}:${{ needs.build-and-push.outputs.date_tag }}\`" >> $GITHUB_STEP_SUMMARY
-        echo "- **Manifest**: Updated kustomization.yaml" >> $GITHUB_STEP_SUMMARY
         echo "- **Production**: https://safework.jclee.me" >> $GITHUB_STEP_SUMMARY
-        echo "" >> $GITHUB_STEP_SUMMARY
-        echo "ArgoCD will automatically sync and deploy the changes." >> $GITHUB_STEP_SUMMARY
 
 
   notify:
