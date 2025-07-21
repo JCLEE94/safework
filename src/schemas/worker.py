@@ -53,7 +53,9 @@ class WorkerBase(BaseModel):
     name: str = Field(..., description="근로자명")
     employee_id: str = Field(..., description="사번")
     gender: Optional[str] = Field(None, description="성별")
-    department: Optional[str] = Field(None, description="부서")
+    company_name: str = Field(..., description="업체명")
+    work_category: str = Field(..., description="공종")
+    department: str = Field(..., description="부서(장비/작업)")
     position: Optional[str] = Field(None, description="직책")
     employment_type: Optional[str] = Field(None, description="고용형태")
     work_type: Optional[str] = Field(None, description="작업분류")
@@ -61,7 +63,12 @@ class WorkerBase(BaseModel):
     birth_date: Optional[date] = Field(None, description="생년월일")
     phone: Optional[str] = Field(None, description="연락처")
     emergency_contact: Optional[str] = Field(None, description="비상연락처")
+    emergency_relationship: Optional[str] = Field(None, description="비상연락 관계")
+    address: str = Field(..., description="거주지")
     health_status: Optional[str] = Field(None, description="건강상태")
+    safety_education_cert: Optional[str] = Field(None, description="건설업 기초안전보건교육 이수증")
+    visa_type: Optional[str] = Field(None, description="비자종류")
+    visa_cert: Optional[str] = Field(None, description="비자관련 자격증")
     is_active: bool = Field(True, description="재직여부")
 
 
@@ -76,13 +83,20 @@ class WorkerUpdate(BaseModel):
 
     name: Optional[str] = None
     gender: Optional[str] = None
+    company_name: Optional[str] = None
+    work_category: Optional[str] = None
     department: Optional[str] = None
     position: Optional[str] = None
     employment_type: Optional[str] = None
     work_type: Optional[str] = None
     phone: Optional[str] = None
     emergency_contact: Optional[str] = None
+    emergency_relationship: Optional[str] = None
+    address: Optional[str] = None
     health_status: Optional[str] = None
+    safety_education_cert: Optional[str] = None
+    visa_type: Optional[str] = None
+    visa_cert: Optional[str] = None
     is_active: Optional[bool] = None
 
 

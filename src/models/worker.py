@@ -67,19 +67,29 @@ class Worker(Base):
     gender = Column(String(10), nullable=True, comment="성별")
     phone = Column(String(20), comment="연락처")
     email = Column(String(100), comment="이메일")
-    address = Column(Text, comment="주소")
+    address = Column(Text, nullable=False, comment="거주지")
 
+    # 업체정보
+    company_name = Column(String(100), nullable=False, index=True, comment="업체명")
+    work_category = Column(String(100), nullable=False, index=True, comment="공종")
+    
     # 고용정보
     employment_type = Column(String(20), nullable=False, index=True, comment="고용형태")
     work_type = Column(String(20), nullable=False, index=True, comment="작업분류")
     hire_date = Column(Date, index=True, comment="입사일")
-    department = Column(String(100), index=True, comment="소속부서")
+    department = Column(String(100), nullable=False, index=True, comment="부서(장비/작업)")
     position = Column(String(50), comment="직급")
 
     # 건강정보
     health_status = Column(String(20), default="normal", index=True, comment="건강상태")
     blood_type = Column(String(5), comment="혈액형")
     emergency_contact = Column(String(100), comment="비상연락처")
+    emergency_relationship = Column(String(50), comment="비상연락 관계")
+    
+    # 안전교육 및 비자정보
+    safety_education_cert = Column(Text, comment="건설업 기초안전보건교육 이수증")
+    visa_type = Column(String(50), comment="비자종류")
+    visa_cert = Column(Text, comment="비자관련 자격증")
 
     # 특수건강진단 대상 여부
     is_special_exam_target = Column(
