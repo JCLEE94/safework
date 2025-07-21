@@ -166,26 +166,49 @@ jobs:
         echo "- **Date**: $(date +'%Y-%m-%d %H:%M:%S')" >> $GITHUB_STEP_SUMMARY
 
   deploy:
-    name: Deploy to Kubernetes
+    name: Update Git for ArgoCD
     runs-on: self-hosted
     needs: [build-and-push]
     if: success()
     
     steps:
-    - name: Deploy to Kubernetes
+    - name: Checkout code
+      uses: actions/checkout@v4
+      with:
+        token: ${{ secrets.GH_TOKEN }}  # Use PAT instead of GITHUB_TOKEN
+        ref: main
+        
+    - name: Update Helm values with new image tag
       run: |
-        # Update K8s deployment with new image
-        kubectl set image deployment/safework \
-          safework=${{ env.REGISTRY_URL }}/${{ env.IMAGE_NAME }}:${{ needs.build-and-push.outputs.date_tag }} \
-          -n safework
+        # Update image tag in Helm values
+        sed -i "s|tag: .*|tag: ${{ needs.build-and-push.outputs.date_tag }}|" k8s/helm/safework/values.yaml
         
-        # Wait for rollout
-        kubectl rollout status deployment/safework -n safework --timeout=300s
+        # Show the change
+        echo "Updated image tag to: ${{ needs.build-and-push.outputs.date_tag }}"
+        git diff k8s/helm/safework/values.yaml
         
-        # Verify deployment
-        echo "### 🚀 Deployment Complete" >> $GITHUB_STEP_SUMMARY
+    - name: Commit and push changes
+      run: |
+        git config --global user.name "GitHub Actions"
+        git config --global user.email "actions@github.com"
+        
+        git add k8s/helm/safework/values.yaml
+        git commit -m "chore: Update image tag to ${{ needs.build-and-push.outputs.date_tag }}"
+        
+        # Push with retry logic
+        for i in {1..3}; do
+          git push origin main && break || {
+            echo "Push attempt $i failed, retrying..."
+            git pull --rebase origin main
+            sleep 2
+          }
+        done
+        
+        echo "### 🚀 GitOps Update Complete" >> $GITHUB_STEP_SUMMARY
         echo "" >> $GITHUB_STEP_SUMMARY
-        echo "- **Image**: \`${{ env.REGISTRY_URL }}/${{ env.IMAGE_NAME }}:${{ needs.build-and-push.outputs.date_tag }}\`" >> $GITHUB_STEP_SUMMARY
+        echo "- **New Image Tag**: \`${{ needs.build-and-push.outputs.date_tag }}\`" >> $GITHUB_STEP_SUMMARY
+        echo "- **Helm Values**: Updated in k8s/helm/safework/values.yaml" >> $GITHUB_STEP_SUMMARY
+        echo "- **ArgoCD**: Will automatically sync the new image" >> $GITHUB_STEP_SUMMARY
         echo "- **Production**: https://safework.jclee.me" >> $GITHUB_STEP_SUMMARY
 
 
