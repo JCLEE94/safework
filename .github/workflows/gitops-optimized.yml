@@ -176,7 +176,6 @@ jobs:
       uses: actions/checkout@v4
       with:
         token: ${{ secrets.GITHUB_TOKEN }}
-        fetch-depth: 0
 
     - name: Update Kustomization
       run: |
@@ -185,17 +184,11 @@ jobs:
         sed -i "s|newTag: .*|newTag: ${{ needs.build-and-push.outputs.date_tag }}|" kustomization.yaml
         
         # Commit changes
-        git config user.name "github-actions[bot]"
-        git config user.email "github-actions[bot]@users.noreply.github.com"
+        git config user.name "GitHub Actions"
+        git config user.email "actions@github.com"
         git add kustomization.yaml
         git commit -m "chore: update image tag to ${{ needs.build-and-push.outputs.date_tag }}"
-        
-        # Push with retry
-        git push origin main || {
-          echo "Push failed, trying with force-with-lease..."
-          git pull --rebase origin main
-          git push origin main
-        }
+        git push
         
         echo "### 🚀 GitOps Update Complete" >> $GITHUB_STEP_SUMMARY
         echo "" >> $GITHUB_STEP_SUMMARY
