@@ -47,7 +47,7 @@ spec:
           echo "Redis is ready!"
       containers:
       - name: safework
-        image: registry.jclee.me/safework:prod-20250720-379e583  # QR 라우트 404 오류 해결
+        image: registry.jclee.me/safework:latest  # Force redeployment - QR route fixes
         imagePullPolicy: Always
         ports:
         - containerPort: 3001
