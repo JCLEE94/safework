@@ -285,9 +285,18 @@ def create_app() -> FastAPI:
         )
 
         if os.path.exists(static_dir):
-            # 정적 파일 마운트
+            # QR 라우트를 위한 특별 처리
+            from fastapi.responses import FileResponse
+            
+            @app.get("/qr-register")
+            async def serve_qr_register():
+                """QR 등록 페이지를 위한 특별 라우트"""
+                return FileResponse(os.path.join(static_dir, "index.html"))
+            
+            # 정적 파일 마운트 (QR 라우트 정의 후에)
             app.mount("/", StaticFiles(directory=static_dir, html=True), name="static")
             logger.info(f"정적 파일 마운트 완료: {static_dir} -> /")
+            logger.info("QR 등록 라우트 추가 완료: /qr-register")
             
         else:
             logger.warning(f"정적 파일 디렉토리가 없습니다: {static_dir}")

@@ -53,6 +53,10 @@ class JWTAuthMiddleware(BaseHTTPMiddleware):
             "/api/v1/accident-reports",
             "/api/v1/documents",
             "/api/v1/monitoring",
+            "/api/v1/unified-documents",
+            "/api/v1/confined-spaces",
+            "/api/v1/legal-forms",
+            "/api/v1/pdf-editor",
         ]
 
     async def dispatch(self, request: Request, call_next):
