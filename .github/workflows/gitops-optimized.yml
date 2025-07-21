@@ -165,45 +165,28 @@ jobs:
         echo "- **Build**: #${{ github.run_number }}" >> $GITHUB_STEP_SUMMARY
         echo "- **Date**: $(date +'%Y-%m-%d %H:%M:%S')" >> $GITHUB_STEP_SUMMARY
 
-  update-helm:
-    name: Update Helm Values (GitOps)
+  deploy:
+    name: Deploy to Kubernetes
     runs-on: self-hosted
     needs: [build-and-push]
     if: success()
     
     steps:
-    - name: Checkout code
-      uses: actions/checkout@v4
-      with:
-        token: ${{ secrets.GITHUB_TOKEN }}
-        fetch-depth: 0
-
-    - name: Update Helm values
+    - name: Deploy to Kubernetes
       run: |
-        # Update image tag in values.yaml
-        cd k8s/helm/safework
-        sed -i "s|tag: .*|tag: \"${{ needs.build-and-push.outputs.date_tag }}\"|" values.yaml
+        # Update K8s deployment with new image
+        kubectl set image deployment/safework \
+          safework=${{ env.REGISTRY_URL }}/${{ env.IMAGE_NAME }}:${{ needs.build-and-push.outputs.date_tag }} \
+          -n safework
         
-        # Commit changes
-        git config user.name "github-actions[bot]"
-        git config user.email "github-actions[bot]@users.noreply.github.com"
-        git add values.yaml
-        git commit -m "chore: update helm image tag to ${{ needs.build-and-push.outputs.date_tag }}"
+        # Wait for rollout
+        kubectl rollout status deployment/safework -n safework --timeout=300s
         
-        # Push with retry
-        git push origin main || {
-          echo "Push failed, trying with force-with-lease..."
-          git pull --rebase origin main
-          git push origin main
-        }
-        
-        echo "### 🚀 Helm Values Updated" >> $GITHUB_STEP_SUMMARY
+        # Verify deployment
+        echo "### 🚀 Deployment Complete" >> $GITHUB_STEP_SUMMARY
         echo "" >> $GITHUB_STEP_SUMMARY
         echo "- **Image**: \`${{ env.REGISTRY_URL }}/${{ env.IMAGE_NAME }}:${{ needs.build-and-push.outputs.date_tag }}\`" >> $GITHUB_STEP_SUMMARY
-        echo "- **Chart**: k8s/helm/safework" >> $GITHUB_STEP_SUMMARY
         echo "- **Production**: https://safework.jclee.me" >> $GITHUB_STEP_SUMMARY
-        echo "" >> $GITHUB_STEP_SUMMARY
-        echo "ArgoCD will automatically sync and deploy the Helm chart." >> $GITHUB_STEP_SUMMARY
 
 
   notify:
