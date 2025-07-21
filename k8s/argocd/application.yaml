@@ -23,8 +23,9 @@ spec:
     repoURL: https://github.com/JCLEE94/safework.git
     targetRevision: main
     path: k8s/safework
-    # directory:
-    #   recurse: true
+    kustomize:
+      images:
+        - registry.jclee.me/safework:latest
   destination:
     server: https://kubernetes.default.svc
     namespace: safework
