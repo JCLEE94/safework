@@ -10,11 +10,11 @@ metadata:
     argocd.argoproj.io/sync-wave: "1"
     # ArgoCD Image Updater annotations
     argocd-image-updater.argoproj.io/image-list: safework=registry.jclee.me/safework:latest
-    argocd-image-updater.argoproj.io/safework.update-strategy: latest
-    argocd-image-updater.argoproj.io/safework.allow-tags: "regexp:^prod-[0-9]{8}-[a-f0-9]{7}$"
+    argocd-image-updater.argoproj.io/safework.update-strategy: newest-build
+    argocd-image-updater.argoproj.io/safework.allow-tags: "latest, regexp:^prod-[0-9]{8}-[a-f0-9]{7}$"
     argocd-image-updater.argoproj.io/write-back-method: git
     argocd-image-updater.argoproj.io/git-branch: main
-    argocd-image-updater.argoproj.io/safework.pull-secret: argocd-image-updater-secret
+    argocd-image-updater.argoproj.io/safework.pull-secret: namespace/registry-jclee-me-oci
   finalizers:
     - resources-finalizer.argocd.argoproj.io
 spec:
