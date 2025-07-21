@@ -28,7 +28,7 @@ jobs:
   test:
     name: Test & Code Quality
     runs-on: self-hosted
-    if: ${{ github.event.inputs.skip_tests != 'true' }}
+    if: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.skip_tests == 'false' }}
     services:
       postgres:
         image: postgres:15
