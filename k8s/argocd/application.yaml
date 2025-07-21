@@ -22,10 +22,13 @@ spec:
   source:
     repoURL: https://github.com/JCLEE94/safework.git
     targetRevision: main
-    path: k8s/safework
-    kustomize:
-      images:
-        - registry.jclee.me/safework:latest
+    path: k8s/helm/safework
+    helm:
+      valueFiles:
+        - values.yaml
+      parameters:
+        - name: image.tag
+          value: latest
   destination:
     server: https://kubernetes.default.svc
     namespace: safework
