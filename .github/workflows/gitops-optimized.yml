@@ -100,10 +100,7 @@ jobs:
   build-and-push:
     name: Build & Push Docker Image
     runs-on: self-hosted
-    needs: [test]
     if: |
-      always() && 
-      (needs.test.result == 'success' || needs.test.result == 'skipped') && 
       github.ref == 'refs/heads/main'
     outputs:
       date_tag: ${{ steps.meta.outputs.date_tag }}
