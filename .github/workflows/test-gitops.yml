@@ -1,0 +1,46 @@
+name: Test GitOps Pipeline
+
+on:
+  push:
+    branches: [ main ]
+  workflow_dispatch:
+
+env:
+  REGISTRY: registry.jclee.me
+  IMAGE_NAME: safework
+  HELM_REPO: https://charts.jclee.me
+
+jobs:
+  test-pipeline:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout
+      uses: actions/checkout@v4
+
+    - name: Test Registry Connection
+      run: |
+        echo "Testing registry connection..."
+        curl -s -u admin:bingogo1 https://registry.jclee.me/v2/_catalog | jq .
+        
+    - name: Test ChartMuseum Connection
+      run: |
+        echo "Testing ChartMuseum connection..."
+        curl -s -u admin:bingogo1 https://charts.jclee.me/api/charts | jq '.safework[0]'
+
+    - name: Build Test
+      run: |
+        echo "Testing Docker build..."
+        docker build -f deployment/Dockerfile.prod -t test:latest .
+        echo "✅ Build successful!"
+
+    - name: Push Test
+      env:
+        DOCKER_USER: ${{ secrets.DOCKER_REGISTRY_USER }}
+        DOCKER_PASS: ${{ secrets.DOCKER_REGISTRY_PASS }}
+      run: |
+        if [ -z "$DOCKER_USER" ] || [ -z "$DOCKER_PASS" ]; then
+          echo "❌ Docker credentials not set in GitHub Secrets!"
+          exit 1
+        fi
+        echo "✅ Docker credentials are configured"
