@@ -20,15 +20,16 @@ metadata:
 spec:
   project: default
   source:
-    repoURL: https://github.com/JCLEE94/safework.git
-    targetRevision: main
-    path: k8s/helm/safework
+    repoURL: oci://chart.jclee.me
+    chart: charts/safework
+    targetRevision: "*"
     helm:
-      valueFiles:
-        - values.yaml
-      parameters:
-        - name: image.tag
-          value: latest
+      values: |
+        image:
+          repository: registry.jclee.me/safework
+          tag: latest
+        imagePullSecrets:
+          - name: regcred
   destination:
     server: https://kubernetes.default.svc
     namespace: safework
