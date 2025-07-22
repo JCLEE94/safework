@@ -1,0 +1,42 @@
+name: Simple GitOps CI
+
+on:
+  push:
+    branches: [ main ]
+
+env:
+  REGISTRY: registry.jclee.me
+  IMAGE_NAME: safework
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout
+      uses: actions/checkout@v4
+
+    - name: Set up build timestamp
+      run: echo "TIMESTAMP=$(date +'%Y%m%d-%H%M%S')" >> $GITHUB_ENV
+
+    - name: Build and push Docker image
+      env:
+        REGISTRY_PASSWORD: ${{ secrets.REGISTRY_PASSWORD }}
+      run: |
+        echo "Building Docker image..."
+        
+        # Login to registry
+        echo "$REGISTRY_PASSWORD" | docker login ${{ env.REGISTRY }} -u admin --password-stdin
+        
+        # Build image
+        docker build -f deployment/Dockerfile.prod -t ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest .
+        docker tag ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:prod-${{ env.TIMESTAMP }}
+        docker tag ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:prod-$(date +'%Y%m%d')-${GITHUB_SHA:0:7}
+        
+        # Push all tags
+        docker push ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest
+        docker push ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:prod-${{ env.TIMESTAMP }}
+        docker push ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:prod-$(date +'%Y%m%d')-${GITHUB_SHA:0:7}
+        
+        echo "✅ Docker images pushed successfully"
+        echo "Tags: latest, prod-${{ env.TIMESTAMP }}, prod-$(date +'%Y%m%d')-${GITHUB_SHA:0:7}"
