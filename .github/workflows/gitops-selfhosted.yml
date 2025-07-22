@@ -1,0 +1,122 @@
+name: GitOps Self-Hosted
+
+on:
+  push:
+    branches: [ main ]
+  workflow_dispatch:
+
+env:
+  REGISTRY: registry.jclee.me
+  IMAGE_NAME: safework
+  CHART_REPO: https://charts.jclee.me
+
+jobs:
+  build-and-deploy:
+    runs-on: self-hosted
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Set up variables
+      run: |
+        TIMESTAMP=$(date +'%Y%m%d-%H%M%S')
+        TAG="prod-$(date +'%Y%m%d')-${GITHUB_SHA:0:7}"
+        echo "TIMESTAMP=$TIMESTAMP" >> $GITHUB_ENV
+        echo "IMAGE_TAG=$TAG" >> $GITHUB_ENV
+        echo "Generated tag: $TAG"
+
+    - name: Login to Docker Registry
+      env:
+        DOCKER_USER: ${{ secrets.DOCKER_REGISTRY_USER }}
+        DOCKER_PASS: ${{ secrets.DOCKER_REGISTRY_PASS }}
+      run: |
+        echo "$DOCKER_PASS" | docker login $REGISTRY -u "$DOCKER_USER" --password-stdin
+
+    - name: Build Docker image
+      run: |
+        docker build -f deployment/Dockerfile.prod \
+          -t $REGISTRY/$IMAGE_NAME:latest \
+          -t $REGISTRY/$IMAGE_NAME:$IMAGE_TAG \
+          .
+
+    - name: Push Docker image
+      run: |
+        docker push $REGISTRY/$IMAGE_NAME:latest
+        docker push $REGISTRY/$IMAGE_NAME:$IMAGE_TAG
+        echo "✅ Pushed images: latest, $IMAGE_TAG"
+
+    - name: Fix Helm chart structure
+      run: |
+        # Ensure proper chart structure
+        mkdir -p k8s/helm/safework
+        
+        # Move chart files if they're in wrong location
+        if [ -f "k8s/helm/safework/k8s/helm/safework/Chart.yaml" ]; then
+          mv k8s/helm/safework/k8s/helm/safework/* k8s/helm/safework/
+          rm -rf k8s/helm/safework/k8s
+        fi
+        
+        # Verify chart structure
+        ls -la k8s/helm/safework/
+
+    - name: Update Helm Chart
+      run: |
+        cd k8s/helm/safework
+        
+        # Update image tag in values.yaml
+        sed -i "s|tag: .*|tag: \"$IMAGE_TAG\"|" values.yaml
+        
+        # Update Chart version
+        CURRENT_VERSION=$(grep '^version:' Chart.yaml | awk '{print $2}')
+        NEW_VERSION=$(echo $CURRENT_VERSION | awk -F. '{$NF = $NF + 1;} 1' | sed 's/ /./g')
+        sed -i "s/version: .*/version: $NEW_VERSION/" Chart.yaml
+        
+        # Update appVersion
+        sed -i "s/appVersion: .*/appVersion: \"$IMAGE_TAG\"/" Chart.yaml
+        
+        echo "Updated Chart version to $NEW_VERSION"
+        echo "Updated image tag to $IMAGE_TAG"
+        
+        # Show updated files
+        echo "=== Chart.yaml ==="
+        cat Chart.yaml
+        echo "=== values.yaml ==="
+        head -20 values.yaml
+
+    - name: Package and Upload Helm Chart
+      env:
+        HELM_USER: ${{ secrets.HELM_REPO_USERNAME }}
+        HELM_PASS: ${{ secrets.HELM_REPO_PASSWORD }}
+      run: |
+        cd k8s/helm
+        
+        # Package chart
+        helm package safework
+        
+        # Find the packaged chart
+        CHART_FILE=$(ls safework-*.tgz | head -n 1)
+        echo "Chart file: $CHART_FILE"
+        
+        # Upload to ChartMuseum
+        curl -X POST \
+          -u "$HELM_USER:$HELM_PASS" \
+          --data-binary "@$CHART_FILE" \
+          "$CHART_REPO/api/charts"
+        
+        echo "✅ Uploaded chart: $CHART_FILE"
+
+    - name: Commit chart changes
+      run: |
+        git config user.name "GitHub Actions"
+        git config user.email "actions@github.com"
+        
+        git add k8s/helm/safework/Chart.yaml k8s/helm/safework/values.yaml
+        git commit -m "chore: Update chart to $IMAGE_TAG [skip ci]" || echo "No changes to commit"
+
+    - name: Summary
+      run: |
+        echo "🎉 GitOps deployment completed successfully!"
+        echo "📦 New image: $REGISTRY/$IMAGE_NAME:$IMAGE_TAG"
+        echo "📊 Chart uploaded to ChartMuseum"
+        echo "🚀 ArgoCD will automatically sync the new version"
