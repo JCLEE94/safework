@@ -1,0 +1,73 @@
+name: Validate GitOps
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: '0 */6 * * *'  # Every 6 hours
+
+env:
+  REGISTRY: registry.jclee.me
+  CHART_REPO: https://charts.jclee.me
+
+jobs:
+  validate:
+    runs-on: self-hosted
+    
+    steps:
+    - name: Validate Docker Registry
+      env:
+        DOCKER_USER: ${{ secrets.DOCKER_REGISTRY_USER }}
+        DOCKER_PASS: ${{ secrets.DOCKER_REGISTRY_PASS }}
+      run: |
+        echo "🔍 Validating Docker Registry..."
+        
+        # Check registry catalog
+        IMAGES=$(curl -s -u "$DOCKER_USER:$DOCKER_PASS" \
+          $REGISTRY/v2/_catalog | jq -r '.repositories[]' | grep safework || echo "none")
+        
+        if [ "$IMAGES" != "none" ]; then
+          echo "✅ Registry accessible"
+          echo "📦 Found images: $IMAGES"
+        else
+          echo "❌ Registry validation failed"
+          exit 1
+        fi
+
+    - name: Validate ChartMuseum
+      env:
+        HELM_USER: ${{ secrets.HELM_REPO_USERNAME }}
+        HELM_PASS: ${{ secrets.HELM_REPO_PASSWORD }}
+      run: |
+        echo "🔍 Validating ChartMuseum..."
+        
+        # Check chart repository
+        LATEST_VERSION=$(curl -s -u "$HELM_USER:$HELM_PASS" \
+          $CHART_REPO/api/charts/safework | jq -r '.[0].version')
+        
+        if [ -n "$LATEST_VERSION" ] && [ "$LATEST_VERSION" != "null" ]; then
+          echo "✅ ChartMuseum accessible"
+          echo "📊 Latest chart version: $LATEST_VERSION"
+        else
+          echo "❌ ChartMuseum validation failed"
+          exit 1
+        fi
+
+    - name: Validate Production
+      run: |
+        echo "🔍 Validating Production..."
+        
+        # Check production health
+        HEALTH=$(curl -s https://safework.jclee.me/health | jq -r '.status')
+        
+        if [ "$HEALTH" = "healthy" ]; then
+          echo "✅ Production is healthy"
+        else
+          echo "❌ Production health check failed"
+          exit 1
+        fi
+
+    - name: Summary
+      run: |
+        echo "======================================"
+        echo "✅ All GitOps components validated"
+        echo "======================================"

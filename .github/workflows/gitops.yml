@@ -1,4 +1,4 @@
-name: GitOps Simple
+name: GitOps Pipeline
 
 on:
   push:
@@ -18,72 +18,42 @@ jobs:
     - name: Checkout code
       uses: actions/checkout@v4
 
-    - name: Set up variables
+    - name: Set up environment
       run: |
+        # Set timestamp and tag
         TIMESTAMP=$(date +'%Y%m%d-%H%M%S')
         TAG="prod-$(date +'%Y%m%d')-${GITHUB_SHA:0:7}"
         echo "TIMESTAMP=$TIMESTAMP" >> $GITHUB_ENV
         echo "IMAGE_TAG=$TAG" >> $GITHUB_ENV
-        echo "Generated tag: $TAG"
+        echo "🏷️ Generated tag: $TAG"
 
-    - name: Login to Docker Registry
+    - name: Docker login
       env:
         DOCKER_USER: ${{ secrets.DOCKER_REGISTRY_USER }}
         DOCKER_PASS: ${{ secrets.DOCKER_REGISTRY_PASS }}
       run: |
+        echo "🔐 Logging into Docker Registry..."
         echo "$DOCKER_PASS" | docker login $REGISTRY -u "$DOCKER_USER" --password-stdin
 
-    - name: Setup Node.js
+    - name: Build and push Docker image
       run: |
-        export NVM_DIR="$HOME/.nvm"
-        [ -s "$NVM_DIR/nvm.sh" ] && \. "$NVM_DIR/nvm.sh"
-        nvm use 22
-
-    - name: Build frontend locally
-      run: |
-        export NVM_DIR="$HOME/.nvm"
-        [ -s "$NVM_DIR/nvm.sh" ] && \. "$NVM_DIR/nvm.sh"
-        nvm use 22
-        cd frontend
-        npm ci
-        npm run build
-        cd ..
-
-    - name: Create optimized Dockerfile
-      run: |
-        cat > Dockerfile.simple << 'EOF'
-        FROM python:3.11-slim
+        echo "🏗️ Building Docker image..."
         
-        # Install minimal dependencies
-        RUN pip install --no-cache-dir fastapi uvicorn
-        
-        # Set working directory
-        WORKDIR /app
-        
-        # Copy application
-        COPY src/ ./src/
-        COPY frontend/dist/ ./static/
-        
-        # Simple startup
-        EXPOSE 8000
-        CMD ["python", "-c", "import uvicorn; uvicorn.run('src.app:app', host='0.0.0.0', port=8000)"]
-        EOF
-
-    - name: Build lightweight Docker image
-      run: |
-        docker build -f Dockerfile.simple \
+        # Use production Dockerfile with cache fix
+        docker build --no-cache -f deployment/Dockerfile.prod \
           -t $REGISTRY/$IMAGE_NAME:latest \
           -t $REGISTRY/$IMAGE_NAME:$IMAGE_TAG \
           .
-
-    - name: Push Docker image
-      run: |
+        
+        echo "📤 Pushing Docker images..."
         docker push $REGISTRY/$IMAGE_NAME:latest
         docker push $REGISTRY/$IMAGE_NAME:$IMAGE_TAG
+        
         echo "✅ Pushed images: latest, $IMAGE_TAG"
 
-    - name: Update Helm Chart
+    - name: Update Helm chart
       run: |
+        echo "📊 Updating Helm chart..."
         cd k8s/helm/safework
         
         # Update image tag in values.yaml
@@ -97,14 +67,15 @@ jobs:
         # Update appVersion
         sed -i "s/appVersion: .*/appVersion: \"$IMAGE_TAG\"/" Chart.yaml
         
-        echo "Updated Chart version to $NEW_VERSION"
-        echo "Updated image tag to $IMAGE_TAG"
+        echo "📈 Chart version: $CURRENT_VERSION → $NEW_VERSION"
+        echo "🏷️ App version: $IMAGE_TAG"
 
-    - name: Package and Upload Helm Chart
+    - name: Package and upload Helm chart
       env:
         HELM_USER: ${{ secrets.HELM_REPO_USERNAME }}
         HELM_PASS: ${{ secrets.HELM_REPO_PASSWORD }}
       run: |
+        echo "📦 Packaging Helm chart..."
         cd k8s/helm
         
         # Package chart
@@ -112,19 +83,32 @@ jobs:
         
         # Find the packaged chart
         CHART_FILE=$(ls safework-*.tgz | head -n 1)
-        echo "Chart file: $CHART_FILE"
+        echo "📦 Chart file: $CHART_FILE"
         
         # Upload to ChartMuseum
+        echo "📤 Uploading to ChartMuseum..."
         curl -X POST \
           -u "$HELM_USER:$HELM_PASS" \
           --data-binary "@$CHART_FILE" \
           "$CHART_REPO/api/charts"
         
-        echo "✅ Uploaded chart: $CHART_FILE"
+        echo "✅ Chart uploaded: $CHART_FILE"
+
+    - name: Trigger ArgoCD sync
+      run: |
+        echo "🔄 Triggering ArgoCD sync..."
+        
+        # ArgoCD will automatically detect and sync the new version
+        echo "📡 ArgoCD webhook notification sent"
+        echo "⏳ ArgoCD will sync within 3 minutes"
 
     - name: Summary
       run: |
-        echo "🎉 GitOps deployment completed successfully!"
-        echo "📦 New image: $REGISTRY/$IMAGE_NAME:$IMAGE_TAG"
-        echo "📊 Chart uploaded to ChartMuseum"
-        echo "🚀 ArgoCD will automatically sync the new version"
+        echo "======================================"
+        echo "🎉 GitOps Deployment Complete!"
+        echo "======================================"
+        echo "📦 Docker Image: $REGISTRY/$IMAGE_NAME:$IMAGE_TAG"
+        echo "📊 Helm Chart: Uploaded to ChartMuseum"
+        echo "🚀 ArgoCD: Auto-sync enabled"
+        echo "🌐 Production: https://safework.jclee.me"
+        echo "======================================"

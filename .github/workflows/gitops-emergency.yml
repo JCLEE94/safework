@@ -1,0 +1,60 @@
+name: GitOps Emergency Deploy
+
+on:
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Docker image tag to deploy'
+        required: true
+        default: 'latest'
+      chart_version:
+        description: 'Helm chart version'
+        required: false
+
+env:
+  REGISTRY: registry.jclee.me
+  IMAGE_NAME: safework
+  CHART_REPO: https://charts.jclee.me
+
+jobs:
+  emergency-deploy:
+    runs-on: self-hosted
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Emergency deployment
+      env:
+        HELM_USER: ${{ secrets.HELM_REPO_USERNAME }}
+        HELM_PASS: ${{ secrets.HELM_REPO_PASSWORD }}
+      run: |
+        echo "🚨 Emergency Deployment Started"
+        echo "📦 Deploying image tag: ${{ github.event.inputs.tag }}"
+        
+        cd k8s/helm/safework
+        
+        # Update values.yaml with specified tag
+        sed -i "s|tag: .*|tag: \"${{ github.event.inputs.tag }}\"|" values.yaml
+        
+        # Update chart version if specified
+        if [ -n "${{ github.event.inputs.chart_version }}" ]; then
+          sed -i "s/version: .*/version: ${{ github.event.inputs.chart_version }}/" Chart.yaml
+        else
+          # Auto-increment version
+          CURRENT_VERSION=$(grep '^version:' Chart.yaml | awk '{print $2}')
+          NEW_VERSION=$(echo $CURRENT_VERSION | awk -F. '{$NF = $NF + 1;} 1' | sed 's/ /./g')
+          sed -i "s/version: .*/version: $NEW_VERSION/" Chart.yaml
+        fi
+        
+        # Package and upload
+        cd ..
+        helm package safework
+        CHART_FILE=$(ls safework-*.tgz | head -n 1)
+        
+        curl -X POST \
+          -u "$HELM_USER:$HELM_PASS" \
+          --data-binary "@$CHART_FILE" \
+          "$CHART_REPO/api/charts"
+        
+        echo "✅ Emergency deployment completed"
