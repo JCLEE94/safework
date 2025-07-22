@@ -36,10 +36,10 @@ jobs:
           pip install black isort flake8 bandit safety
 
       - name: Code formatting check
-        run: black --check src/ tests/ || (echo "❌ Run: black src/ tests/" && exit 1)
+        run: black --check src/ tests/ || (echo "❌ Run black src/ tests/" && exit 1)
 
       - name: Import sorting check
-        run: isort --check-only src/ tests/ || (echo "❌ Run: isort src/ tests/" && exit 1)
+        run: isort --check-only src/ tests/ || (echo "❌ Run isort src/ tests/" && exit 1)
 
       - name: Linting check
         run: flake8 src/ tests/ --max-line-length=88 --extend-ignore=E203,W503
