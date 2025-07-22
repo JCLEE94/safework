@@ -4,7 +4,7 @@ replicaCount: 1
 image:
   repository: registry.jclee.me/safework
   pullPolicy: IfNotPresent
-  tag: "latest"
+  tag: "prod-20250122-c6a116d"
 
 imagePullSecrets:
   - name: regcred
@@ -12,32 +12,10 @@ imagePullSecrets:
 nameOverride: ""
 fullnameOverride: ""
 
-serviceAccount:
-  create: false
-  annotations: {}
-  name: ""
-
-podAnnotations: {}
-
-podSecurityContext: {}
-
-securityContext: {}
-
 service:
   type: NodePort
   port: 3001
   nodePort: 32301
-
-ingress:
-  enabled: false
-  className: ""
-  annotations: {}
-  hosts:
-    - host: safework.jclee.me
-      paths:
-        - path: /
-          pathType: ImplementationSpecific
-  tls: []
 
 resources:
   limits:
@@ -47,64 +25,7 @@ resources:
     cpu: 500m
     memory: 512Mi
 
-autoscaling:
-  enabled: false
-  minReplicas: 1
-  maxReplicas: 3
-  targetCPUUtilizationPercentage: 80
-  targetMemoryUtilizationPercentage: 80
-
-nodeSelector: {}
-
-tolerations: []
-
-affinity: {}
-
-# Application Configuration
 config:
   environment: production
   appName: "SafeWork Pro"
   logLevel: INFO
-  
-# Database Configuration
-database:
-  host: postgres
-  port: 5432
-  name: health_management
-  user: admin
-  passwordSecret: postgres-secret
-  passwordKey: password
-
-# Redis Configuration
-redis:
-  host: redis
-  port: 6379
-  db: 0
-
-# Security
-security:
-  jwtSecretSecret: safework-secrets
-  jwtSecretKey: jwt-secret
-  secretKeySecret: safework-secrets
-  secretKeyKey: secret-key
-
-# External Services
-postgres:
-  enabled: true
-  image: postgres:15
-  persistence:
-    enabled: true
-    size: 10Gi
-  service:
-    type: ClusterIP
-    port: 5432
-
-redis:
-  enabled: true
-  image: redis:7-alpine
-  persistence:
-    enabled: true
-    size: 1Gi
-  service:
-    type: ClusterIP
-    port: 6379

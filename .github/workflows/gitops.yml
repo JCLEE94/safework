@@ -1,0 +1,99 @@
+name: SafeWork GitOps
+
+on:
+  push:
+    branches: [ main ]
+  workflow_dispatch:
+
+env:
+  REGISTRY: registry.jclee.me
+  IMAGE_NAME: safework
+  CHART_REPO: https://charts.jclee.me
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Set up timestamp
+      run: |
+        TIMESTAMP=$(date +'%Y%m%d-%H%M%S')
+        TAG="prod-$(date +'%Y%m%d')-${GITHUB_SHA:0:7}"
+        echo "TIMESTAMP=$TIMESTAMP" >> $GITHUB_ENV
+        echo "IMAGE_TAG=$TAG" >> $GITHUB_ENV
+        echo "Generated tag: $TAG"
+
+    - name: Log in to Docker Registry
+      run: |
+        echo "${{ secrets.DOCKER_REGISTRY_PASS }}" | docker login ${{ env.REGISTRY }} \
+          --username "${{ secrets.DOCKER_REGISTRY_USER }}" --password-stdin
+
+    - name: Build Docker image
+      run: |
+        docker build -f deployment/Dockerfile.prod \
+          -t ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest \
+          -t ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ env.IMAGE_TAG }} \
+          .
+
+    - name: Push Docker image
+      run: |
+        docker push ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest
+        docker push ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ env.IMAGE_TAG }}
+
+    - name: Install Helm
+      uses: azure/setup-helm@v3
+      with:
+        version: '3.12.0'
+
+    - name: Update Helm Chart
+      run: |
+        cd k8s/helm/safework
+        
+        # Update image tag in values.yaml
+        sed -i "s|tag: .*|tag: \"${{ env.IMAGE_TAG }}\"|" values.yaml
+        
+        # Update Chart version
+        CURRENT_VERSION=$(grep '^version:' Chart.yaml | awk '{print $2}')
+        NEW_VERSION=$(echo $CURRENT_VERSION | awk -F. '{$NF = $NF + 1;} 1' | sed 's/ /./g')
+        sed -i "s/version: .*/version: $NEW_VERSION/" Chart.yaml
+        
+        # Update appVersion
+        sed -i "s/appVersion: .*/appVersion: \"${{ env.IMAGE_TAG }}\"/" Chart.yaml
+        
+        echo "Updated Chart version to $NEW_VERSION"
+        echo "Updated image tag to ${{ env.IMAGE_TAG }}"
+
+    - name: Package and Upload Helm Chart
+      run: |
+        cd k8s/helm
+        
+        # Package chart
+        helm package safework
+        
+        # Upload to ChartMuseum
+        CHART_FILE=$(ls safework-*.tgz | head -n 1)
+        
+        curl -X POST \
+          -u "${{ secrets.HELM_REPO_USERNAME }}:${{ secrets.HELM_REPO_PASSWORD }}" \
+          --data-binary "@$CHART_FILE" \
+          "${{ env.CHART_REPO }}/api/charts"
+        
+        echo "✅ Uploaded chart: $CHART_FILE"
+
+    - name: Commit chart changes
+      run: |
+        git config user.name "GitHub Actions"
+        git config user.email "actions@github.com"
+        
+        git add k8s/helm/safework/Chart.yaml k8s/helm/safework/values.yaml
+        git commit -m "chore: Update chart to ${{ env.IMAGE_TAG }}" || echo "No changes to commit"
+        git push || echo "No changes to push"
+
+    - name: Trigger ArgoCD Sync
+      run: |
+        echo "🚀 New image and chart deployed:"
+        echo "- Image: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ env.IMAGE_TAG }}"
+        echo "- ArgoCD will automatically sync the new chart version"
