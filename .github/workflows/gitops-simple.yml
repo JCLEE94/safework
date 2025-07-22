@@ -33,8 +33,17 @@ jobs:
       run: |
         echo "$DOCKER_PASS" | docker login $REGISTRY -u "$DOCKER_USER" --password-stdin
 
+    - name: Setup Node.js
+      run: |
+        export NVM_DIR="$HOME/.nvm"
+        [ -s "$NVM_DIR/nvm.sh" ] && \. "$NVM_DIR/nvm.sh"
+        nvm use 22
+
     - name: Build frontend locally
       run: |
+        export NVM_DIR="$HOME/.nvm"
+        [ -s "$NVM_DIR/nvm.sh" ] && \. "$NVM_DIR/nvm.sh"
+        nvm use 22
         cd frontend
         npm ci
         npm run build
