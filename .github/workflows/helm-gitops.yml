@@ -6,7 +6,7 @@ on:
 
 env:
   REGISTRY: registry.jclee.me
-  HELM_REGISTRY: chart.jclee.me
+  HELM_REGISTRY: https://charts.jclee.me
   IMAGE_NAME: safework
 
 jobs:
@@ -28,10 +28,11 @@ jobs:
 
     - name: Build and push Docker image
       env:
-        REGISTRY_PASSWORD: ${{ secrets.REGISTRY_PASSWORD }}
+        DOCKER_USER: ${{ secrets.DOCKER_REGISTRY_USER }}
+        DOCKER_PASS: ${{ secrets.DOCKER_REGISTRY_PASS }}
       run: |
         # Login to Docker registry
-        echo "$REGISTRY_PASSWORD" | docker login ${{ env.REGISTRY }} -u admin --password-stdin
+        echo "$DOCKER_PASS" | docker login ${{ env.REGISTRY }} -u "$DOCKER_USER" --password-stdin
         
         # Build and tag image
         docker build -f deployment/Dockerfile.prod \
@@ -75,18 +76,22 @@ jobs:
 
     - name: Package and push Helm chart
       env:
-        REGISTRY_PASSWORD: ${{ secrets.REGISTRY_PASSWORD }}
+        HELM_USER: ${{ secrets.HELM_REPO_USERNAME }}
+        HELM_PASS: ${{ secrets.HELM_REPO_PASSWORD }}
       run: |
-        # Login to Helm registry
-        echo "$REGISTRY_PASSWORD" | helm registry login ${{ env.HELM_REGISTRY }} -u admin --password-stdin
+        # Add Helm repository
+        helm repo add chartmuseum ${{ env.HELM_REGISTRY }} --username "$HELM_USER" --password "$HELM_PASS"
+        helm repo update
         
         # Package chart
         cd k8s/helm
         helm package safework
         
-        # Push to Helm registry
+        # Push to ChartMuseum using curl
         CHART_PACKAGE=$(ls safework-*.tgz | head -n 1)
-        helm push $CHART_PACKAGE oci://${{ env.HELM_REGISTRY }}/charts
+        curl -u "$HELM_USER:$HELM_PASS" \
+          --data-binary "@$CHART_PACKAGE" \
+          "${{ env.HELM_REGISTRY }}/api/charts"
         
         echo "✅ Helm chart pushed: $CHART_PACKAGE"
 

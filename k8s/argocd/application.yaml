@@ -20,8 +20,8 @@ metadata:
 spec:
   project: default
   source:
-    repoURL: oci://chart.jclee.me
-    chart: charts/safework
+    repoURL: https://charts.jclee.me
+    chart: safework
     targetRevision: "*"
     helm:
       values: |
