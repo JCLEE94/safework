@@ -16,7 +16,7 @@ class Settings(BaseSettings):
 
     # 애플리케이션 기본 설정
     app_name: str = Field(default="SafeWork Pro", env="APP_NAME")
-    app_version: str = Field(default="1.0.3", env="APP_VERSION")  # Helm GitOps 테스트
+    app_version: str = Field(default="1.0.4", env="APP_VERSION")  # GitOps 파이프라인 테스트
     debug: bool = Field(default=False, env="DEBUG")
 
     # 서버 설정
