@@ -31,11 +31,11 @@ jobs:
       with:
         registry: ${{ env.REGISTRY }}
         username: admin
-        password: bingogo1
+        password: ${{ secrets.REGISTRY_PASSWORD }}
 
     - name: Log in to Helm Registry
       run: |
-        echo "bingogo1" | helm registry login ${{ env.HELM_REGISTRY }} --username admin --password-stdin
+        echo "${{ secrets.REGISTRY_PASSWORD }}" | helm registry login ${{ env.HELM_REGISTRY }} --username admin --password-stdin
 
     - name: Extract metadata
       id: meta
@@ -78,7 +78,7 @@ jobs:
 
     - name: Log in to Helm Registry
       run: |
-        echo "bingogo1" | helm registry login ${{ env.HELM_REGISTRY }} --username admin --password-stdin
+        echo "${{ secrets.REGISTRY_PASSWORD }}" | helm registry login ${{ env.HELM_REGISTRY }} --username admin --password-stdin
 
     - name: Update Chart version
       run: |
