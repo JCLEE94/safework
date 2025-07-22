@@ -1,0 +1,41 @@
+name: Basic Test
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [ main ]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout
+      uses: actions/checkout@v4
+      
+    - name: Test environment
+      run: |
+        echo "Runner info:"
+        whoami
+        pwd
+        ls -la
+        
+    - name: Test secrets
+      env:
+        DOCKER_USER: ${{ secrets.DOCKER_REGISTRY_USER }}
+        DOCKER_PASS: ${{ secrets.DOCKER_REGISTRY_PASS }}
+        HELM_USER: ${{ secrets.HELM_REPO_USERNAME }}
+        HELM_PASS: ${{ secrets.HELM_REPO_PASSWORD }}
+      run: |
+        echo "Docker user: ${DOCKER_USER:-NOT_SET}"
+        echo "Docker pass: ${DOCKER_PASS:+SET}"
+        echo "Helm user: ${HELM_USER:-NOT_SET}"
+        echo "Helm pass: ${HELM_PASS:+SET}"
+        
+    - name: Test external connections
+      run: |
+        echo "Testing registry connection..."
+        curl -s -u admin:bingogo1 https://registry.jclee.me/v2/_catalog | head -5
+        
+        echo "Testing ChartMuseum..."
+        curl -s -u admin:bingogo1 https://charts.jclee.me/api/charts | head -5
