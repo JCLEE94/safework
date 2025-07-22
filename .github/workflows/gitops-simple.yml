@@ -1,0 +1,121 @@
+name: GitOps Simple
+
+on:
+  push:
+    branches: [ main ]
+  workflow_dispatch:
+
+env:
+  REGISTRY: registry.jclee.me
+  IMAGE_NAME: safework
+  CHART_REPO: https://charts.jclee.me
+
+jobs:
+  build-and-deploy:
+    runs-on: self-hosted
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Set up variables
+      run: |
+        TIMESTAMP=$(date +'%Y%m%d-%H%M%S')
+        TAG="prod-$(date +'%Y%m%d')-${GITHUB_SHA:0:7}"
+        echo "TIMESTAMP=$TIMESTAMP" >> $GITHUB_ENV
+        echo "IMAGE_TAG=$TAG" >> $GITHUB_ENV
+        echo "Generated tag: $TAG"
+
+    - name: Login to Docker Registry
+      env:
+        DOCKER_USER: ${{ secrets.DOCKER_REGISTRY_USER }}
+        DOCKER_PASS: ${{ secrets.DOCKER_REGISTRY_PASS }}
+      run: |
+        echo "$DOCKER_PASS" | docker login $REGISTRY -u "$DOCKER_USER" --password-stdin
+
+    - name: Build frontend locally
+      run: |
+        cd frontend
+        npm ci
+        npm run build
+        cd ..
+
+    - name: Create optimized Dockerfile
+      run: |
+        cat > Dockerfile.simple << 'EOF'
+        FROM python:3.11-slim
+        
+        # Install minimal dependencies
+        RUN pip install --no-cache-dir fastapi uvicorn
+        
+        # Set working directory
+        WORKDIR /app
+        
+        # Copy application
+        COPY src/ ./src/
+        COPY frontend/dist/ ./static/
+        
+        # Simple startup
+        EXPOSE 8000
+        CMD ["python", "-c", "import uvicorn; uvicorn.run('src.app:app', host='0.0.0.0', port=8000)"]
+        EOF
+
+    - name: Build lightweight Docker image
+      run: |
+        docker build -f Dockerfile.simple \
+          -t $REGISTRY/$IMAGE_NAME:latest \
+          -t $REGISTRY/$IMAGE_NAME:$IMAGE_TAG \
+          .
+
+    - name: Push Docker image
+      run: |
+        docker push $REGISTRY/$IMAGE_NAME:latest
+        docker push $REGISTRY/$IMAGE_NAME:$IMAGE_TAG
+        echo "✅ Pushed images: latest, $IMAGE_TAG"
+
+    - name: Update Helm Chart
+      run: |
+        cd k8s/helm/safework
+        
+        # Update image tag in values.yaml
+        sed -i "s|tag: .*|tag: \"$IMAGE_TAG\"|" values.yaml
+        
+        # Update Chart version
+        CURRENT_VERSION=$(grep '^version:' Chart.yaml | awk '{print $2}')
+        NEW_VERSION=$(echo $CURRENT_VERSION | awk -F. '{$NF = $NF + 1;} 1' | sed 's/ /./g')
+        sed -i "s/version: .*/version: $NEW_VERSION/" Chart.yaml
+        
+        # Update appVersion
+        sed -i "s/appVersion: .*/appVersion: \"$IMAGE_TAG\"/" Chart.yaml
+        
+        echo "Updated Chart version to $NEW_VERSION"
+        echo "Updated image tag to $IMAGE_TAG"
+
+    - name: Package and Upload Helm Chart
+      env:
+        HELM_USER: ${{ secrets.HELM_REPO_USERNAME }}
+        HELM_PASS: ${{ secrets.HELM_REPO_PASSWORD }}
+      run: |
+        cd k8s/helm
+        
+        # Package chart
+        helm package safework
+        
+        # Find the packaged chart
+        CHART_FILE=$(ls safework-*.tgz | head -n 1)
+        echo "Chart file: $CHART_FILE"
+        
+        # Upload to ChartMuseum
+        curl -X POST \
+          -u "$HELM_USER:$HELM_PASS" \
+          --data-binary "@$CHART_FILE" \
+          "$CHART_REPO/api/charts"
+        
+        echo "✅ Uploaded chart: $CHART_FILE"
+
+    - name: Summary
+      run: |
+        echo "🎉 GitOps deployment completed successfully!"
+        echo "📦 New image: $REGISTRY/$IMAGE_NAME:$IMAGE_TAG"
+        echo "📊 Chart uploaded to ChartMuseum"
+        echo "🚀 ArgoCD will automatically sync the new version"
