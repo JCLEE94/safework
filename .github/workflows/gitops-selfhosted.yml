@@ -35,7 +35,7 @@ jobs:
 
     - name: Build Docker image
       run: |
-        docker build -f deployment/Dockerfile.prod \
+        docker build --no-cache -f deployment/Dockerfile.prod \
           -t $REGISTRY/$IMAGE_NAME:latest \
           -t $REGISTRY/$IMAGE_NAME:$IMAGE_TAG \
           .
