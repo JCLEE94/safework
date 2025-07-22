@@ -6,13 +6,13 @@ ARG BUILD_TIME
 ENV VITE_BUILD_TIME=$BUILD_TIME
 
 WORKDIR /app
-COPY package*.json ./
-COPY index.html ./
+COPY frontend/package*.json ./
+COPY frontend/index.html ./
 RUN npm install
 
-COPY src/ ./src/
-COPY vite.config.ts tsconfig.json tsconfig.node.json ./
-COPY tailwind.config.js* postcss.config.js** ./
+COPY frontend/src/ ./src/
+COPY frontend/vite.config.ts frontend/tsconfig.json frontend/tsconfig.node.json ./
+COPY frontend/tailwind.config.js frontend/postcss.config.js ./
 RUN npm run build
 
 # 빌드 결과 검증
@@ -46,7 +46,6 @@ RUN pip install --no-cache-dir -r requirements.txt
 
 # 백엔드 소스 복사
 COPY src/ ./src/
-COPY tests/ ./tests/
 COPY main.py pytest.ini ./
 
 # 프론트엔드 빌드 복사

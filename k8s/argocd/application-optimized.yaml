@@ -1,0 +1,194 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: safework-prod
+  namespace: argocd
+  annotations:
+    # ArgoCD Image Updater annotations for automated deployment
+    argocd-image-updater.argoproj.io/image-list: safework=registry.jclee.me/jclee94/safework
+    argocd-image-updater.argoproj.io/safework.update-strategy: latest
+    argocd-image-updater.argoproj.io/safework.pull-secret: pullsecret:argocd/regcred
+    argocd-image-updater.argoproj.io/write-back-method: argocd
+    argocd-image-updater.argoproj.io/safework.helm.image-name: image.repository
+    argocd-image-updater.argoproj.io/safework.helm.image-tag: image.tag
+    argocd-image-updater.argoproj.io/safework.allow-tags: regexp:^(latest|prod-.*)$
+    # Additional GitOps annotations
+    argocd-image-updater.argoproj.io/write-back-target: kustomization
+    notifications.argoproj.io/subscribe.on-deployed.slack: safework-deployments
+    notifications.argoproj.io/subscribe.on-health-degraded.slack: safework-alerts
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  project: default
+  
+  source:
+    repoURL: https://charts.jclee.me
+    chart: safework
+    targetRevision: "1.0.*"
+    helm:
+      releaseName: safework
+      values: |
+        # Image configuration
+        image:
+          repository: registry.jclee.me/jclee94/safework
+          tag: latest
+          pullPolicy: Always
+        
+        # Replica configuration for production
+        replicaCount: 3
+        
+        # Service configuration
+        service:
+          type: NodePort
+          port: 3001
+          nodePort: 32301
+        
+        # Ingress configuration
+        ingress:
+          enabled: true
+          annotations:
+            kubernetes.io/ingress.class: traefik
+            traefik.ingress.kubernetes.io/router.middlewares: default-redirect-https@kubernetescrd
+          hosts:
+            - host: safework.jclee.me
+              paths:
+                - path: /
+                  pathType: Prefix
+        
+        # Resource limits for production
+        resources:
+          requests:
+            memory: 512Mi
+            cpu: 500m
+          limits:
+            memory: 1Gi
+            cpu: 1000m
+        
+        # Security configuration
+        securityContext:
+          capabilities:
+            drop:
+            - ALL
+          readOnlyRootFilesystem: false
+          runAsNonRoot: true
+          runAsUser: 1000
+        
+        # Application configuration
+        config:
+          environment: production
+          appName: "SafeWork Pro"
+          logLevel: INFO
+          port: 3001
+        
+        # Database configuration (using existing external PostgreSQL)
+        database:
+          enabled: true
+          host: postgres-service
+          port: 5432
+          name: health_management
+          user: admin
+          passwordSecret: safework-secrets
+          passwordKey: database-password
+        
+        # Redis configuration (using existing external Redis)
+        redis:
+          enabled: true
+          host: redis-service
+          port: 6379
+          db: 0
+        
+        # Registry credentials
+        registry:
+          username: admin
+          password: bingogo1
+          auth: YWRtaW46YmluZ29nbzE=
+        
+        # Security secrets
+        security:
+          jwtSecret: safework-jwt-secret-production-2025
+          secretKey: safework-app-secret-key-production
+          
+        # Disable internal PostgreSQL and Redis (using external)
+        postgresql:
+          enabled: false
+        redis-ha:
+          enabled: false
+  
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: production
+  
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+      allowEmpty: false
+    syncOptions:
+      - CreateNamespace=true
+      - PrunePropagationPolicy=foreground
+      - PruneLast=true
+    retry:
+      limit: 5
+      backoff:
+        duration: 5s
+        factor: 2
+        maxDuration: 3m
+  
+  revisionHistoryLimit: 10
+---
+# ArgoCD Project for SafeWork
+apiVersion: argoproj.io/v1alpha1
+kind: AppProject
+metadata:
+  name: safework
+  namespace: argocd
+spec:
+  description: SafeWork Pro - 건설업 보건관리 시스템
+  
+  sourceRepos:
+    - 'https://charts.jclee.me'
+    - 'https://github.com/JCLEE94/safework'
+  
+  destinations:
+    - namespace: production
+      server: https://kubernetes.default.svc
+    - namespace: staging
+      server: https://kubernetes.default.svc
+  
+  clusterResourceWhitelist:
+    - group: ''
+      kind: Namespace
+    - group: ''
+      kind: PersistentVolume
+  
+  namespaceResourceWhitelist:
+    - group: ''
+      kind: ConfigMap
+    - group: ''
+      kind: Secret
+    - group: ''
+      kind: Service
+    - group: ''
+      kind: ServiceAccount
+    - group: 'apps'
+      kind: Deployment
+    - group: 'apps'
+      kind: ReplicaSet
+    - group: 'apps'
+      kind: StatefulSet
+    - group: 'networking.k8s.io'
+      kind: Ingress
+    - group: 'networking.k8s.io'
+      kind: NetworkPolicy
+  
+  roles:
+    - name: admin
+      description: Admin access to SafeWork applications
+      policies:
+        - p, proj:safework:admin, applications, *, safework/*, allow
+        - p, proj:safework:admin, repositories, *, *, allow
+      groups:
+        - safework-admins
+  
+  orphanedResources:
+    warn: true
