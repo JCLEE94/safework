@@ -35,12 +35,67 @@ jobs:
         echo "🔐 Logging into Docker Registry..."
         echo "$DOCKER_PASS" | docker login $REGISTRY -u "$DOCKER_USER" --password-stdin
 
+    - name: Setup Node.js
+      run: |
+        export NVM_DIR="$HOME/.nvm"
+        [ -s "$NVM_DIR/nvm.sh" ] && \. "$NVM_DIR/nvm.sh"
+        nvm use 22
+        node --version
+        npm --version
+
+    - name: Build frontend
+      run: |
+        echo "🏗️ Building frontend..."
+        export NVM_DIR="$HOME/.nvm"
+        [ -s "$NVM_DIR/nvm.sh" ] && \. "$NVM_DIR/nvm.sh"
+        nvm use 22
+        
+        cd frontend
+        npm ci
+        npm run build
+        cd ..
+        
+        echo "✅ Frontend build completed"
+
     - name: Build and push Docker image
       run: |
-        echo "🏗️ Building Docker image..."
+        echo "🐳 Building Docker image..."
         
-        # Use production Dockerfile with cache fix
-        docker build --no-cache -f deployment/Dockerfile.prod \
+        # Create simplified Dockerfile
+        cat > Dockerfile.gitops << 'EOF'
+        FROM python:3.11-slim
+        
+        # Install dependencies
+        RUN pip install --no-cache-dir \
+            fastapi uvicorn sqlalchemy psycopg2-binary \
+            redis pydantic alembic python-multipart \
+            python-jose[cryptography] passlib[bcrypt] \
+            reportlab PyPDF2 openpyxl pandas numpy \
+            httpx aiofiles python-dateutil pytz
+        
+        # Set working directory
+        WORKDIR /app
+        
+        # Copy application
+        COPY src/ ./src/
+        COPY alembic/ ./alembic/
+        COPY alembic.ini ./
+        COPY requirements.txt ./
+        COPY frontend/dist/ ./static/
+        
+        # Environment
+        ENV PYTHONPATH=/app
+        ENV ENVIRONMENT=production
+        
+        # Expose port
+        EXPOSE 8000
+        
+        # Start application
+        CMD ["uvicorn", "src.app:app", "--host", "0.0.0.0", "--port", "8000"]
+        EOF
+        
+        # Build image
+        docker build -f Dockerfile.gitops \
           -t $REGISTRY/$IMAGE_NAME:latest \
           -t $REGISTRY/$IMAGE_NAME:$IMAGE_TAG \
           .
