@@ -1,88 +1,59 @@
-# SafeWork Pro - Production Build
-# 건설업 보건관리 시스템 - 운영 환경 빌드
-
-# ================================
-# Stage 1: Frontend Build
-# ================================
+# Multi-stage build for SafeWork Pro
 FROM node:18-alpine AS frontend-builder
-ARG BUILD_TIME
-ENV VITE_BUILD_TIME=$BUILD_TIME
 
-WORKDIR /app
-
-# 패키지 의존성 설치 (캐시 최적화)
+WORKDIR /app/frontend
 COPY frontend/package*.json ./
-RUN npm install
+RUN npm ci --only=production
 
-# 소스 코드 복사 및 빌드
-COPY frontend/index.html frontend/vite.config.ts frontend/tsconfig.json frontend/tsconfig.node.json ./
-COPY frontend/tailwind.config.js frontend/postcss.config.js ./
-COPY frontend/src/ ./src/
+COPY frontend/ ./
+RUN npm run build
 
-# React 빌드 실행
-RUN npx vite build
+# Python backend with frontend
+FROM python:3.11-slim
 
-# 빌드 결과 검증
-RUN ls -la /app/dist/ && test -f /app/dist/index.html || (echo "❌ React 빌드 실패" && exit 1)
+# Install system dependencies
+RUN apt-get update && apt-get install -y \
+    nginx \
+    postgresql-client \
+    curl \
+    && rm -rf /var/lib/apt/lists/*
 
-# ================================
-# Stage 2: Microservices Backend
-# ================================
-FROM python:3.11-slim AS production
-
-# 빌드 인수 및 환경변수
-ARG BUILD_TIME
-ENV BUILD_TIME=$BUILD_TIME
-ENV TZ=Asia/Seoul
-ENV PYTHONUNBUFFERED=1
-ENV PYTHONDONTWRITEBYTECODE=1
-
+# Set working directory
 WORKDIR /app
 
-# 시스템 의존성 설치 (최소화)
-RUN apt-get update && apt-get install -y --no-install-recommends \
-    curl \
-    fonts-nanum \
-    ca-certificates \
-    && rm -rf /var/lib/apt/lists/* \
-    && apt-get clean \
-    && ln -snf /usr/share/zoneinfo/$TZ /etc/localtime && echo $TZ > /etc/timezone
+# Copy requirements and install Python dependencies
+COPY requirements.txt ./
+RUN pip install --no-cache-dir -r requirements.txt
 
-# Python 의존성 설치 (최소화된 패키지만)
-COPY requirements.txt .
-RUN pip install --no-cache-dir --upgrade pip \
-    && pip install --no-cache-dir -r requirements.txt \
-    && pip cache purge \
-    && find /usr/local/lib/python3.11/site-packages -name '*.pyc' -delete \
-    && find /usr/local/lib/python3.11/site-packages -name '__pycache__' -exec rm -rf {} + 2>/dev/null || true
-
-# 백엔드 소스 코드 복사
+# Copy application code
 COPY src/ ./src/
+COPY alembic/ ./alembic/
+COPY alembic.ini ./
 
-# 프론트엔드 빌드 결과 복사
-COPY --from=frontend-builder /app/dist ./dist/
+# Copy built frontend
+COPY --from=frontend-builder /app/frontend/dist /var/www/html
 
-# 설정 파일 및 문서 복사
-COPY document/ ./document/
+# Configure nginx
+COPY deployment/nginx.conf /etc/nginx/nginx.conf
 
-# 마이그레이션 파일 복사
-COPY database/migrations/ ./database/migrations/
-COPY deployment/direct-migration.sql ./deployment/
+# Create startup script
+RUN echo '#!/bin/bash\n\
+set -e\n\
+echo "Starting SafeWork Pro..."\n\
+\n\
+# Start nginx\n\
+nginx &\n\
+\n\
+# Start FastAPI application\n\
+exec uvicorn src.app:app --host 0.0.0.0 --port 8000\n\
+' > /app/start.sh && chmod +x /app/start.sh
 
-# 필요한 디렉토리 생성 및 권한 설정 (microservices)
-RUN mkdir -p uploads logs \
-    && chmod 755 uploads logs
+# Health check
+HEALTHCHECK --interval=30s --timeout=10s --start-period=30s --retries=3 \
+  CMD curl -f http://localhost:8000/health || exit 1
 
-# 포트 노출
-EXPOSE 3001
+# Expose ports
+EXPOSE 8000 80
 
-# 헬스체크
-HEALTHCHECK --interval=30s --timeout=10s --start-period=60s --retries=5 \
-    CMD curl -f http://localhost:3001/health || exit 1
-
-# 환경변수 설정
-ENV PYTHONPATH=/app
-ENV PORT=3001
-
-# FastAPI만 실행 - 외부 DB/Redis 사용
-CMD ["uvicorn", "src.app:app", "--host", "0.0.0.0", "--port", "3001"]
+# Start application
+CMD ["/app/start.sh"]
