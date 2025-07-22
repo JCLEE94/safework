@@ -165,57 +165,32 @@ jobs:
         echo "- **Build**: #${{ github.run_number }}" >> $GITHUB_STEP_SUMMARY
         echo "- **Date**: $(date +'%Y-%m-%d %H:%M:%S')" >> $GITHUB_STEP_SUMMARY
 
-  deploy:
-    name: Update Git for ArgoCD
+  verify-deployment:
+    name: Verify ArgoCD Sync
     runs-on: self-hosted
     needs: [build-and-push]
     if: success()
     
     steps:
-    - name: Checkout code
-      uses: actions/checkout@v4
-      with:
-        token: ${{ secrets.GH_TOKEN }}  # Use PAT instead of GITHUB_TOKEN
-        ref: main
-        
-    - name: Update Helm values with new image tag
+    - name: Wait for ArgoCD Image Updater
       run: |
-        # Update image tag in Helm values
-        sed -i "s|tag: .*|tag: ${{ needs.build-and-push.outputs.date_tag }}|" k8s/helm/safework/values.yaml
-        
-        # Show the change
-        echo "Updated image tag to: ${{ needs.build-and-push.outputs.date_tag }}"
-        git diff k8s/helm/safework/values.yaml
-        
-    - name: Commit and push changes
-      run: |
-        git config --global user.name "GitHub Actions"
-        git config --global user.email "actions@github.com"
-        
-        git add k8s/helm/safework/values.yaml
-        git commit -m "chore: Update image tag to ${{ needs.build-and-push.outputs.date_tag }}"
-        
-        # Push with retry logic
-        for i in {1..3}; do
-          git push origin main && break || {
-            echo "Push attempt $i failed, retrying..."
-            git pull --rebase origin main
-            sleep 2
-          }
-        done
-        
-        echo "### 🚀 GitOps Update Complete" >> $GITHUB_STEP_SUMMARY
+        echo "### 🚀 Deployment Status" >> $GITHUB_STEP_SUMMARY
         echo "" >> $GITHUB_STEP_SUMMARY
-        echo "- **New Image Tag**: \`${{ needs.build-and-push.outputs.date_tag }}\`" >> $GITHUB_STEP_SUMMARY
-        echo "- **Helm Values**: Updated in k8s/helm/safework/values.yaml" >> $GITHUB_STEP_SUMMARY
-        echo "- **ArgoCD**: Will automatically sync the new image" >> $GITHUB_STEP_SUMMARY
+        echo "ArgoCD Image Updater will automatically detect and deploy the new image:" >> $GITHUB_STEP_SUMMARY
+        echo "- **Image**: \`${{ env.REGISTRY_URL }}/${{ env.IMAGE_NAME }}:${{ needs.build-and-push.outputs.date_tag }}\`" >> $GITHUB_STEP_SUMMARY
+        echo "- **ArgoCD Dashboard**: https://argo.jclee.me/applications/safework" >> $GITHUB_STEP_SUMMARY
         echo "- **Production**: https://safework.jclee.me" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        echo "Image Updater는 다음 설정으로 자동 작동합니다:" >> $GITHUB_STEP_SUMMARY
+        echo "- write-back-method: git (자동으로 git에 커밋)" >> $GITHUB_STEP_SUMMARY
+        echo "- update-strategy: newest-build" >> $GITHUB_STEP_SUMMARY
+        echo "- allow-tags: prod-YYYYMMDD-SHA 패턴" >> $GITHUB_STEP_SUMMARY
 
 
   notify:
     name: Notification
     runs-on: self-hosted
-    needs: [deploy]
+    needs: [verify-deployment]
     if: always()
     steps:
     - name: Send notification on failure
