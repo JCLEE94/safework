@@ -19,8 +19,7 @@ COPY src/ ./src/
 COPY alembic/ ./alembic/
 COPY alembic.ini ./
 
-# Copy frontend build
-COPY frontend/dist/ ./frontend/dist/
+# Frontend will be served separately or built during runtime
 
 # Health check
 HEALTHCHECK --interval=30s --timeout=10s --start-period=30s --retries=3 \
