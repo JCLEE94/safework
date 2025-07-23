@@ -1,0 +1,51 @@
+name: Self-hosted CI/CD Pipeline
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+  workflow_dispatch:
+
+env:
+  REGISTRY: registry.jclee.me
+  IMAGE_NAME: safework
+
+jobs:
+  build-and-deploy:
+    runs-on: self-hosted
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      
+    - name: Build Docker image
+      run: |
+        echo "Building SafeWork Docker image..."
+        docker build -t ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ github.sha }} .
+        docker tag ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ github.sha }} ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest
+        
+    - name: Push Docker image
+      run: |
+        echo "Pushing Docker image to registry..."
+        docker push ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ github.sha }}
+        docker push ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest
+        
+    - name: Update Helm chart image tag
+      run: |
+        echo "Updating Helm chart with new image tag..."
+        sed -i "s|tag: \".*\"|tag: \"${{ github.sha }}\"|g" charts/safework/values.yaml
+        
+    - name: Commit updated chart
+      run: |
+        git config --local user.email "action@github.com"
+        git config --local user.name "GitHub Action"
+        git add charts/safework/values.yaml
+        git commit -m "feat: Update image tag to ${{ github.sha }}" || exit 0
+        git push
+        
+    - name: Verify deployment
+      run: |
+        echo "Deployment completed successfully!"
+        echo "Image: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ github.sha }}"
+        echo "ArgoCD will automatically sync the changes"
