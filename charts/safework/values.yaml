@@ -97,6 +97,7 @@ redis:
   name: safework-redis
   image:
     repository: redis
+    tag: "latest"
   resources:
     limits:
       cpu: 100m
