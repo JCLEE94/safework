@@ -19,6 +19,11 @@ jobs:
     - name: Checkout code
       uses: actions/checkout@v4
       
+    - name: Login to Docker Registry
+      run: |
+        echo "Logging in to registry.jclee.me..."
+        echo "bingogo1" | docker login registry.jclee.me -u admin --password-stdin
+        
     - name: Build Docker image
       run: |
         echo "Building SafeWork Docker image..."
