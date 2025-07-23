@@ -13,7 +13,7 @@ fullnameOverride: ""
 
 service:
   type: NodePort
-  port: 3001
+  port: 8000
   nodePort: 32301
 
 ingress:
@@ -45,7 +45,7 @@ env:
   - name: HOST
     value: "0.0.0.0"
   - name: PORT
-    value: "3001"
+    value: "8000"
   - name: DATABASE_URL
     value: "postgresql://admin:safework123@postgres:5432/health_management"
   - name: REDIS_URL
@@ -129,7 +129,7 @@ probes:
   liveness:
     httpGet:
       path: /health
-      port: 3001
+      port: 8000
     initialDelaySeconds: 120
     periodSeconds: 30
     timeoutSeconds: 10
@@ -137,7 +137,7 @@ probes:
   readiness:
     httpGet:
       path: /health
-      port: 3001
+      port: 8000
     initialDelaySeconds: 30
     periodSeconds: 10
     timeoutSeconds: 5
