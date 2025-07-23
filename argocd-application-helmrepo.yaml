@@ -1,0 +1,52 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: safework
+  namespace: argocd
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  project: default
+  source:
+    repoURL: https://charts.jclee.me
+    chart: safework
+    targetRevision: "*"
+    helm:
+      releaseName: safework
+      values: |
+        replicaCount: 1
+        image:
+          repository: registry.jclee.me/safework
+          tag: "latest"
+          pullPolicy: Always
+        service:
+          type: NodePort
+          port: 3001
+          nodePort: 32301
+        ingress:
+          enabled: true
+          className: traefik
+          hosts:
+            - host: safework.jclee.me
+              paths:
+                - path: /
+                  pathType: Prefix
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: safework
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+      allowEmpty: false
+    syncOptions:
+    - CreateNamespace=true
+    - PrunePropagationPolicy=foreground
+    - PruneLast=true
+    retry:
+      limit: 5
+      backoff:
+        duration: 5s
+        factor: 2
+        maxDuration: 3m
+  revisionHistoryLimit: 10

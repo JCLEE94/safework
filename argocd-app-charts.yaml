@@ -1,0 +1,24 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: safework
+  namespace: argocd
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  project: default
+  source:
+    repoURL: https://charts.jclee.me
+    chart: safework
+    targetRevision: "1.0.0"
+    helm:
+      releaseName: safework
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: safework
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+    - CreateNamespace=true
