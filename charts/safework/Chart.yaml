@@ -1,32 +1,15 @@
 apiVersion: v2
 name: safework
-description: SafeWork Pro - Construction Site Health Management System
+description: SafeWork Pro - 건설업 보건관리 시스템
 type: application
-
-# Chart version - increment when chart changes
-version: 0.1.9
-
-# Application version - SafeWork application version
-appVersion: "1.0.1"
-
-home: https://github.com/JCLEE94/safework
-sources:
-  - https://github.com/JCLEE94/safework
-
-maintainers:
-  - name: SafeWork Team
-    email: admin@jclee.me
-
+version: 1.0.2
+appVersion: "1.0.2"
 keywords:
   - safework
   - health-management
-  - construction
-  - korean-occupational-safety
-
-annotations:
-  # ArgoCD Image Updater annotations
-  argocd-image-updater.argoproj.io/image-list: safework=registry.jclee.me/safework:latest
-  argocd-image-updater.argoproj.io/safework.allow-tags: regexp:^prod-[0-9]{8}-[a-f0-9]{7}$
-  argocd-image-updater.argoproj.io/safework.update-strategy: latest
-  argocd-image-updater.argoproj.io/write-back-method: git
-  argocd-image-updater.argoproj.io/git-branch: main
+  - fastapi
+  - react
+home: https://safework.jclee.me
+maintainers:
+  - name: SafeWork Pro Team
+    email: admin@jclee.me

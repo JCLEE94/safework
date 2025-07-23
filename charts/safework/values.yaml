@@ -1,146 +1,132 @@
-# Default values for safework.
-
 replicaCount: 1
 
 image:
   repository: registry.jclee.me/safework
-  pullPolicy: IfNotPresent
-  # Overrides the image tag whose default is the chart appVersion.
-  tag: "prod-20250715-b2807cd"
+  pullPolicy: Always
+  tag: "latest"
 
-imagePullSecrets:
-  - name: regcred
+imagePullSecrets: []
 
 nameOverride: ""
-fullnameOverride: "safework"
-
-serviceAccount:
-  create: false
-  annotations: {}
-  name: ""
-
-podAnnotations: {}
-
-podSecurityContext: {}
-
-securityContext: {}
+fullnameOverride: ""
 
 service:
-  type: NodePort
+  type: ClusterIP
   port: 3001
-  nodePort: 32301
+  targetPort: 3001
 
 ingress:
-  enabled: false
-  className: ""
-  annotations: {}
+  enabled: true
+  className: "traefik"
+  annotations:
+    traefik.ingress.kubernetes.io/router.entrypoints: web,websecure
+    traefik.ingress.kubernetes.io/router.middlewares: default-https-redirect@kubernetescrd
   hosts:
     - host: safework.jclee.me
       paths:
         - path: /
-          pathType: ImplementationSpecific
-  tls: []
+          pathType: Prefix
+  tls:
+    - secretName: safework-tls
+      hosts:
+        - safework.jclee.me
 
 resources:
   limits:
-    cpu: 1000m
-    memory: 2Gi
+    cpu: 2000m
+    memory: 4Gi
   requests:
     cpu: 500m
     memory: 1Gi
 
-# PostgreSQL configuration
-postgresql:
-  enabled: true
-  name: postgres
-  image:
-    repository: postgres
-    tag: "15"
-  auth:
-    database: health_management
-    username: admin
-    password: "password"  # Default for development
-  persistence:
-    enabled: true
-    size: 10Gi
-  resources:
-    limits:
-      cpu: 500m
-      memory: 512Mi
-    requests:
-      cpu: 250m
-      memory: 256Mi
-
-# Redis configuration
-redis:
-  enabled: true
-  name: redis
-  image:
-    repository: redis
-    tag: "7-alpine"
-  auth:
-    enabled: false
-  persistence:
-    enabled: true
-    size: 1Gi
-  resources:
-    limits:
-      cpu: 200m
-      memory: 256Mi
-    requests:
-      cpu: 100m
-      memory: 128Mi
-
-# Environment variables
 env:
-  - name: DATABASE_URL
-    value: "postgresql://admin:password@postgres:5432/health_management"
-  - name: REDIS_URL
-    value: "redis://redis:6379/0"
+  - name: ENVIRONMENT
+    value: "production"
+  - name: DATABASE_HOST
+    value: "localhost"
+  - name: DATABASE_PORT
+    value: "5432"
+  - name: DATABASE_NAME
+    value: "health_management"
+  - name: DATABASE_USER
+    value: "admin"
+  - name: DATABASE_PASSWORD
+    valueFrom:
+      secretKeyRef:
+        name: safework-secrets
+        key: db-password
+  - name: REDIS_HOST
+    value: "localhost"
+  - name: REDIS_PORT
+    value: "6379"
   - name: JWT_SECRET
     valueFrom:
       secretKeyRef:
         name: safework-secrets
         key: jwt-secret
-  - name: ENVIRONMENT
-    value: "production"
-  - name: TZ
-    value: "Asia/Seoul"
 
-# Resource Quotas
-resourceQuota:
-  enabled: true
-  limits:
-    cpu: "4"
-    memory: "8Gi"
-    persistentvolumeclaims: "10"
+volumes:
+  - name: uploads
+    hostPath:
+      path: /data/safework/uploads
+      type: DirectoryOrCreate
+  - name: logs
+    hostPath:
+      path: /data/safework/logs
+      type: DirectoryOrCreate
+  - name: instance
+    hostPath:
+      path: /data/safework/instance
+      type: DirectoryOrCreate
 
-# Limit Ranges
-limitRange:
-  enabled: true
-  limits:
-    - type: Container
-      default:
-        cpu: 500m
-        memory: 512Mi
-      defaultRequest:
-        cpu: 100m
-        memory: 128Mi
-      max:
-        cpu: 2000m
-        memory: 4Gi
-      min:
-        cpu: 50m
-        memory: 64Mi
+volumeMounts:
+  - name: uploads
+    mountPath: /app/uploads
+  - name: logs
+    mountPath: /app/logs
+  - name: instance
+    mountPath: /app/instance
 
-nodeSelector: {}
+probes:
+  liveness:
+    httpGet:
+      path: /health
+      port: 3001
+    initialDelaySeconds: 60
+    periodSeconds: 30
+    timeoutSeconds: 10
+  readiness:
+    httpGet:
+      path: /health
+      port: 3001
+    initialDelaySeconds: 30
+    periodSeconds: 10
+    timeoutSeconds: 5
 
-tolerations: []
+podSecurityContext:
+  fsGroup: 1000
+  runAsNonRoot: true
+  runAsUser: 1000
 
-affinity: {}# Docker Registry configuration
-dockerRegistry:
-  enabled: true
-  server: registry.jclee.me
-  username: "admin"  # Public registry username
-  password: "bingogo1"  # Public registry password
-  email: "admin@jclee.me"
+securityContext:
+  capabilities:
+    drop:
+    - ALL
+  readOnlyRootFilesystem: false
+  allowPrivilegeEscalation: false
+
+# ArgoCD Image Updater 설정
+argocd:
+  imageUpdater:
+    enabled: true
+    imageList: |
+      safework=registry.jclee.me/safework
+    writeBackMethod: git
+    gitBranch: main
+    gitCommitUser: argocd-image-updater
+    gitCommitEmail: image-updater@argocd
+    gitCommitTemplate: |
+      build: update image to {{.Image.Tag}}
+    allowTags: '^prod-[0-9]{8}-[a-f0-9]{7}$'
+    updateStrategy: latest
+    pullSecret: ""

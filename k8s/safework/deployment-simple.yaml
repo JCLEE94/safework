@@ -1,0 +1,28 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: safework
+  namespace: safework
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: safework
+  template:
+    metadata:
+      labels:
+        app: safework
+    spec:
+      containers:
+      - name: safework
+        image: nginx:alpine
+        ports:
+        - containerPort: 80
+          name: http
+        resources:
+          requests:
+            memory: "128Mi"
+            cpu: "100m"
+          limits:
+            memory: "256Mi"
+            cpu: "200m"

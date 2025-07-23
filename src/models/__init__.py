@@ -29,6 +29,7 @@ from src.models.special_materials import (ControlMeasure, ControlMeasureType,
 from src.models.work_environment import (WorkEnvironment,
                                          WorkEnvironmentWorkerExposure)
 from src.models.worker import Worker
+from src.models.user import User
 from src.models.cardiovascular import CardiovascularRiskAssessment
 from src.models.qr_registration import QRRegistrationToken
 from src.models.confined_space import ConfinedSpace
@@ -36,6 +37,7 @@ from src.models.confined_space import ConfinedSpace
 __all__ = [
     "Base",
     "Worker",
+    "User",
     "HealthConsultation",
     "ConsultationFollowUp",
     "ConsultationAttachment",

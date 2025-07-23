@@ -1,0 +1,25 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: safework-external
+  namespace: safework
+spec:
+  ports:
+  - port: 3001
+    targetPort: 3001
+    protocol: TCP
+    name: http
+  type: ClusterIP
+---
+apiVersion: v1
+kind: Endpoints
+metadata:
+  name: safework-external
+  namespace: safework
+subsets:
+- addresses:
+  - ip: 192.168.50.100  # 호스트 머신 IP
+  ports:
+  - port: 3001
+    name: http
+    protocol: TCP

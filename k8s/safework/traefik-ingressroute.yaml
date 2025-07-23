@@ -1,0 +1,43 @@
+apiVersion: traefik.containo.us/v1alpha1
+kind: IngressRoute
+metadata:
+  name: safework-https
+  namespace: safework
+spec:
+  entryPoints:
+    - websecure
+  routes:
+    - match: Host(`safework.jclee.me`)
+      kind: Rule
+      services:
+        - name: safework-external
+          port: 3001
+  tls:
+    certResolver: default
+---
+apiVersion: traefik.containo.us/v1alpha1
+kind: IngressRoute
+metadata:
+  name: safework-http
+  namespace: safework
+spec:
+  entryPoints:
+    - web
+  routes:
+    - match: Host(`safework.jclee.me`)
+      kind: Rule
+      services:
+        - name: safework-external
+          port: 3001
+      middlewares:
+        - name: redirect-to-https
+---
+apiVersion: traefik.containo.us/v1alpha1
+kind: Middleware
+metadata:
+  name: redirect-to-https
+  namespace: safework
+spec:
+  redirectScheme:
+    scheme: https
+    permanent: true

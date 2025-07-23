@@ -4,6 +4,20 @@ metadata:
   name: {{ include "safework.fullname" . }}
   labels:
     {{- include "safework.labels" . | nindent 4 }}
+  {{- if .Values.argocd.imageUpdater.enabled }}
+  annotations:
+    argocd-image-updater.argoproj.io/image-list: {{ .Values.argocd.imageUpdater.imageList }}
+    argocd-image-updater.argoproj.io/write-back-method: {{ .Values.argocd.imageUpdater.writeBackMethod }}
+    argocd-image-updater.argoproj.io/git-branch: {{ .Values.argocd.imageUpdater.gitBranch }}
+    argocd-image-updater.argoproj.io/commit-user: {{ .Values.argocd.imageUpdater.gitCommitUser }}
+    argocd-image-updater.argoproj.io/commit-email: {{ .Values.argocd.imageUpdater.gitCommitEmail }}
+    argocd-image-updater.argoproj.io/commit-message-template: {{ .Values.argocd.imageUpdater.gitCommitTemplate | quote }}
+    argocd-image-updater.argoproj.io/safework.allow-tags: {{ .Values.argocd.imageUpdater.allowTags }}
+    argocd-image-updater.argoproj.io/safework.update-strategy: {{ .Values.argocd.imageUpdater.updateStrategy }}
+    {{- if .Values.argocd.imageUpdater.pullSecret }}
+    argocd-image-updater.argoproj.io/safework.pull-secret: {{ .Values.argocd.imageUpdater.pullSecret }}
+    {{- end }}
+  {{- end }}
 spec:
   replicas: {{ .Values.replicaCount }}
   selector:
@@ -11,10 +25,6 @@ spec:
       {{- include "safework.selectorLabels" . | nindent 6 }}
   template:
     metadata:
-      {{- with .Values.podAnnotations }}
-      annotations:
-        {{- toYaml . | nindent 8 }}
-      {{- end }}
       labels:
         {{- include "safework.selectorLabels" . | nindent 8 }}
     spec:
@@ -22,44 +32,38 @@ spec:
       imagePullSecrets:
         {{- toYaml . | nindent 8 }}
       {{- end }}
-      serviceAccountName: {{ include "safework.serviceAccountName" . }}
       securityContext:
         {{- toYaml .Values.podSecurityContext | nindent 8 }}
+      initContainers:
+      - name: wait-for-db
+        image: busybox:1.35
+        command: ['sh', '-c', 'until nc -z localhost 5432; do echo waiting for database; sleep 2; done;']
+      - name: wait-for-redis
+        image: busybox:1.35
+        command: ['sh', '-c', 'until nc -z localhost 6379; do echo waiting for redis; sleep 2; done;']
       containers:
-        - name: {{ .Chart.Name }}
-          securityContext:
-            {{- toYaml .Values.securityContext | nindent 12 }}
-          image: "{{ .Values.image.repository }}:{{ .Values.image.tag | default .Chart.AppVersion }}"
-          imagePullPolicy: {{ .Values.image.pullPolicy }}
-          ports:
-            - name: http
-              containerPort: 3001
-              protocol: TCP
-          env:
-            {{- toYaml .Values.env | nindent 12 }}
-          livenessProbe:
-            httpGet:
-              path: /health
-              port: http
-            initialDelaySeconds: 30
-            periodSeconds: 10
-          readinessProbe:
-            httpGet:
-              path: /health
-              port: http
-            initialDelaySeconds: 5
-            periodSeconds: 5
-          resources:
-            {{- toYaml .Values.resources | nindent 12 }}
-      {{- with .Values.nodeSelector }}
-      nodeSelector:
-        {{- toYaml . | nindent 8 }}
-      {{- end }}
-      {{- with .Values.affinity }}
-      affinity:
-        {{- toYaml . | nindent 8 }}
-      {{- end }}
-      {{- with .Values.tolerations }}
-      tolerations:
-        {{- toYaml . | nindent 8 }}
+      - name: {{ .Chart.Name }}
+        securityContext:
+          {{- toYaml .Values.securityContext | nindent 12 }}
+        image: "{{ .Values.image.repository }}:{{ .Values.image.tag | default .Chart.AppVersion }}"
+        imagePullPolicy: {{ .Values.image.pullPolicy }}
+        ports:
+        - name: http
+          containerPort: {{ .Values.service.targetPort }}
+          protocol: TCP
+        env:
+          {{- toYaml .Values.env | nindent 12 }}
+        livenessProbe:
+          {{- toYaml .Values.probes.liveness | nindent 12 }}
+        readinessProbe:
+          {{- toYaml .Values.probes.readiness | nindent 12 }}
+        resources:
+          {{- toYaml .Values.resources | nindent 12 }}
+        {{- if .Values.volumeMounts }}
+        volumeMounts:
+          {{- toYaml .Values.volumeMounts | nindent 12 }}
+        {{- end }}
+      {{- if .Values.volumes }}
+      volumes:
+        {{- toYaml .Values.volumes | nindent 8 }}
       {{- end }}

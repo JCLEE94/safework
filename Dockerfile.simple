@@ -1,0 +1,39 @@
+FROM python:3.11-slim
+
+WORKDIR /app
+
+# 시스템 패키지 설치
+RUN apt-get update && apt-get install -y \
+    postgresql-client \
+    curl \
+    tzdata \
+    --no-install-recommends \
+    && rm -rf /var/lib/apt/lists/*
+
+# Python 의존성 설치
+COPY requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt
+
+# 소스 코드 복사
+COPY src/ ./src/
+COPY main.py .
+
+# 프론트엔드 정적 파일 (간단한 버전)
+RUN mkdir -p frontend/dist
+COPY <<EOF frontend/dist/index.html
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <title>SafeWork Pro</title>
+</head>
+<body>
+    <h1>SafeWork Pro - 건설업 보건관리 시스템</h1>
+    <p>시스템이 정상 작동 중입니다.</p>
+</body>
+</html>
+EOF
+
+EXPOSE 3001
+
+CMD ["uvicorn", "src.app:app", "--host", "0.0.0.0", "--port", "3001"]

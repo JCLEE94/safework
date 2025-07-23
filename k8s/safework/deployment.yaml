@@ -49,14 +49,8 @@ spec:
           echo "Redis is ready!"
       containers:
       - name: safework
-        image: registry.jclee.me/safework:latest  # Use latest tag
-        imagePullPolicy: Always
-        command:
-        - sh
-        - -c
-        - |
-          pip install pydantic-settings==2.1.0 && 
-          uvicorn src.app:app --host 0.0.0.0 --port 3001
+        image: 7d5622856687  # Working local image SHA
+        imagePullPolicy: Never
         ports:
         - containerPort: 3001
           name: http

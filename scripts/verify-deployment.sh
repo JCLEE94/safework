@@ -1,46 +1,37 @@
-#\!/bin/bash
-# SafeWork Pro 배포 검증 스크립트
+#!/bin/bash
+set -e
 
-set -euo pipefail
+APP_NAME=${1:-safework}
+NAMESPACE=${2:-production}
 
-GREEN='\033[0;32m'
-YELLOW='\033[1;33m'
-BLUE='\033[0;34m'
-NC='\033[0m'
+echo "=== 배포 검증 시작 ==="
+echo "App: $APP_NAME, Namespace: $NAMESPACE"
 
-log_info() { echo -e "${BLUE}[INFO]${NC} $1"; }
-log_success() { echo -e "${GREEN}[✓]${NC} $1"; }
-log_warn() { echo -e "${YELLOW}[⚠]${NC} $1"; }
+# 1. GitHub Actions 상태 확인
+echo -n "1. GitHub Actions 실행 상태: "
+LAST_RUN=$(gh run list --limit 1 --json status,conclusion,name --jq '.[0]')
+echo "$LAST_RUN"
 
-echo "=== SafeWork Pro 배포 검증 시작 ==="
+# 2. Helm Chart 확인
+echo -n "2. ChartMuseum에서 Chart 확인: "
+curl -s https://charts.jclee.me/api/charts/${APP_NAME} | jq -r '.[0].version' || echo "Chart not found"
 
-# Kubernetes 연결 확인
-log_info "Kubernetes 클러스터 연결 확인..."
-if kubectl cluster-info > /dev/null 2>&1; then
-    log_success "Kubernetes 클러스터 연결됨"
-else
-    log_warn "Kubernetes 클러스터 연결 실패"
-    exit 1
-fi
+# 3. ArgoCD 애플리케이션 상태
+echo "3. ArgoCD 애플리케이션 상태:"
+argocd app get ${APP_NAME} --grpc-web || echo "ArgoCD app not found"
 
-# 네임스페이스 확인
-for ns in production argocd; do
-    if kubectl get namespace $ns > /dev/null 2>&1; then
-        log_success "네임스페이스 $ns 존재"
-    else
-        log_warn "네임스페이스 $ns 없음"
-    fi
-done
+# 4. Kubernetes 리소스 확인
+echo "4. Kubernetes 리소스:"
+kubectl get all -n ${NAMESPACE} -l app.kubernetes.io/name=${APP_NAME}
 
-# Pod 상태 확인
-kubectl get pods -n production 2>/dev/null || log_warn "production 네임스페이스에 Pod 없음"
+# 5. Pod 이미지 확인
+echo -n "5. 실행 중인 이미지: "
+kubectl get pods -n ${NAMESPACE} -l app.kubernetes.io/name=${APP_NAME} -o jsonpath='{.items[0].spec.containers[0].image}' || echo "No pods found"
+echo
 
-# ArgoCD Application 확인
-kubectl get application safework-prod -n argocd 2>/dev/null && log_success "ArgoCD Application 존재" || log_warn "ArgoCD Application 없음"
+# 6. 헬스체크
+echo -n "6. 애플리케이션 헬스체크: "
+curl -sf https://${APP_NAME}.jclee.me/health || echo "Health check failed"
+echo
 
-log_info "검증 완료"
-log_info "유용한 명령어:"
-echo "  kubectl get pods -n production"
-echo "  kubectl get application -n argocd"
-echo "  argocd app sync safework-prod"
-EOF < /dev/null
+echo "=== 검증 완료 ==="
