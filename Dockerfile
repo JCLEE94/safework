@@ -19,8 +19,8 @@ COPY src/ ./src/
 COPY alembic/ ./alembic/
 COPY alembic.ini ./
 
-# Copy frontend build (if exists)
-COPY frontend/dist/ ./frontend/dist/ 2>/dev/null || echo "Frontend dist not found, skipping..."
+# Copy frontend build
+COPY frontend/dist/ ./frontend/dist/
 
 # Health check
 HEALTHCHECK --interval=30s --timeout=10s --start-period=30s --retries=3 \
