@@ -1,0 +1,69 @@
+name: GitOps CI/CD Pipeline
+
+on:
+  push:
+    branches: [ main ]
+  workflow_dispatch:
+
+env:
+  REGISTRY: registry.jclee.me
+  IMAGE_NAME: safework
+  HELM_REPO: https://charts.jclee.me
+
+jobs:
+  build-and-deploy:
+    runs-on: self-hosted
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      
+    - name: Login to Docker Registry
+      run: |
+        echo "${{ secrets.REGISTRY_PASSWORD }}" | docker login ${{ env.REGISTRY }} -u ${{ secrets.REGISTRY_USERNAME }} --password-stdin
+        
+    - name: Build and Push Docker Image
+      run: |
+        # Generate version
+        VERSION="1.$(date +%Y%m%d).${GITHUB_RUN_NUMBER}"
+        
+        # Build image
+        docker build -t ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${VERSION} .
+        docker tag ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${VERSION} ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest
+        
+        # Push image
+        docker push ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${VERSION}
+        docker push ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest
+        
+        echo "VERSION=${VERSION}" >> $GITHUB_ENV
+        
+    - name: Update Helm Chart
+      run: |
+        # Update Chart version
+        sed -i "s/^version:.*/version: ${{ env.VERSION }}/" charts/safework/Chart.yaml
+        sed -i "s/^appVersion:.*/appVersion: \"${{ env.VERSION }}\"/" charts/safework/Chart.yaml
+        
+        # Update image tag in values
+        sed -i "s|tag:.*|tag: \"${{ env.VERSION }}\"|" charts/safework/values.yaml
+        
+    - name: Package and Upload Helm Chart
+      run: |
+        # Package chart
+        helm package charts/safework
+        
+        # Upload to charts.jclee.me
+        curl -u ${{ secrets.HELM_USERNAME }}:${{ secrets.HELM_PASSWORD }} \
+          -F "chart=@safework-${{ env.VERSION }}.tgz" \
+          https://charts.jclee.me/api/charts
+          
+    - name: Trigger ArgoCD Sync
+      run: |
+        # Trigger ArgoCD to sync the new version
+        kubectl patch application safework -n argocd --type merge -p '{"metadata":{"annotations":{"argocd.argoproj.io/sync-options":"Replace=true"}}}'
+        
+    - name: Verify Deployment
+      run: |
+        echo "Deployment triggered successfully!"
+        echo "Image: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ env.VERSION }}"
+        echo "Chart: safework-${{ env.VERSION }}"
+        echo "ArgoCD will automatically deploy the new version"
