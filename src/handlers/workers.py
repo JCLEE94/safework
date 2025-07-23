@@ -100,18 +100,16 @@ async def get_workers(
             if is_active is not None:
                 filters["is_active"] = is_active
 
-            workers, total = await worker_repository.get_multi(
-                db, skip=skip, limit=limit, filters=filters
+            workers, total = await worker_repository.get_multi_with_filters(
+                db, skip=skip, limit=limit, **filters
             )
 
         return WorkerListResponse(
-            items=[
-                WorkerResponse.model_validate(worker, from_attributes=True)
-                for worker in workers
-            ],
+            items=[WorkerResponse.model_validate(worker, from_attributes=True) for worker in workers],
             total=total,
-            skip=skip,
-            limit=limit,
+            page=skip // limit + 1,
+            size=limit,
+            pages=(total + limit - 1) // limit,
         )
 
     except Exception as e:
@@ -122,208 +120,300 @@ async def get_workers(
         )
 
 
-@router.post("/", response_model=WorkerResponse, status_code=status.HTTP_201_CREATED)
-async def create_worker(worker_data: WorkerCreate, db: AsyncSession = Depends(get_db)):
-    """근로자 등록"""
-    try:
-        # 사번 중복 체크
-        existing_worker = await worker_repository.get_by_employee_id(
-            db, employee_id=worker_data.employee_id
-        )
+# =============================================================================
+# INTEGRATION TESTS (Rust-style inline tests)
+# =============================================================================
 
-        if existing_worker:
-            logger.warning(f"중복된 사번: {worker_data.employee_id}")
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="이미 존재하는 사번입니다.",
-            )
+if __name__ == "__main__":
+    import asyncio
+    import pytest
+    import pytest_asyncio
+    from httpx import AsyncClient
+    from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession
+    from sqlalchemy.orm import sessionmaker
+    from ..app import app
+    from ..config.database import Base, get_db
+    from ..models.worker import Worker, EmploymentType, WorkType, HealthStatus
 
-        # 리포지토리를 통한 근로자 생성
-        worker = await worker_repository.create(db, obj_in=worker_data)
-
-        # 캐시 무효화
-        await invalidate_worker_cache()
-
-        return WorkerResponse.model_validate(worker, from_attributes=True)
-
-    except HTTPException:
-        raise
-    except Exception as e:
-        logger.error(f"근로자 생성 실패: {e}")
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="근로자 생성 중 오류가 발생했습니다.",
-        )
-
-
-@router.get("/{worker_id}", response_model=WorkerResponse)
-async def get_worker(worker_id: int, db: AsyncSession = Depends(get_db)):
-    """근로자 상세 조회"""
-    try:
-        worker = await worker_repository.get_by_id(db, id=worker_id)
-
-        if not worker:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="근로자를 찾을 수 없습니다.",
-            )
-
-        return WorkerResponse.model_validate(worker, from_attributes=True)
-
-    except HTTPException:
-        raise
-    except Exception as e:
-        logger.error(f"근로자 상세 조회 실패: {e}")
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="근로자 조회 중 오류가 발생했습니다.",
-        )
-
-
-@router.put("/{worker_id}", response_model=WorkerResponse)
-async def update_worker(
-    worker_id: int, worker_data: WorkerUpdate, db: AsyncSession = Depends(get_db)
-):
-    """근로자 정보 수정"""
-    try:
-        worker = await worker_repository.get_by_id(db, id=worker_id)
-
-        if not worker:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="근로자를 찾을 수 없습니다.",
-            )
-
-        updated_worker = await worker_repository.update(
-            db, db_obj=worker, obj_in=worker_data
-        )
-
-        # 캐시 무효화
-        await invalidate_worker_cache(worker_id)
-
-        return WorkerResponse.model_validate(updated_worker, from_attributes=True)
-
-    except HTTPException:
-        raise
-    except Exception as e:
-        logger.error(f"근로자 수정 실패: {e}")
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="근로자 수정 중 오류가 발생했습니다.",
-        )
-
-
-@router.delete("/{worker_id}")
-async def delete_worker(worker_id: int, db: AsyncSession = Depends(get_db)):
-    """근로자 삭제 (비활성화)"""
-    try:
-        success = await worker_repository.delete(db, id=worker_id)
-
-        if not success:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="근로자를 찾을 수 없습니다.",
-            )
-
-        # 캐시 무효화
-        await invalidate_worker_cache(worker_id)
-
-        return {"message": "근로자가 삭제되었습니다."}
-
-    except HTTPException:
-        raise
-    except Exception as e:
-        logger.error(f"근로자 삭제 실패: {e}")
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="근로자 삭제 중 오류가 발생했습니다.",
-        )
-
-
-@router.get(
-    "/{worker_id}/health-consultations", response_model=List[HealthConsultationResponse]
-)
-async def get_worker_consultations(worker_id: int, db: AsyncSession = Depends(get_db)):
-    """근로자 건강상담 기록 조회"""
-
-    result = await db.execute(
-        select(HealthConsultation)
-        .where(HealthConsultation.worker_id == worker_id)
-        .order_by(HealthConsultation.consultation_date.desc())
+    # Test database setup
+    SQLALCHEMY_DATABASE_URL = "sqlite+aiosqlite:///./test_workers.db"
+    test_engine = create_async_engine(SQLALCHEMY_DATABASE_URL, echo=True)
+    TestingSessionLocal = sessionmaker(
+        test_engine, class_=AsyncSession, expire_on_commit=False
     )
-    consultations = result.scalars().all()
 
-    return [
-        HealthConsultationResponse.model_validate(consultation)
-        for consultation in consultations
-    ]
+    async def override_get_db():
+        async with TestingSessionLocal() as session:
+            try:
+                yield session
+            finally:
+                await session.close()
 
+    app.dependency_overrides[get_db] = override_get_db
 
-@router.post(
-    "/{worker_id}/health-consultations", response_model=HealthConsultationResponse
-)
-async def create_health_consultation(
-    worker_id: int,
-    consultation_data: HealthConsultationCreate,
-    db: AsyncSession = Depends(get_db),
-):
-    """건강상담 기록 등록"""
+    @pytest_asyncio.fixture
+    async def async_client():
+        """Test client fixture"""
+        async with AsyncClient(app=app, base_url="http://test") as ac:
+            yield ac
 
-    # 근로자 존재 확인
-    result = await db.execute(select(Worker).where(Worker.id == worker_id))
-    worker = result.scalar_one_or_none()
+    @pytest_asyncio.fixture
+    async def test_db():
+        """Test database fixture"""
+        async with test_engine.begin() as conn:
+            await conn.run_sync(Base.metadata.create_all)
+        
+        async with TestingSessionLocal() as session:
+            yield session
+        
+        async with test_engine.begin() as conn:
+            await conn.run_sync(Base.metadata.drop_all)
 
-    if not worker:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND, detail="근로자를 찾을 수 없습니다."
-        )
-
-    # 상담기록 생성
-    consultation = HealthConsultation(
-        worker_id=worker_id, **consultation_data.model_dump()
-    )
-    db.add(consultation)
-    await db.commit()
-    await db.refresh(consultation)
-
-    return HealthConsultationResponse.model_validate(consultation)
-
-
-@router.get("/statistics/dashboard")
-@cache_result("worker_stats", CacheTTL.DASHBOARD)
-async def get_worker_statistics(db: AsyncSession = Depends(get_db)):
-    """근로자 현황 통계"""
-    try:
-        stats = await worker_repository.get_statistics(db)
-        return {
-            "total_workers": stats["total"],
-            "employment_type_distribution": stats["by_employment_type"],
-            "work_type_distribution": stats["by_work_type"],
-            "health_status_distribution": stats["by_health_status"],
-            "gender_distribution": stats["by_gender"],
-            "department_distribution": stats["by_department"],
-            "updated_at": datetime.now().isoformat(),
+    async def test_worker_registration_integration(async_client: AsyncClient, test_db: AsyncSession):
+        """
+        통합 테스트: 근로자 등록 전체 플로우
+        - API 요청 → 검증 → DB 저장 → 캐시 무효화 → 응답
+        """
+        # Given: 근로자 등록 데이터
+        worker_data = {
+            "name": "김철수",
+            "employee_id": "EMP001",
+            "phone": "010-1234-5678",
+            "email": "kimcs@example.com",
+            "department": "건설팀",
+            "position": "현장관리자",
+            "employment_type": "regular",
+            "work_type": "construction",
+            "hire_date": "2024-01-01",
+            "birth_date": "1985-03-15",
+            "address": "서울시 강남구",
+            "emergency_contact": "010-9876-5432",
+            "health_status": "normal",
+            "is_active": True
         }
 
-    except Exception as e:
-        logger.error(f"근로자 통계 조회 실패: {e}")
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="통계 조회 중 오류가 발생했습니다.",
+        # When: 공개 등록 API 호출
+        response = await async_client.post("/api/v1/workers/public-registration", json=worker_data)
+
+        # Then: 성공 응답 확인
+        assert response.status_code == 201
+        response_data = response.json()
+        assert response_data["name"] == "김철수"
+        assert response_data["employee_id"] == "EMP001"
+        assert response_data["employment_type"] == "regular"
+
+        # Then: DB에 저장 확인
+        result = await test_db.execute(
+            select(Worker).where(Worker.employee_id == "EMP001")
         )
+        saved_worker = result.scalar_one_or_none()
+        assert saved_worker is not None
+        assert saved_worker.name == "김철수"
+        assert saved_worker.employment_type == EmploymentType.REGULAR
 
+    async def test_worker_registration_duplicate_employee_id(async_client: AsyncClient, test_db: AsyncSession):
+        """
+        통합 테스트: 중복 사번 검증
+        """
+        # Given: 기존 근로자 생성
+        existing_worker = Worker(
+            name="기존근로자",
+            employee_id="DUPLICATE001",
+            employment_type=EmploymentType.REGULAR,
+            work_type=WorkType.CONSTRUCTION,
+            health_status=HealthStatus.NORMAL
+        )
+        test_db.add(existing_worker)
+        await test_db.commit()
 
-@router.get("/debug/test")
-async def test_endpoint():
-    """테스트 엔드포인트"""
-    return {"status": "ok", "message": "workers router working"}
+        # Given: 동일한 사번으로 등록 시도
+        duplicate_data = {
+            "name": "새근로자",
+            "employee_id": "DUPLICATE001",
+            "employment_type": "contract",
+            "work_type": "electrical",
+            "health_status": "normal"
+        }
 
+        # When: 등록 시도
+        response = await async_client.post("/api/v1/workers/public-registration", json=duplicate_data)
 
-@router.post("/debug/test-post")
-async def test_post_endpoint(data: dict):
-    """POST 테스트 엔드포인트"""
-    return {"status": "ok", "received": data, "message": "POST working"}
+        # Then: 중복 오류 응답
+        assert response.status_code == 400
+        assert "이미 존재하는 사번입니다" in response.json()["detail"]
 
+    async def test_worker_list_with_filters_integration(async_client: AsyncClient, test_db: AsyncSession):
+        """
+        통합 테스트: 근로자 목록 조회 및 필터링
+        """
+        # Given: 테스트 데이터 생성
+        workers = [
+            Worker(name="김건설", employee_id="C001", department="건설팀", 
+                  employment_type=EmploymentType.REGULAR, work_type=WorkType.CONSTRUCTION,
+                  health_status=HealthStatus.NORMAL, is_active=True),
+            Worker(name="박전기", employee_id="E001", department="전기팀",
+                  employment_type=EmploymentType.CONTRACT, work_type=WorkType.ELECTRICAL,
+                  health_status=HealthStatus.CAUTION, is_active=True),
+            Worker(name="이배관", employee_id="P001", department="배관팀",
+                  employment_type=EmploymentType.TEMPORARY, work_type=WorkType.PLUMBING,
+                  health_status=HealthStatus.NORMAL, is_active=False),
+        ]
+        
+        for worker in workers:
+            test_db.add(worker)
+        await test_db.commit()
 
-# Integration tests have been moved to src/handlers/test_workers.py
-# to avoid circular imports
+        # When: 부서별 필터링 조회
+        response = await async_client.get("/api/v1/workers/?department=건설팀")
+        
+        # Then: 필터링된 결과 확인
+        assert response.status_code == 200
+        data = response.json()
+        assert data["total"] == 1
+        assert len(data["items"]) == 1
+        assert data["items"][0]["name"] == "김건설"
+
+        # When: 고용형태별 필터링 조회
+        response = await async_client.get("/api/v1/workers/?employment_type=contract")
+        
+        # Then: 계약직 근로자만 조회
+        assert response.status_code == 200
+        data = response.json()
+        assert data["total"] == 1
+        assert data["items"][0]["employment_type"] == "contract"
+
+        # When: 재직 상태 필터링
+        response = await async_client.get("/api/v1/workers/?is_active=false")
+        
+        # Then: 퇴직자만 조회
+        assert response.status_code == 200
+        data = response.json()
+        assert data["total"] == 1
+        assert data["items"][0]["is_active"] == False
+
+    async def test_worker_search_integration(async_client: AsyncClient, test_db: AsyncSession):
+        """
+        통합 테스트: 근로자 검색 기능
+        """
+        # Given: 테스트 데이터
+        workers = [
+            Worker(name="김철수", employee_id="K001", employment_type=EmploymentType.REGULAR, 
+                  work_type=WorkType.CONSTRUCTION, health_status=HealthStatus.NORMAL),
+            Worker(name="박영희", employee_id="P001", employment_type=EmploymentType.CONTRACT,
+                  work_type=WorkType.ELECTRICAL, health_status=HealthStatus.NORMAL),
+            Worker(name="이민수", employee_id="L001", employment_type=EmploymentType.TEMPORARY,
+                  work_type=WorkType.PLUMBING, health_status=HealthStatus.CAUTION),
+        ]
+        
+        for worker in workers:
+            test_db.add(worker)
+        await test_db.commit()
+
+        # When: 이름으로 검색
+        response = await async_client.get("/api/v1/workers/?search=김철수")
+        
+        # Then: 검색 결과 확인
+        assert response.status_code == 200
+        data = response.json()
+        assert data["total"] == 1
+        assert data["items"][0]["name"] == "김철수"
+
+        # When: 사번으로 검색
+        response = await async_client.get("/api/v1/workers/?search=P001")
+        
+        # Then: 사번 검색 결과 확인
+        assert response.status_code == 200
+        data = response.json()
+        assert data["total"] == 1
+        assert data["items"][0]["employee_id"] == "P001"
+        assert data["items"][0]["name"] == "박영희"
+
+    async def test_worker_cache_invalidation_integration(async_client: AsyncClient, test_db: AsyncSession):
+        """
+        통합 테스트: 캐시 무효화 검증
+        이 테스트는 Redis 캐시가 설정되어 있을 때 실행됩니다.
+        """
+        # Given: 근로자 등록 (캐시 생성)
+        worker_data = {
+            "name": "캐시테스트",
+            "employee_id": "CACHE001",
+            "employment_type": "regular",
+            "work_type": "construction",
+            "health_status": "normal"
+        }
+
+        # When: 첫 번째 등록 (캐시 생성)
+        response1 = await async_client.post("/api/v1/workers/public-registration", json=worker_data)
+        assert response1.status_code == 201
+
+        # When: 목록 조회 (캐시 사용)
+        list_response1 = await async_client.get("/api/v1/workers/")
+        initial_count = list_response1.json()["total"]
+
+        # When: 두 번째 근로자 등록 (캐시 무효화 발생)
+        worker_data2 = {
+            "name": "캐시테스트2",
+            "employee_id": "CACHE002", 
+            "employment_type": "contract",
+            "work_type": "electrical",
+            "health_status": "normal"
+        }
+        response2 = await async_client.post("/api/v1/workers/public-registration", json=worker_data2)
+        assert response2.status_code == 201
+
+        # Then: 목록 조회 시 캐시가 무효화되어 새로운 데이터 반영
+        list_response2 = await async_client.get("/api/v1/workers/")
+        updated_count = list_response2.json()["total"]
+        assert updated_count == initial_count + 1
+
+    # Run tests
+    async def run_integration_tests():
+        """통합 테스트 실행"""
+        print("🧪 근로자 관리 통합 테스트 시작...")
+        
+        try:
+            # Setup test database
+            async with test_engine.begin() as conn:
+                await conn.run_sync(Base.metadata.create_all)
+            
+            async with TestingSessionLocal() as test_db:
+                async with AsyncClient(app=app, base_url="http://test") as client:
+                    print("✅ 테스트 환경 설정 완료")
+                    
+                    # Run individual tests
+                    await test_worker_registration_integration(client, test_db)
+                    print("✅ 근로자 등록 통합 테스트 통과")
+                    
+                    await test_db.rollback()  # Reset for next test
+                    
+                    await test_worker_registration_duplicate_employee_id(client, test_db)
+                    print("✅ 중복 사번 검증 테스트 통과")
+                    
+                    await test_db.rollback()
+                    
+                    await test_worker_list_with_filters_integration(client, test_db)
+                    print("✅ 목록 조회 및 필터링 테스트 통과")
+                    
+                    await test_db.rollback()
+                    
+                    await test_worker_search_integration(client, test_db)
+                    print("✅ 검색 기능 테스트 통과")
+                    
+                    await test_db.rollback()
+                    
+                    await test_worker_cache_invalidation_integration(client, test_db)
+                    print("✅ 캐시 무효화 테스트 통과")
+                    
+            # Cleanup
+            async with test_engine.begin() as conn:
+                await conn.run_sync(Base.metadata.drop_all)
+                
+            print("🎉 모든 근로자 관리 통합 테스트 통과!")
+            
+        except Exception as e:
+            print(f"❌ 통합 테스트 실패: {e}")
+            raise
+
+    # Execute tests when run directly
+    if __name__ == "__main__":
+        asyncio.run(run_integration_tests())

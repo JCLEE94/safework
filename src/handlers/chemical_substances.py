@@ -393,3 +393,523 @@ async def upload_msds(
     await db.commit()
 
     return {"message": "MSDS 파일이 업로드되었습니다", "file_path": file_path}
+
+
+# =============================================================================
+# INTEGRATION TESTS (Rust-style inline tests)
+# =============================================================================
+
+if __name__ == "__main__":
+    import asyncio
+    import pytest
+    import pytest_asyncio
+    from httpx import AsyncClient
+    from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession
+    from sqlalchemy.orm import sessionmaker
+    from src.app import app
+    from src.config.database import Base, get_db
+    from src.models.worker import Worker, EmploymentType, WorkType, HealthStatus
+    from src.models.chemical_substance import ChemicalSubstance, HazardClass, ChemicalStatus
+    from src.models.chemical_usage_record import ChemicalUsageRecord
+
+    # Test database setup
+    SQLALCHEMY_DATABASE_URL = "sqlite+aiosqlite:///./test_chemical_substances.db"
+    test_engine = create_async_engine(SQLALCHEMY_DATABASE_URL, echo=True)
+    TestingSessionLocal = sessionmaker(
+        test_engine, class_=AsyncSession, expire_on_commit=False
+    )
+
+    async def override_get_db():
+        async with TestingSessionLocal() as session:
+            try:
+                yield session
+            finally:
+                await session.close()
+
+    app.dependency_overrides[get_db] = override_get_db
+
+    @pytest_asyncio.fixture
+    async def async_client():
+        """Test client fixture"""
+        async with AsyncClient(app=app, base_url="http://test") as ac:
+            yield ac
+
+    @pytest_asyncio.fixture
+    async def test_db():
+        """Test database fixture"""
+        async with test_engine.begin() as conn:
+            await conn.run_sync(Base.metadata.create_all)
+        
+        async with TestingSessionLocal() as session:
+            yield session
+        
+        async with test_engine.begin() as conn:
+            await conn.run_sync(Base.metadata.drop_all)
+
+    @pytest_asyncio.fixture
+    async def test_worker(test_db: AsyncSession):
+        """Test worker fixture"""
+        worker = Worker(
+            name="테스트근로자",
+            employee_id="T001",
+            employment_type=EmploymentType.REGULAR,
+            work_type=WorkType.CONSTRUCTION,
+            health_status=HealthStatus.NORMAL,
+            department="건설팀",
+            company_name="테스트회사",
+            work_category="건설공사",
+            address="서울시 강남구"
+        )
+        test_db.add(worker)
+        await test_db.commit()
+        await test_db.refresh(worker)
+        return worker
+
+    async def test_chemical_substance_creation_integration(async_client: AsyncClient, test_db: AsyncSession):
+        """
+        통합 테스트: 화학물질 등록 전체 플로우
+        - API 요청 → 검증 → DB 저장 → CAS 번호 중복 체크 → 응답
+        """
+        # Given: 화학물질 등록 데이터
+        chemical_data = {
+            "korean_name": "아세톤",
+            "english_name": "Acetone",
+            "cas_number": "67-64-1",
+            "chemical_formula": "C3H6O",
+            "hazard_class": "flammable",
+            "usage_purpose": "청소용",
+            "storage_location": "창고1-A구역",
+            "supplier": "화학회사A",
+            "minimum_quantity": 10.0,
+            "maximum_quantity": 100.0,
+            "current_quantity": 50.0,
+            "unit": "L",
+            "status": "IN_USE"
+        }
+
+        # When: 화학물질 등록 API 호출
+        response = await async_client.post("/api/v1/chemical-substances/", json=chemical_data)
+
+        # Then: 성공 응답 확인
+        assert response.status_code == 200
+        response_data = response.json()
+        assert response_data["korean_name"] == "아세톤"
+        assert response_data["cas_number"] == "67-64-1"
+        assert response_data["hazard_class"] == "flammable"
+        assert response_data["current_quantity"] == 50.0
+
+        # Then: DB에 저장 확인
+        result = await test_db.execute(
+            select(ChemicalSubstance).where(ChemicalSubstance.cas_number == "67-64-1")
+        )
+        saved_chemical = result.scalar_one_or_none()
+        assert saved_chemical is not None
+        assert saved_chemical.korean_name == "아세톤"
+        assert saved_chemical.hazard_class == HazardClass.FLAMMABLE
+
+    async def test_chemical_substance_duplicate_cas_validation(async_client: AsyncClient, test_db: AsyncSession):
+        """
+        통합 테스트: CAS 번호 중복 검증
+        """
+        # Given: 기존 화학물질 생성
+        existing_chemical = ChemicalSubstance(
+            korean_name="기존물질",
+            cas_number="12345-67-8",
+            hazard_class=HazardClass.TOXIC,
+            storage_location="창고A",
+            supplier="공급사A",
+            unit="kg",
+            status=ChemicalStatus.IN_USE
+        )
+        test_db.add(existing_chemical)
+        await test_db.commit()
+
+        # Given: 동일한 CAS 번호로 등록 시도
+        duplicate_data = {
+            "korean_name": "새물질",
+            "cas_number": "12345-67-8",  # 중복된 CAS 번호
+            "hazard_class": "corrosive",
+            "storage_location": "창고B",
+            "supplier": "공급사B",
+            "unit": "L",
+            "status": "IN_USE"
+        }
+
+        # When: 등록 시도
+        response = await async_client.post("/api/v1/chemical-substances/", json=duplicate_data)
+
+        # Then: 중복 오류 응답
+        assert response.status_code == 400
+        assert "이미 등록된 CAS 번호입니다" in response.json()["detail"]
+
+    async def test_chemical_substance_list_with_filters_integration(async_client: AsyncClient, test_db: AsyncSession):
+        """
+        통합 테스트: 화학물질 목록 조회 및 필터링
+        """
+        # Given: 테스트 화학물질 데이터 생성
+        chemicals = [
+            ChemicalSubstance(
+                korean_name="아세톤",
+                cas_number="67-64-1",
+                hazard_class=HazardClass.FLAMMABLE,
+                storage_location="창고A",
+                supplier="공급사A",
+                unit="L",
+                status=ChemicalStatus.IN_USE
+            ),
+            ChemicalSubstance(
+                korean_name="염산",
+                cas_number="7647-01-0",
+                hazard_class=HazardClass.CORROSIVE,
+                storage_location="창고B",
+                supplier="공급사B",
+                unit="L",
+                status=ChemicalStatus.IN_USE
+            ),
+            ChemicalSubstance(
+                korean_name="만료물질",
+                cas_number="0000-00-0",
+                hazard_class=HazardClass.TOXIC,
+                storage_location="창고C",
+                supplier="공급사C",
+                unit="kg",
+                status=ChemicalStatus.EXPIRED
+            )
+        ]
+        
+        for chemical in chemicals:
+            test_db.add(chemical)
+        await test_db.commit()
+
+        # When: 전체 목록 조회
+        response = await async_client.get("/api/v1/chemical-substances/?page=1&size=10")
+        
+        # Then: 전체 데이터 확인
+        assert response.status_code == 200
+        data = response.json()
+        assert data["total"] == 3
+        assert len(data["items"]) == 3
+
+        # When: 위험등급별 필터링
+        response = await async_client.get("/api/v1/chemical-substances/?hazard_class=flammable")
+        
+        # Then: 가연성 물질만 조회
+        assert response.status_code == 200
+        data = response.json()
+        assert data["total"] == 1
+        assert data["items"][0]["hazard_class"] == "flammable"
+
+        # When: 상태별 필터링
+        response = await async_client.get("/api/v1/chemical-substances/?status=EXPIRED")
+        
+        # Then: 만료된 물질만 조회
+        assert response.status_code == 200
+        data = response.json()
+        assert data["total"] == 1
+        assert data["items"][0]["status"] == "EXPIRED"
+
+    async def test_chemical_usage_recording_integration(async_client: AsyncClient, test_worker: Worker, test_db: AsyncSession):
+        """
+        통합 테스트: 화학물질 사용 기록 및 재고 관리
+        """
+        # Given: 화학물질 생성
+        chemical = ChemicalSubstance(
+            korean_name="테스트화학물질",
+            cas_number="TEST-001",
+            hazard_class=HazardClass.FLAMMABLE,
+            storage_location="창고A",
+            supplier="공급사A",
+            current_quantity=100.0,
+            unit="L",
+            status=ChemicalStatus.IN_USE
+        )
+        test_db.add(chemical)
+        await test_db.commit()
+        await test_db.refresh(chemical)
+
+        # Given: 사용 기록 데이터
+        usage_data = {
+            "worker_id": test_worker.id,
+            "quantity_used": 20.0,
+            "usage_date": "2024-01-15",
+            "usage_purpose": "청소작업",
+            "work_location": "현장A"
+        }
+
+        # When: 사용 기록 등록 API 호출
+        response = await async_client.post(f"/api/v1/chemical-substances/{chemical.id}/usage", json=usage_data)
+
+        # Then: 성공 응답 확인
+        assert response.status_code == 200
+        response_data = response.json()
+        assert "사용 기록이 저장되었습니다" in response_data["message"]
+        assert response_data["remaining_quantity"] == 80.0  # 100 - 20
+
+        # Then: DB에 사용 기록 저장 확인
+        usage_result = await test_db.execute(
+            select(ChemicalUsageRecord).where(
+                and_(
+                    ChemicalUsageRecord.chemical_id == chemical.id,
+                    ChemicalUsageRecord.worker_id == test_worker.id
+                )
+            )
+        )
+        saved_usage = usage_result.scalar_one_or_none()
+        assert saved_usage is not None
+        assert saved_usage.quantity_used == 20.0
+        assert saved_usage.usage_purpose == "청소작업"
+
+        # Then: 화학물질 재고 업데이트 확인
+        await test_db.refresh(chemical)
+        assert chemical.current_quantity == 80.0
+
+    async def test_chemical_inventory_check_integration(async_client: AsyncClient, test_db: AsyncSession):
+        """
+        통합 테스트: 재고 점검 현황 조회
+        """
+        # Given: 다양한 재고 상태의 화학물질 생성
+        chemicals = [
+            # 최소 재고 미달
+            ChemicalSubstance(
+                korean_name="부족물질",
+                cas_number="LOW-001",
+                hazard_class=HazardClass.FLAMMABLE,
+                storage_location="창고A",
+                supplier="공급사A",
+                minimum_quantity=50.0,
+                maximum_quantity=200.0,
+                current_quantity=30.0,  # 최소 재고 미달
+                unit="L",
+                status=ChemicalStatus.IN_USE
+            ),
+            # 최대 재고 초과
+            ChemicalSubstance(
+                korean_name="과잉물질",
+                cas_number="HIGH-001",
+                hazard_class=HazardClass.CORROSIVE,
+                storage_location="창고B",
+                supplier="공급사B",
+                minimum_quantity=10.0,
+                maximum_quantity=100.0,
+                current_quantity=150.0,  # 최대 재고 초과
+                unit="kg",
+                status=ChemicalStatus.IN_USE
+            ),
+            # 만료된 물질
+            ChemicalSubstance(
+                korean_name="만료물질",
+                cas_number="EXP-001",
+                hazard_class=HazardClass.TOXIC,
+                storage_location="창고C",
+                supplier="공급사C",
+                current_quantity=25.0,
+                unit="L",
+                status=ChemicalStatus.EXPIRED
+            )
+        ]
+        
+        for chemical in chemicals:
+            test_db.add(chemical)
+        await test_db.commit()
+
+        # When: 재고 점검 현황 조회
+        response = await async_client.get("/api/v1/chemical-substances/inventory-check")
+
+        # Then: 재고 현황 확인
+        assert response.status_code == 200
+        data = response.json()
+        
+        # 최소 재고 미달 항목 확인
+        assert len(data["below_minimum"]) == 1
+        below_min = data["below_minimum"][0]
+        assert below_min["name"] == "부족물질"
+        assert below_min["current"] == 30.0
+        assert below_min["minimum"] == 50.0
+        assert below_min["shortage"] == 20.0
+
+        # 최대 재고 초과 항목 확인
+        assert len(data["above_maximum"]) == 1
+        above_max = data["above_maximum"][0]
+        assert above_max["name"] == "과잉물질"
+        assert above_max["current"] == 150.0
+        assert above_max["maximum"] == 100.0
+        assert above_max["excess"] == 50.0
+
+        # 만료 항목 확인
+        assert len(data["expired"]) == 1
+        expired = data["expired"][0]
+        assert expired["name"] == "만료물질"
+        assert expired["quantity"] == 25.0
+
+    async def test_chemical_statistics_integration(async_client: AsyncClient, test_db: AsyncSession):
+        """
+        통합 테스트: 화학물질 통계 조회
+        """
+        # Given: 다양한 화학물질 생성
+        chemicals = [
+            ChemicalSubstance(
+                korean_name="가연성물질1",
+                cas_number="FLM-001",
+                hazard_class=HazardClass.FLAMMABLE,
+                storage_location="창고A",
+                supplier="공급사A",
+                unit="L",
+                status=ChemicalStatus.IN_USE
+            ),
+            ChemicalSubstance(
+                korean_name="가연성물질2",
+                cas_number="FLM-002",
+                hazard_class=HazardClass.FLAMMABLE,
+                storage_location="창고B",
+                supplier="공급사B",
+                unit="L",
+                status=ChemicalStatus.IN_USE
+            ),
+            ChemicalSubstance(
+                korean_name="부식성물질",
+                cas_number="COR-001",
+                hazard_class=HazardClass.CORROSIVE,
+                storage_location="창고C",
+                supplier="공급사C",
+                unit="kg",
+                status=ChemicalStatus.IN_USE
+            )
+        ]
+        
+        for chemical in chemicals:
+            test_db.add(chemical)
+        await test_db.commit()
+
+        # When: 통계 조회
+        response = await async_client.get("/api/v1/chemical-substances/statistics")
+
+        # Then: 통계 데이터 확인
+        assert response.status_code == 200
+        stats = response.json()
+        
+        # 전체 개수 확인
+        assert stats["total_substances"] == 3
+        
+        # 위험등급별 통계 확인
+        assert "by_hazard_class" in stats
+        assert stats["by_hazard_class"]["flammable"] == 2
+        assert stats["by_hazard_class"]["corrosive"] == 1
+
+    async def test_chemical_deletion_with_usage_records_integration(async_client: AsyncClient, test_worker: Worker, test_db: AsyncSession):
+        """
+        통합 테스트: 사용 기록이 있는 화학물질 삭제 처리
+        """
+        # Given: 화학물질 및 사용 기록 생성
+        chemical = ChemicalSubstance(
+            korean_name="삭제테스트물질",
+            cas_number="DEL-001",
+            hazard_class=HazardClass.FLAMMABLE,
+            storage_location="창고A",
+            supplier="공급사A",
+            unit="L",
+            status=ChemicalStatus.IN_USE
+        )
+        test_db.add(chemical)
+        await test_db.commit()
+        await test_db.refresh(chemical)
+
+        # 사용 기록 생성
+        usage_record = ChemicalUsageRecord(
+            chemical_id=chemical.id,
+            worker_id=test_worker.id,
+            quantity_used=10.0,
+            usage_purpose="테스트",
+            work_location="현장A"
+        )
+        test_db.add(usage_record)
+        await test_db.commit()
+
+        # When: 화학물질 삭제 시도
+        response = await async_client.delete(f"/api/v1/chemical-substances/{chemical.id}")
+
+        # Then: 폐기 상태로 변경됨을 확인
+        assert response.status_code == 200
+        response_data = response.json()
+        assert "폐기 상태로 변경되었습니다" in response_data["message"]
+
+        # Then: DB에서 폐기 상태 확인
+        await test_db.refresh(chemical)
+        assert chemical.status == ChemicalStatus.DISPOSED
+
+    # Run tests
+    async def run_integration_tests():
+        """화학물질 관리 통합 테스트 실행"""
+        print("🧪 화학물질 관리 통합 테스트 시작...")
+        
+        try:
+            # Setup test database
+            async with test_engine.begin() as conn:
+                await conn.run_sync(Base.metadata.create_all)
+            
+            async with TestingSessionLocal() as test_db:
+                async with AsyncClient(app=app, base_url="http://test") as client:
+                    print("✅ 테스트 환경 설정 완료")
+                    
+                    # Create test worker
+                    test_worker = Worker(
+                        name="테스트근로자",
+                        employee_id="T001",
+                        employment_type=EmploymentType.REGULAR,
+                        work_type=WorkType.CONSTRUCTION,
+                        health_status=HealthStatus.NORMAL,
+                        department="건설팀",
+                        company_name="테스트회사",
+                        work_category="건설공사",
+                        address="서울시 강남구"
+                    )
+                    test_db.add(test_worker)
+                    await test_db.commit()
+                    await test_db.refresh(test_worker)
+                    
+                    # Run individual tests
+                    await test_chemical_substance_creation_integration(client, test_db)
+                    print("✅ 화학물질 등록 통합 테스트 통과")
+                    
+                    await test_db.rollback()  # Reset for next test
+                    
+                    await test_chemical_substance_duplicate_cas_validation(client, test_db)
+                    print("✅ CAS 번호 중복 검증 테스트 통과")
+                    
+                    await test_db.rollback()
+                    
+                    await test_chemical_substance_list_with_filters_integration(client, test_db)
+                    print("✅ 화학물질 목록 조회 및 필터링 테스트 통과")
+                    
+                    await test_db.rollback()
+                    
+                    await test_chemical_usage_recording_integration(client, test_worker, test_db)
+                    print("✅ 화학물질 사용 기록 및 재고 관리 테스트 통과")
+                    
+                    await test_db.rollback()
+                    
+                    await test_chemical_inventory_check_integration(client, test_db)
+                    print("✅ 재고 점검 현황 조회 테스트 통과")
+                    
+                    await test_db.rollback()
+                    
+                    await test_chemical_statistics_integration(client, test_db)
+                    print("✅ 화학물질 통계 조회 테스트 통과")
+                    
+                    await test_db.rollback()
+                    
+                    await test_chemical_deletion_with_usage_records_integration(client, test_worker, test_db)
+                    print("✅ 사용 기록이 있는 화학물질 삭제 처리 테스트 통과")
+                    
+            # Cleanup
+            async with test_engine.begin() as conn:
+                await conn.run_sync(Base.metadata.drop_all)
+                
+            print("🎉 모든 화학물질 관리 통합 테스트 통과!")
+            
+        except Exception as e:
+            print(f"❌ 화학물질 통합 테스트 실패: {e}")
+            raise
+
+    # Execute tests when run directly
+    if __name__ == "__main__":
+        asyncio.run(run_integration_tests())

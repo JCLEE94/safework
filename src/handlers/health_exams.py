@@ -267,3 +267,382 @@ async def delete_health_exam(exam_id: int, db: AsyncSession = Depends(get_db)):
     await db.commit()
 
     return {"message": "건강진단 기록이 삭제되었습니다"}
+
+
+# =============================================================================
+# INTEGRATION TESTS (Rust-style inline tests)
+# =============================================================================
+
+if __name__ == "__main__":
+    import asyncio
+    import pytest
+    import pytest_asyncio
+    from httpx import AsyncClient
+    from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession
+    from sqlalchemy.orm import sessionmaker
+    from src.app import app
+    from src.config.database import Base, get_db
+    from src.models.worker import Worker, EmploymentType, WorkType, HealthStatus
+    from src.models.health_exam import HealthExam, ExamType, ExamResult
+    from src.models.vital_signs import VitalSigns
+    from src.models.lab_result import LabResult
+
+    # Test database setup
+    SQLALCHEMY_DATABASE_URL = "sqlite+aiosqlite:///./test_health_exams.db"
+    test_engine = create_async_engine(SQLALCHEMY_DATABASE_URL, echo=True)
+    TestingSessionLocal = sessionmaker(
+        test_engine, class_=AsyncSession, expire_on_commit=False
+    )
+
+    async def override_get_db():
+        async with TestingSessionLocal() as session:
+            try:
+                yield session
+            finally:
+                await session.close()
+
+    app.dependency_overrides[get_db] = override_get_db
+
+    @pytest_asyncio.fixture
+    async def async_client():
+        """Test client fixture"""
+        async with AsyncClient(app=app, base_url="http://test") as ac:
+            yield ac
+
+    @pytest_asyncio.fixture
+    async def test_db():
+        """Test database fixture"""
+        async with test_engine.begin() as conn:
+            await conn.run_sync(Base.metadata.create_all)
+        
+        async with TestingSessionLocal() as session:
+            yield session
+        
+        async with test_engine.begin() as conn:
+            await conn.run_sync(Base.metadata.drop_all)
+
+    @pytest_asyncio.fixture
+    async def test_worker(test_db: AsyncSession):
+        """Test worker fixture"""
+        worker = Worker(
+            name="테스트근로자",
+            employee_id="T001",
+            employment_type=EmploymentType.REGULAR,
+            work_type=WorkType.CONSTRUCTION,
+            health_status=HealthStatus.NORMAL,
+            department="건설팀",
+            company_name="테스트회사",
+            work_category="건설공사",
+            address="서울시 강남구"
+        )
+        test_db.add(worker)
+        await test_db.commit()
+        await test_db.refresh(worker)
+        return worker
+
+    async def test_health_exam_creation_integration(async_client: AsyncClient, test_worker: Worker):
+        """
+        통합 테스트: 건강진단 기록 생성 전체 플로우
+        - API 요청 → 검증 → DB 저장 → 관련 데이터 저장 → 응답
+        """
+        # Given: 건강진단 생성 데이터
+        exam_data = {
+            "worker_id": test_worker.id,
+            "exam_date": "2024-01-15",
+            "exam_type": "general",
+            "exam_result": "normal",
+            "medical_institution": "서울의료원",
+            "doctor_name": "김의사",
+            "vital_signs": {
+                "height": 175.5,
+                "weight": 70.2,
+                "blood_pressure_systolic": 120,
+                "blood_pressure_diastolic": 80,
+                "heart_rate": 72,
+                "body_temperature": 36.5
+            },
+            "lab_results": [
+                {
+                    "test_name": "혈당검사",
+                    "test_value": "95",
+                    "reference_range": "70-100",
+                    "unit": "mg/dL",
+                    "result_status": "normal"
+                }
+            ]
+        }
+
+        # When: 건강진단 기록 생성 API 호출
+        response = await async_client.post("/api/v1/health-exams/", json=exam_data)
+
+        # Then: 성공 응답 확인
+        assert response.status_code == 200
+        response_data = response.json()
+        assert response_data["worker_id"] == test_worker.id
+        assert response_data["exam_type"] == "general"
+        assert response_data["exam_result"] == "normal"
+        assert response_data["doctor_name"] == "김의사"
+
+        # Then: 바이탈 사인 저장 확인
+        assert response_data["vital_signs"] is not None
+        vital_signs = response_data["vital_signs"]
+        assert vital_signs["height"] == 175.5
+        assert vital_signs["blood_pressure_systolic"] == 120
+
+        # Then: 검사 결과 저장 확인
+        assert len(response_data["lab_results"]) == 1
+        lab_result = response_data["lab_results"][0]
+        assert lab_result["test_name"] == "혈당검사"
+        assert lab_result["result_status"] == "normal"
+
+    async def test_health_exam_list_with_filters_integration(async_client: AsyncClient, test_worker: Worker, test_db: AsyncSession):
+        """
+        통합 테스트: 건강진단 목록 조회 및 필터링
+        """
+        # Given: 테스트 건강진단 데이터 생성
+        from datetime import datetime, date
+        exams = [
+            HealthExam(
+                worker_id=test_worker.id,
+                exam_date=date(2024, 1, 15),
+                exam_type=ExamType.GENERAL,
+                exam_result=ExamResult.NORMAL,
+                medical_institution="서울의료원",
+                doctor_name="김의사"
+            ),
+            HealthExam(
+                worker_id=test_worker.id,
+                exam_date=date(2024, 6, 15),
+                exam_type=ExamType.SPECIAL,
+                exam_result=ExamResult.ABNORMAL,
+                medical_institution="부산의료원",
+                doctor_name="박의사"
+            )
+        ]
+        
+        for exam in exams:
+            test_db.add(exam)
+        await test_db.commit()
+
+        # When: 전체 목록 조회
+        response = await async_client.get("/api/v1/health-exams/?page=1&size=10")
+        
+        # Then: 전체 데이터 확인
+        assert response.status_code == 200
+        data = response.json()
+        assert data["total"] == 2
+        assert len(data["items"]) == 2
+
+        # When: 검진 유형별 필터링
+        response = await async_client.get("/api/v1/health-exams/?exam_type=general")
+        
+        # Then: 일반건강진단만 조회
+        assert response.status_code == 200
+        data = response.json()
+        assert data["total"] == 1
+        assert data["items"][0]["exam_type"] == "general"
+
+        # When: 근로자별 필터링
+        response = await async_client.get(f"/api/v1/health-exams/?worker_id={test_worker.id}")
+        
+        # Then: 해당 근로자의 모든 검진 기록 조회
+        assert response.status_code == 200
+        data = response.json()
+        assert data["total"] == 2
+        for item in data["items"]:
+            assert item["worker_id"] == test_worker.id
+
+    async def test_health_exam_due_soon_integration(async_client: AsyncClient, test_worker: Worker, test_db: AsyncSession):
+        """
+        통합 테스트: 건강진단 예정자 조회 기능
+        """
+        # Given: 1년 전 건강진단 기록 (곧 만료 예정)
+        from datetime import datetime, date, timedelta
+        old_exam_date = date.today() - timedelta(days=350)  # 350일 전
+        
+        old_exam = HealthExam(
+            worker_id=test_worker.id,
+            exam_date=old_exam_date,
+            exam_type=ExamType.GENERAL,
+            exam_result=ExamResult.NORMAL,
+            medical_institution="서울의료원",
+            doctor_name="김의사"
+        )
+        test_db.add(old_exam)
+        await test_db.commit()
+
+        # When: 30일 이내 건강진단 예정자 조회
+        response = await async_client.get("/api/v1/health-exams/due-soon?days=30")
+
+        # Then: 예정자 목록에 포함 확인
+        assert response.status_code == 200
+        data = response.json()
+        assert data["total"] > 0
+        
+        # 해당 근로자가 예정자 목록에 있는지 확인
+        worker_found = False
+        for worker_info in data["workers"]:
+            if worker_info["worker_id"] == test_worker.id:
+                worker_found = True
+                assert worker_info["worker_name"] == test_worker.name
+                assert worker_info["days_until_due"] <= 30
+                break
+        assert worker_found, "근로자가 건강진단 예정자 목록에 없습니다"
+
+    async def test_health_exam_statistics_integration(async_client: AsyncClient, test_worker: Worker, test_db: AsyncSession):
+        """
+        통합 테스트: 건강진단 통계 조회
+        """
+        # Given: 다양한 건강진단 기록 생성
+        from datetime import datetime, date
+        exams = [
+            HealthExam(
+                worker_id=test_worker.id,
+                exam_date=date(2024, 1, 15),
+                exam_type=ExamType.GENERAL,
+                exam_result=ExamResult.NORMAL,
+                followup_required="N"
+            ),
+            HealthExam(
+                worker_id=test_worker.id,
+                exam_date=date(2024, 6, 15),
+                exam_type=ExamType.SPECIAL,
+                exam_result=ExamResult.ABNORMAL,
+                followup_required="Y"
+            )
+        ]
+        
+        for exam in exams:
+            test_db.add(exam)
+        await test_db.commit()
+
+        # When: 통계 조회
+        response = await async_client.get("/api/v1/health-exams/statistics")
+
+        # Then: 통계 데이터 확인
+        assert response.status_code == 200
+        stats = response.json()
+        
+        # 검진 유형별 통계
+        assert "by_type" in stats
+        assert stats["by_type"]["general"] >= 1
+        assert stats["by_type"]["special"] >= 1
+        
+        # 결과별 통계
+        assert "by_result" in stats
+        assert stats["by_result"]["normal"] >= 1
+        assert stats["by_result"]["abnormal"] >= 1
+        
+        # 올해 검진 수
+        assert "total_this_year" in stats
+        assert stats["total_this_year"] >= 2
+        
+        # 추가 관리 필요자 수
+        assert "followup_required" in stats
+        assert stats["followup_required"] >= 1
+
+    async def test_health_exam_latest_for_worker_integration(async_client: AsyncClient, test_worker: Worker, test_db: AsyncSession):
+        """
+        통합 테스트: 근로자별 최신 건강진단 기록 조회
+        """
+        # Given: 여러 건강진단 기록 (날짜 순으로)
+        from datetime import date
+        exams = [
+            HealthExam(
+                worker_id=test_worker.id,
+                exam_date=date(2023, 1, 15),
+                exam_type=ExamType.GENERAL,
+                exam_result=ExamResult.NORMAL,
+                doctor_name="구의사"
+            ),
+            HealthExam(
+                worker_id=test_worker.id,
+                exam_date=date(2024, 6, 15),  # 가장 최신
+                exam_type=ExamType.SPECIAL,
+                exam_result=ExamResult.CAUTION,
+                doctor_name="신의사"
+            )
+        ]
+        
+        for exam in exams:
+            test_db.add(exam)
+        await test_db.commit()
+
+        # When: 최신 건강진단 기록 조회
+        response = await async_client.get(f"/api/v1/health-exams/worker/{test_worker.id}/latest")
+
+        # Then: 가장 최신 기록 반환 확인
+        assert response.status_code == 200
+        data = response.json()
+        assert data["worker_id"] == test_worker.id
+        assert data["exam_date"] == "2024-06-15"  # 가장 최신 날짜
+        assert data["doctor_name"] == "신의사"
+        assert data["exam_result"] == "caution"
+
+    # Run tests
+    async def run_integration_tests():
+        """건강진단 통합 테스트 실행"""
+        print("🧪 건강진단 관리 통합 테스트 시작...")
+        
+        try:
+            # Setup test database
+            async with test_engine.begin() as conn:
+                await conn.run_sync(Base.metadata.create_all)
+            
+            async with TestingSessionLocal() as test_db:
+                async with AsyncClient(app=app, base_url="http://test") as client:
+                    print("✅ 테스트 환경 설정 완료")
+                    
+                    # Create test worker
+                    test_worker = Worker(
+                        name="테스트근로자",
+                        employee_id="T001",
+                        employment_type=EmploymentType.REGULAR,
+                        work_type=WorkType.CONSTRUCTION,
+                        health_status=HealthStatus.NORMAL,
+                        department="건설팀",
+                        company_name="테스트회사",
+                        work_category="건설공사",
+                        address="서울시 강남구"
+                    )
+                    test_db.add(test_worker)
+                    await test_db.commit()
+                    await test_db.refresh(test_worker)
+                    
+                    # Run individual tests
+                    await test_health_exam_creation_integration(client, test_worker)
+                    print("✅ 건강진단 기록 생성 통합 테스트 통과")
+                    
+                    await test_db.rollback()  # Reset for next test
+                    
+                    await test_health_exam_list_with_filters_integration(client, test_worker, test_db)
+                    print("✅ 건강진단 목록 조회 및 필터링 테스트 통과")
+                    
+                    await test_db.rollback()
+                    
+                    await test_health_exam_due_soon_integration(client, test_worker, test_db)
+                    print("✅ 건강진단 예정자 조회 테스트 통과")
+                    
+                    await test_db.rollback()
+                    
+                    await test_health_exam_statistics_integration(client, test_worker, test_db)
+                    print("✅ 건강진단 통계 조회 테스트 통과")
+                    
+                    await test_db.rollback()
+                    
+                    await test_health_exam_latest_for_worker_integration(client, test_worker, test_db)
+                    print("✅ 근로자별 최신 건강진단 기록 조회 테스트 통과")
+                    
+            # Cleanup
+            async with test_engine.begin() as conn:
+                await conn.run_sync(Base.metadata.drop_all)
+                
+            print("🎉 모든 건강진단 관리 통합 테스트 통과!")
+            
+        except Exception as e:
+            print(f"❌ 건강진단 통합 테스트 실패: {e}")
+            raise
+
+    # Execute tests when run directly
+    if __name__ == "__main__":
+        asyncio.run(run_integration_tests())
