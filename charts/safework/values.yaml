@@ -3,7 +3,7 @@ replicaCount: 1
 image:
   repository: registry.jclee.me/safework
   pullPolicy: Always
-  tag: "90f14154fa28a9b6d55cbd0375720d555cc147fb"
+  tag: "latest"
 
 imagePullSecrets:
   - name: regcred
@@ -76,7 +76,7 @@ postgresql:
   name: safework-postgres
   image:
     repository: postgres
-    tag: "90f14154fa28a9b6d55cbd0375720d555cc147fb"
+    tag: "15"
   auth:
     database: health_management
     username: admin
@@ -98,7 +98,7 @@ redis:
   name: safework-redis
   image:
     repository: redis
-    tag: "90f14154fa28a9b6d55cbd0375720d555cc147fb"
+    tag: "7-alpine"
   resources:
     limits:
       cpu: 100m
