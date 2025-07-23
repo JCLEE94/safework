@@ -1,0 +1,53 @@
+# SafeWork Pro - 수동 트리거 배포 파이프라인
+# GitHub Actions 빌링 문제 우회를 위한 수동 실행 워크플로우
+
+name: Manual Deploy
+
+on:
+  workflow_dispatch:
+    inputs:
+      deploy_environment:
+        description: 'Deployment environment'
+        required: true
+        default: 'production'
+        type: choice
+        options:
+          - production
+          - staging
+          - development
+
+env:
+  REGISTRY: registry.jclee.me
+  IMAGE_NAME: safework
+
+jobs:
+  deploy:
+    name: Manual Deployment
+    runs-on: ubuntu-latest
+    if: github.actor == 'JCLEE94'  # 특정 사용자만 실행 가능
+    timeout-minutes: 15
+    
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Create minimal frontend
+        run: |
+          mkdir -p frontend/dist
+          echo '<!DOCTYPE html><html><head><title>SafeWork Pro</title></head>' > frontend/dist/index.html
+          echo '<body><h1>SafeWork Pro</h1><p>건설업 보건관리 시스템</p>' >> frontend/dist/index.html
+          echo '<p>Build: ${{ github.run_number }} | Env: ${{ inputs.deploy_environment }}</p>' >> frontend/dist/index.html
+          echo '</body></html>' >> frontend/dist/index.html
+          
+      - name: Build info
+        run: |
+          echo "## 🔨 Manual Build" >> $GITHUB_STEP_SUMMARY
+          echo "- Environment: ${{ inputs.deploy_environment }}" >> $GITHUB_STEP_SUMMARY
+          echo "- Commit: ${{ github.sha }}" >> $GITHUB_STEP_SUMMARY
+          echo "- Triggered by: ${{ github.actor }}" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### Next Steps" >> $GITHUB_STEP_SUMMARY
+          echo "1. SSH to server" >> $GITHUB_STEP_SUMMARY
+          echo "2. Pull latest code" >> $GITHUB_STEP_SUMMARY
+          echo "3. Run: \`./scripts/manual-build.sh\`" >> $GITHUB_STEP_SUMMARY
+          echo "4. Deploy to K8s or Docker" >> $GITHUB_STEP_SUMMARY

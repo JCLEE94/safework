@@ -4,27 +4,17 @@ metadata:
   name: {{ include "safework.fullname" . }}
   labels:
     {{- include "safework.labels" . | nindent 4 }}
-  {{- if .Values.argocd.imageUpdater.enabled }}
-  annotations:
-    argocd-image-updater.argoproj.io/image-list: {{ .Values.argocd.imageUpdater.imageList }}
-    argocd-image-updater.argoproj.io/write-back-method: {{ .Values.argocd.imageUpdater.writeBackMethod }}
-    argocd-image-updater.argoproj.io/git-branch: {{ .Values.argocd.imageUpdater.gitBranch }}
-    argocd-image-updater.argoproj.io/commit-user: {{ .Values.argocd.imageUpdater.gitCommitUser }}
-    argocd-image-updater.argoproj.io/commit-email: {{ .Values.argocd.imageUpdater.gitCommitEmail }}
-    argocd-image-updater.argoproj.io/commit-message-template: {{ .Values.argocd.imageUpdater.gitCommitTemplate | quote }}
-    argocd-image-updater.argoproj.io/safework.allow-tags: {{ .Values.argocd.imageUpdater.allowTags }}
-    argocd-image-updater.argoproj.io/safework.update-strategy: {{ .Values.argocd.imageUpdater.updateStrategy }}
-    {{- if .Values.argocd.imageUpdater.pullSecret }}
-    argocd-image-updater.argoproj.io/safework.pull-secret: {{ .Values.argocd.imageUpdater.pullSecret }}
-    {{- end }}
-  {{- end }}
 spec:
+  {{- if not .Values.autoscaling.enabled }}
   replicas: {{ .Values.replicaCount }}
+  {{- end }}
   selector:
     matchLabels:
       {{- include "safework.selectorLabels" . | nindent 6 }}
   template:
     metadata:
+      annotations:
+        checksum/config: {{ include (print $.Template.BasePath "/configmap.yaml") . | sha256sum }}
       labels:
         {{- include "safework.selectorLabels" . | nindent 8 }}
     spec:
@@ -32,38 +22,31 @@ spec:
       imagePullSecrets:
         {{- toYaml . | nindent 8 }}
       {{- end }}
-      securityContext:
-        {{- toYaml .Values.podSecurityContext | nindent 8 }}
-      initContainers:
-      - name: wait-for-db
-        image: busybox:1.35
-        command: ['sh', '-c', 'until nc -z localhost 5432; do echo waiting for database; sleep 2; done;']
-      - name: wait-for-redis
-        image: busybox:1.35
-        command: ['sh', '-c', 'until nc -z localhost 6379; do echo waiting for redis; sleep 2; done;']
       containers:
       - name: {{ .Chart.Name }}
-        securityContext:
-          {{- toYaml .Values.securityContext | nindent 12 }}
         image: "{{ .Values.image.repository }}:{{ .Values.image.tag | default .Chart.AppVersion }}"
         imagePullPolicy: {{ .Values.image.pullPolicy }}
         ports:
         - name: http
-          containerPort: {{ .Values.service.targetPort }}
+          containerPort: {{ .Values.env | map (dict "name" "PORT") | first | default (dict "value" "3001") | pluck "value" | first }}
           protocol: TCP
         env:
-          {{- toYaml .Values.env | nindent 12 }}
+        {{- toYaml .Values.env | nindent 8 }}
         livenessProbe:
-          {{- toYaml .Values.probes.liveness | nindent 12 }}
+          {{- toYaml .Values.probes.liveness | nindent 10 }}
         readinessProbe:
-          {{- toYaml .Values.probes.readiness | nindent 12 }}
+          {{- toYaml .Values.probes.readiness | nindent 10 }}
         resources:
-          {{- toYaml .Values.resources | nindent 12 }}
-        {{- if .Values.volumeMounts }}
-        volumeMounts:
-          {{- toYaml .Values.volumeMounts | nindent 12 }}
-        {{- end }}
-      {{- if .Values.volumes }}
-      volumes:
-        {{- toYaml .Values.volumes | nindent 8 }}
+          {{- toYaml .Values.resources | nindent 10 }}
+      {{- with .Values.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
       {{- end }}

@@ -1,0 +1,45 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: safework
+  namespace: safework
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: safework
+  template:
+    metadata:
+      labels:
+        app: safework
+    spec:
+      # 호스트 네트워크 사용
+      hostNetwork: true
+      dnsPolicy: ClusterFirstWithHostNet
+      containers:
+      - name: safework
+        image: registry.jclee.me/safework:latest
+        imagePullPolicy: IfNotPresent
+        ports:
+        - containerPort: 3001
+          name: http
+        env:
+        - name: HOST
+          value: "0.0.0.0"
+        - name: PORT
+          value: "3001"
+        - name: DATABASE_URL
+          value: "postgresql://admin:password@192.168.50.100:5432/health_management"
+        - name: REDIS_URL
+          value: "redis://192.168.50.100:6379/0"
+        - name: ENVIRONMENT
+          value: "production"
+        - name: JWT_SECRET
+          value: "change-me-in-production"
+        resources:
+          requests:
+            memory: "256Mi"
+            cpu: "100m"
+          limits:
+            memory: "512Mi"
+            cpu: "500m"

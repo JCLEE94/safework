@@ -1,0 +1,180 @@
+# SafeWork GitOps CI/CD Pipeline
+name: GitOps CI/CD Pipeline
+
+on:
+  push:
+    branches: [main, develop]
+    tags: ['v*']
+  pull_request:
+    branches: [main]
+
+env:
+  REGISTRY: ${{ vars.REGISTRY_URL }}
+  IMAGE_NAME: ${{ vars.APP_NAME }}
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  validate:
+    name: Validate
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        
+      - name: Validate Helm Chart
+        run: |
+          curl https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-3 | bash
+          helm lint ./charts/${{ vars.APP_NAME }}
+
+  build:
+    name: Build and Push
+    runs-on: ubuntu-latest
+    needs: validate
+    if: github.event_name != 'pull_request'
+    timeout-minutes: 20
+    
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+      image-tag: ${{ steps.meta.outputs.version }}
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+        
+      - name: Login to Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ secrets.REGISTRY_USERNAME }}
+          password: ${{ secrets.REGISTRY_PASSWORD }}
+      
+      - name: Generate Version
+        id: version
+        run: |
+          if [[ "${{ github.ref }}" == refs/tags/* ]]; then
+            VERSION="${{ github.ref_name }}"
+            VERSION=${VERSION#v}
+          else
+            VERSION="0.1.0-${{ github.run_number }}"
+          fi
+          echo "version=${VERSION}" >> $GITHUB_OUTPUT
+          
+      - name: Extract metadata
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
+          tags: |
+            type=ref,event=branch
+            type=ref,event=pr
+            type=semver,pattern={{version}}
+            type=semver,pattern={{major}}.{{minor}}
+            type=sha,prefix={{branch}}-
+            type=raw,value=latest,enable={{is_default_branch}}
+            type=raw,value={{branch}}-{{date 'YYYYMMDD'}}-{{sha}}
+      
+      - name: Build and push Docker image
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: ./deployment/Dockerfile
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=registry,ref=${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:buildcache
+          cache-to: type=registry,ref=${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:buildcache,mode=max
+          platforms: linux/amd64
+
+  deploy-helm:
+    name: Deploy Helm Chart
+    runs-on: ubuntu-latest
+    needs: build
+    if: github.event_name != 'pull_request'
+    timeout-minutes: 10
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        
+      - name: Install Helm
+        uses: azure/setup-helm@v3
+        with:
+          version: 'v3.13.0'
+          
+      - name: Update Chart Version
+        run: |
+          # Update Chart.yaml
+          sed -i "s/^version:.*/version: ${{ needs.build.outputs.version }}/" ./charts/${{ vars.APP_NAME }}/Chart.yaml
+          sed -i "s/^appVersion:.*/appVersion: \"${{ needs.build.outputs.version }}\"/" ./charts/${{ vars.APP_NAME }}/Chart.yaml
+          
+          # Update values.yaml with new image tag
+          sed -i "s/tag:.*/tag: \"${{ needs.build.outputs.image-tag }}\"/" ./charts/${{ vars.APP_NAME }}/values.yaml
+          
+      - name: Package Helm Chart
+        run: |
+          helm package ./charts/${{ vars.APP_NAME }}
+          
+      - name: Push to ChartMuseum
+        if: vars.CHARTMUSEUM_URL != ''
+        run: |
+          CHART_FILE="${{ vars.APP_NAME }}-${{ needs.build.outputs.version }}.tgz"
+          
+          # Upload with authentication
+          RESPONSE=$(curl -s -w "\n%{http_code}" \
+            -u ${{ secrets.CHARTMUSEUM_USERNAME }}:${{ secrets.CHARTMUSEUM_PASSWORD }} \
+            --data-binary "@${CHART_FILE}" \
+            ${{ vars.CHARTMUSEUM_URL }}/api/charts)
+          
+          HTTP_CODE=$(echo "$RESPONSE" | tail -n1)
+          BODY=$(echo "$RESPONSE" | head -n-1)
+          
+          if [ "$HTTP_CODE" -eq 201 ] || [ "$HTTP_CODE" -eq 200 ]; then
+            echo "✅ Chart uploaded successfully: ${{ needs.build.outputs.version }}"
+          else
+            echo "❌ Chart upload failed with HTTP $HTTP_CODE"
+            echo "Response: $BODY"
+            exit 1
+          fi
+
+  deploy-status:
+    name: Deployment Status
+    runs-on: ubuntu-latest
+    needs: [build, deploy-helm]
+    if: always()
+    timeout-minutes: 5
+    
+    steps:
+      - name: Summary
+        run: |
+          echo "## 🚀 Deployment Summary" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          
+          if [[ "${{ needs.build.result }}" == "success" ]]; then
+            echo "### ✅ Build Success" >> $GITHUB_STEP_SUMMARY
+            echo "- Version: \`${{ needs.build.outputs.version }}\`" >> $GITHUB_STEP_SUMMARY
+            echo "- Image: \`${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ needs.build.outputs.image-tag }}\`" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "### ❌ Build Failed" >> $GITHUB_STEP_SUMMARY
+          fi
+          
+          echo "" >> $GITHUB_STEP_SUMMARY
+          
+          if [[ "${{ needs.deploy-helm.result }}" == "success" ]]; then
+            echo "### ✅ Helm Chart Deployed" >> $GITHUB_STEP_SUMMARY
+            echo "- Chart Version: \`${{ needs.build.outputs.version }}\`" >> $GITHUB_STEP_SUMMARY
+            echo "- ArgoCD will automatically sync the new version" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "### ⚠️ Helm Deployment Skipped" >> $GITHUB_STEP_SUMMARY
+          fi
+          
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### 📊 Links" >> $GITHUB_STEP_SUMMARY
+          echo "- [ArgoCD Dashboard](${{ vars.ARGOCD_URL }}/applications/${{ vars.APP_NAME }})" >> $GITHUB_STEP_SUMMARY
+          echo "- [Production URL](https://${{ vars.APP_NAME }}.jclee.me)" >> $GITHUB_STEP_SUMMARY

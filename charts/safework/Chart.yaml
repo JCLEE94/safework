@@ -2,14 +2,15 @@ apiVersion: v2
 name: safework
 description: SafeWork Pro - 건설업 보건관리 시스템
 type: application
-version: 1.0.2
-appVersion: "1.0.2"
+version: 1.0.0
+appVersion: "1.0.0"
 keywords:
   - safework
   - health-management
-  - fastapi
-  - react
-home: https://safework.jclee.me
+  - construction
+home: https://github.com/JCLEE94/safework
+sources:
+  - https://github.com/JCLEE94/safework
 maintainers:
-  - name: SafeWork Pro Team
+  - name: SafeWork Team
     email: admin@jclee.me

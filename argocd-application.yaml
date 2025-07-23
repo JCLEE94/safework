@@ -16,11 +16,10 @@ spec:
       values: |
         replicaCount: 1
         image:
-          repository: registry.jclee.me/safework
-          tag: latest
+          tag: "latest"
   destination:
     server: https://kubernetes.default.svc
-    namespace: production
+    namespace: safework
   syncPolicy:
     automated:
       prune: true
@@ -29,7 +28,7 @@ spec:
     syncOptions:
     - CreateNamespace=true
     - PrunePropagationPolicy=foreground
-    - ServerSideApply=true
+    - PruneLast=true
     retry:
       limit: 5
       backoff:
