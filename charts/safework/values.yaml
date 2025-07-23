@@ -3,7 +3,7 @@ replicaCount: 1
 image:
   repository: registry.jclee.me/safework
   pullPolicy: Always
-  # tag는 ArgoCD Image Updater가 자동으로 관리
+  tag: "latest"  # 기본값, ArgoCD Image Updater가 자동으로 업데이트
 
 imagePullSecrets:
   - name: regcred
