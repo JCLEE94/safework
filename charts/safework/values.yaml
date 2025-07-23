@@ -70,6 +70,30 @@ nodeSelector: {}
 tolerations: []
 affinity: {}
 
+# PostgreSQL 설정 (내장)
+postgresql:
+  enabled: false  # SafeWork는 all-in-one 컨테이너 사용
+  
+# Redis 설정 (내장)
+redis:
+  enabled: false  # SafeWork는 all-in-one 컨테이너 사용
+
+# Docker Registry 설정
+dockerRegistry:
+  enabled: false  # imagePullSecrets에서 직접 설정
+
+# Resource Quota 설정
+resourceQuota:
+  enabled: false
+  
+# Network Policy 설정  
+networkPolicy:
+  enabled: false
+  
+# Limit Range 설정
+limitRange:
+  enabled: false
+
 probes:
   liveness:
     httpGet:

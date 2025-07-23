@@ -28,7 +28,7 @@ spec:
         imagePullPolicy: {{ .Values.image.pullPolicy }}
         ports:
         - name: http
-          containerPort: {{ .Values.env | map (dict "name" "PORT") | first | default (dict "value" "3001") | pluck "value" | first }}
+          containerPort: 3001
           protocol: TCP
         env:
         {{- toYaml .Values.env | nindent 8 }}

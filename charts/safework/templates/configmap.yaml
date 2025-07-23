@@ -6,5 +6,5 @@ metadata:
     {{- include "safework.labels" . | nindent 4 }}
 data:
   app-config.yaml: |
-    environment: {{ .Values.env | map (dict "name" "ENVIRONMENT") | first | default (dict "value" "production") | pluck "value" | first }}
-    log_level: {{ .Values.env | map (dict "name" "LOG_LEVEL") | first | default (dict "value" "INFO") | pluck "value" | first }}
+    environment: production
+    log_level: INFO
