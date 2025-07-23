@@ -73,10 +73,42 @@ affinity: {}
 # PostgreSQL 설정 (내장)
 postgresql:
   enabled: false  # SafeWork는 all-in-one 컨테이너 사용
+  name: safework-postgres
+  image:
+    repository: postgres
+    tag: "15-alpine"
+  auth:
+    database: health_management
+    username: admin
+    password: password
+  resources:
+    limits:
+      cpu: 500m
+      memory: 512Mi
+    requests:
+      cpu: 200m
+      memory: 256Mi
+  persistence:
+    enabled: false
+    size: 5Gi
   
 # Redis 설정 (내장)
 redis:
   enabled: false  # SafeWork는 all-in-one 컨테이너 사용
+  name: safework-redis
+  image:
+    repository: redis
+    tag: "7-alpine"
+  resources:
+    limits:
+      cpu: 100m
+      memory: 128Mi
+    requests:
+      cpu: 50m
+      memory: 64Mi
+  persistence:
+    enabled: false
+    size: 1Gi
 
 # Docker Registry 설정
 dockerRegistry:
