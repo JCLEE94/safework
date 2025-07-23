@@ -3,7 +3,7 @@ replicaCount: 1
 image:
   repository: registry.jclee.me/safework
   pullPolicy: Always
-  tag: "latest"
+  # tag는 ArgoCD Image Updater가 자동으로 관리
 
 imagePullSecrets:
   - name: regcred
@@ -76,7 +76,6 @@ postgresql:
   name: safework-postgres
   image:
     repository: postgres
-    tag: "15"
   auth:
     database: health_management
     username: admin
@@ -98,7 +97,6 @@ redis:
   name: safework-redis
   image:
     repository: redis
-    tag: "7-alpine"
   resources:
     limits:
       cpu: 100m
