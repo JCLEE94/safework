@@ -47,9 +47,9 @@ env:
   - name: PORT
     value: "3001"
   - name: DATABASE_URL
-    value: "postgresql://admin:password@localhost:5432/health_management"
+    value: "postgresql://admin:password@postgres:5432/health_management"
   - name: REDIS_URL
-    value: "redis://localhost:6379/0"
+    value: "redis://redis:6379/0"
   - name: JWT_SECRET
     valueFrom:
       secretKeyRef:
