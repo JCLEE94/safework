@@ -1,4 +1,4 @@
-replicaCount: 2
+replicaCount: 1
 
 image:
   repository: registry.jclee.me/safework
@@ -8,29 +8,11 @@ image:
 imagePullSecrets:
   - name: harbor-registry
 
-nameOverride: ""
-fullnameOverride: ""
-
 service:
   type: NodePort
   port: 80
   targetPort: 8000
   nodePort: 30080
-
-ingress:
-  enabled: true
-  className: "traefik"
-  annotations:
-    cert-manager.io/cluster-issuer: letsencrypt-prod
-  hosts:
-    - host: safework.jclee.me
-      paths:
-        - path: /
-          pathType: Prefix
-  tls:
-    - secretName: safework-tls
-      hosts:
-        - safework.jclee.me
 
 resources:
   limits:
@@ -43,87 +25,3 @@ resources:
 env:
   NODE_ENV: production
   PORT: "8000"
-  HOST: "0.0.0.0"
-  DATABASE_URL: "postgresql://admin:safework123@postgres-service:5432/health_management"
-  REDIS_URL: "redis://redis-service:6379/0"
-  REDIS_HOST: "redis-service"
-  REDIS_PORT: "6379"
-  LOG_LEVEL: "INFO"
-  TZ: "Asia/Seoul"
-  ENVIRONMENT: "production"
-
-secrets:
-  JWT_SECRET: "safework-jwt-secret-key-production"
-
-autoscaling:
-  enabled: false
-  minReplicas: 1
-  maxReplicas: 3
-  targetCPUUtilizationPercentage: 80
-
-nodeSelector: {}
-tolerations: []
-affinity: {}
-
-# PostgreSQL 설정 (내장)
-postgresql:
-  enabled: true  # PostgreSQL 템플릿 활성화
-  name: safework-postgres
-  image:
-    repository: postgres
-  auth:
-    database: health_management
-    username: admin
-    password: password
-  resources:
-    limits:
-      cpu: 500m
-      memory: 512Mi
-    requests:
-      cpu: 200m
-      memory: 256Mi
-  persistence:
-    enabled: false
-    size: 5Gi
-  
-# Redis 설정 (내장)
-redis:
-  enabled: true  # Redis 템플릿 활성화
-  name: safework-redis
-  image:
-    repository: redis
-    tag: "latest"
-  resources:
-    limits:
-      cpu: 100m
-      memory: 128Mi
-    requests:
-      cpu: 50m
-      memory: 64Mi
-  persistence:
-    enabled: false
-    size: 1Gi
-
-# Docker Registry 설정
-dockerRegistry:
-  enabled: false  # imagePullSecrets에서 직접 설정
-
-# Resource Quota 설정
-resourceQuota:
-  enabled: false
-  
-# Network Policy 설정  
-networkPolicy:
-  enabled: false
-  
-# Limit Range 설정
-limitRange:
-  enabled: false
-
-probes:
-  liveness:
-    path: /health
-    port: 8000
-  readiness:
-    path: /health
-    port: 8000
