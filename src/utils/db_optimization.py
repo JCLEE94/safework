@@ -49,7 +49,7 @@ class DatabaseOptimizer:
             "CREATE INDEX IF NOT EXISTS idx_chemical_substances_hazard_class ON chemical_substances(hazard_class);",
             # Accident reports indexes
             "CREATE INDEX IF NOT EXISTS idx_accident_reports_worker_id ON accident_reports(worker_id);",
-            "CREATE INDEX IF NOT EXISTS idx_accident_reports_accident_date ON accident_reports(accident_date);",
+            "CREATE INDEX IF NOT EXISTS idx_accident_reports_accident_datetime ON accident_reports(accident_datetime);",
             "CREATE INDEX IF NOT EXISTS idx_accident_reports_severity ON accident_reports(severity);",
             # Composite indexes for common queries
             "CREATE INDEX IF NOT EXISTS idx_workers_composite ON workers(work_type, health_status);",
