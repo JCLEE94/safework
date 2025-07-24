@@ -24,6 +24,7 @@ import ConfinedSpace from './components/ConfinedSpace';
 // import CardiovascularPage from './pages/CardiovascularPage';
 import { QRRegistrationPage } from './pages/QRRegistrationPage';
 import { PublicQRRegistration } from './pages/PublicQRRegistration';
+import SimpleRegistration from './pages/SimpleRegistration';
 import { authService } from './services/authService';
 
 function MainApp() {
@@ -47,6 +48,11 @@ function MainApp() {
   // Worker Registration 페이지인지 확인
   const isWorkerRegistrationPage = () => {
     return location.pathname === '/worker-registration';
+  };
+
+  // Simple Registration 페이지인지 확인
+  const isSimpleRegistrationPage = () => {
+    return location.pathname === '/register';
   };
   
   const handleLoginSuccess = () => {
@@ -108,6 +114,11 @@ function MainApp() {
     return <WorkerRegistration />;
   }
 
+  // 간단한 등록 페이지는 인증 없이 접근 가능
+  if (isSimpleRegistrationPage()) {
+    return <SimpleRegistration />;
+  }
+
   if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center">
@@ -144,6 +155,7 @@ function App() {
       <Routes>
         <Route path="/qr-register" element={<PublicQRRegistration />} />
         <Route path="/qr-register/:token" element={<QRRegistrationPage />} />
+        <Route path="/register" element={<SimpleRegistration />} />
         <Route path="/*" element={<MainApp />} />
       </Routes>
     </Router>
