@@ -6,7 +6,7 @@ image:
   tag: "latest"  # 기본값, ArgoCD Image Updater가 자동으로 업데이트
 
 imagePullSecrets:
-  - name: regcred
+  - name: harbor-registry
 
 nameOverride: ""
 fullnameOverride: ""
