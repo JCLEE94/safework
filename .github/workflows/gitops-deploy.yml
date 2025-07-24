@@ -28,7 +28,7 @@ jobs:
       - name: Validate Helm Chart
         run: |
           curl https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-3 | bash
-          helm lint ./charts/safework
+          helm lint ./charts/smartwork
 
   build:
     name: Build and Push
@@ -113,15 +113,15 @@ jobs:
       - name: Update Chart Version
         run: |
           # Update Chart.yaml
-          sed -i "s/^version:.*/version: ${{ needs.build.outputs.version }}/" ./charts/safework/Chart.yaml
-          sed -i "s/^appVersion:.*/appVersion: \"${{ needs.build.outputs.version }}\"/" ./charts/safework/Chart.yaml
+          sed -i "s/^version:.*/version: ${{ needs.build.outputs.version }}/" ./charts/smartwork/Chart.yaml
+          sed -i "s/^appVersion:.*/appVersion: \"${{ needs.build.outputs.version }}\"/" ./charts/smartwork/Chart.yaml
           
           # Keep values.yaml tag as "latest" - ArgoCD Image Updater will handle image tag updates
           echo "ℹ️ Keeping values.yaml tag as 'latest' for ArgoCD Image Updater compatibility"
           
       - name: Package Helm Chart
         run: |
-          helm package ./charts/safework
+          helm package ./charts/smartwork
           
       - name: Push to ChartMuseum
         if: vars.CHARTMUSEUM_URL != ''
