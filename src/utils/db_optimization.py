@@ -39,10 +39,10 @@ class DatabaseOptimizer:
             # Work environments indexes
             "CREATE INDEX IF NOT EXISTS idx_work_environments_measurement_date ON work_environments(measurement_date);",
             "CREATE INDEX IF NOT EXISTS idx_work_environments_measurement_type ON work_environments(measurement_type);",
-            "CREATE INDEX IF NOT EXISTS idx_work_environments_status ON work_environments(status);",
+            "CREATE INDEX IF NOT EXISTS idx_work_environments_result ON work_environments(result);",
             # Health education indexes
             "CREATE INDEX IF NOT EXISTS idx_health_education_education_date ON health_education(education_date);",
-            "CREATE INDEX IF NOT EXISTS idx_health_education_status ON health_education(status);",
+            "CREATE INDEX IF NOT EXISTS idx_health_education_attendances_status ON health_education_attendances(status);",
             # Chemical substances indexes
             "CREATE INDEX IF NOT EXISTS idx_chemical_substances_name ON chemical_substances(name);",
             "CREATE INDEX IF NOT EXISTS idx_chemical_substances_cas_number ON chemical_substances(cas_number);",
@@ -54,7 +54,7 @@ class DatabaseOptimizer:
             # Composite indexes for common queries
             "CREATE INDEX IF NOT EXISTS idx_workers_composite ON workers(work_type, health_status);",
             "CREATE INDEX IF NOT EXISTS idx_health_exams_composite ON health_exams(worker_id, exam_date DESC);",
-            "CREATE INDEX IF NOT EXISTS idx_work_env_composite ON work_environments(measurement_type, status, measurement_date DESC);",
+            "CREATE INDEX IF NOT EXISTS idx_work_env_composite ON work_environments(measurement_type, result, measurement_date DESC);",
         ]
 
         try:
@@ -81,8 +81,9 @@ class DatabaseOptimizer:
         tables = [
             "workers",
             "health_exams",
-            "work_environments",
-            "health_education",
+            "work_environments", 
+            "health_educations",
+            "health_education_attendances",
             "chemical_substances",
             "accident_reports",
         ]
@@ -115,7 +116,8 @@ class DatabaseOptimizer:
                 "workers",
                 "health_exams",
                 "work_environments",
-                "health_education",
+                "health_educations",
+                "health_education_attendances", 
                 "chemical_substances",
                 "accident_reports",
             ]
