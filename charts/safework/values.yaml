@@ -1,7 +1,7 @@
 replicaCount: 2
 
 image:
-  repository: registry.jclee.me/JCLEE94/safework
+  repository: registry.jclee.me/safework
   pullPolicy: Always
   tag: "latest"
 
