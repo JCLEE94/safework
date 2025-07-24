@@ -26,7 +26,7 @@ class DatabaseOptimizer:
         """
         indexes = [
             # Workers table indexes
-            "CREATE INDEX IF NOT EXISTS idx_workers_employee_number ON workers(employee_number);",
+            "CREATE INDEX IF NOT EXISTS idx_workers_employee_id ON workers(employee_id);",
             "CREATE INDEX IF NOT EXISTS idx_workers_name ON workers(name);",
             "CREATE INDEX IF NOT EXISTS idx_workers_work_type ON workers(work_type);",
             "CREATE INDEX IF NOT EXISTS idx_workers_health_status ON workers(health_status);",
@@ -207,7 +207,7 @@ class DatabaseOptimizer:
             SELECT 
                 w.id,
                 w.name,
-                w.employee_number,
+                w.employee_id,
                 w.work_type,
                 w.health_status,
                 COUNT(DISTINCT he.id) as total_exams,
@@ -215,7 +215,7 @@ class DatabaseOptimizer:
                 MIN(he.next_exam_date) as next_exam_date
             FROM workers w
             LEFT JOIN health_exams he ON w.id = he.worker_id
-            GROUP BY w.id, w.name, w.employee_number, w.work_type, w.health_status;
+            GROUP BY w.id, w.name, w.employee_id, w.work_type, w.health_status;
             """,
             # Monthly statistics view
             """
