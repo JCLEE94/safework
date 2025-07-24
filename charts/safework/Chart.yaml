@@ -1,5 +1,5 @@
 apiVersion: v2
-name: safework
+name: smartwork
 description: SafeWork Pro - 건설업 보건관리 시스템
 type: application
 version: 0.1.0-35  # GitOps 파이프라인에서 자동 업데이트
