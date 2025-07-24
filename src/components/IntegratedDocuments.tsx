@@ -49,7 +49,7 @@ const IntegratedDocuments: React.FC = () => {
       if (selectedFormat) params.append('format', selectedFormat);
       if (editableOnly) params.append('editable_only', 'true');
 
-      const response = await fetch(`/api/v1/documents/?${params.toString()}`);
+      const response = await fetch(`/api/v1/integrated-documents/?${params.toString()}`);
       if (!response.ok) throw new Error('문서 목록을 불러오는데 실패했습니다');
       
       const data = await response.json();
@@ -63,7 +63,7 @@ const IntegratedDocuments: React.FC = () => {
 
   const fetchCategories = async () => {
     try {
-      const response = await fetch('/api/v1/documents/categories');
+      const response = await fetch('/api/v1/integrated-documents/categories');
       if (!response.ok) throw new Error('카테고리를 불러오는데 실패했습니다');
       
       const data = await response.json();
@@ -75,7 +75,7 @@ const IntegratedDocuments: React.FC = () => {
 
   const fetchStats = async () => {
     try {
-      const response = await fetch('/api/v1/documents/stats');
+      const response = await fetch('/api/v1/integrated-documents/stats');
       if (!response.ok) throw new Error('통계를 불러오는데 실패했습니다');
       
       const data = await response.json();
@@ -96,7 +96,7 @@ const IntegratedDocuments: React.FC = () => {
       formData.append('file', uploadFile);
       formData.append('category', uploadCategory);
 
-      const response = await fetch('/api/v1/documents/upload', {
+      const response = await fetch('/api/v1/integrated-documents/upload', {
         method: 'POST',
         body: formData,
       });
@@ -114,7 +114,7 @@ const IntegratedDocuments: React.FC = () => {
 
   const handleDownload = async (doc: DocumentInfo) => {
     try {
-      const response = await fetch(`/api/v1/documents/download/${doc.category}/${encodeURIComponent(doc.name)}`);
+      const response = await fetch(`/api/v1/integrated-documents/download/${doc.category}/${encodeURIComponent(doc.name)}`);
       if (!response.ok) throw new Error('다운로드에 실패했습니다');
 
       const blob = await response.blob();
@@ -138,13 +138,39 @@ const IntegratedDocuments: React.FC = () => {
     }
 
     try {
+      let processedData;
+      
+      if (doc.format === 'pdf') {
+        // PDF용 데이터 구조 변환
+        processedData = {
+          text_inserts: [{
+            text: editData.text || '',
+            x: editData.x || 100,
+            y: editData.y || 100,
+            width: 200,
+            height: 20,
+            font_size: 12,
+            color: 'black'
+          }]
+        };
+      } else if (doc.format === 'excel') {
+        // Excel용 데이터 구조 변환
+        processedData = {
+          cell_data: {
+            [editData.cell || 'A1']: editData.value || ''
+          }
+        };
+      } else {
+        processedData = editData;
+      }
+
       const editRequest = {
         document_id: doc.name,
         edit_type: 'data',
-        data: editData
+        data: processedData
       };
 
-      const response = await fetch('/api/v1/documents/edit', {
+      const response = await fetch('/api/v1/integrated-documents/edit', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -175,7 +201,7 @@ const IntegratedDocuments: React.FC = () => {
     if (!confirm(`"${doc.name}" 파일을 삭제하시겠습니까?`)) return;
 
     try {
-      const response = await fetch(`/api/v1/documents/${doc.category}/${encodeURIComponent(doc.name)}`, {
+      const response = await fetch(`/api/v1/integrated-documents/${doc.category}/${encodeURIComponent(doc.name)}`, {
         method: 'DELETE',
       });
 

@@ -11,7 +11,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - **Registry**: registry.jclee.me/safework:latest (public registry, no auth required)
 - **Production**: https://safework.jclee.me
 - **Architecture**: All-in-one container (PostgreSQL + Redis + FastAPI + React)
-- **CI/CD**: GitHub Actions (self-hosted runner) + ArgoCD + charts.jclee.me
+- **CI/CD**: GitHub Actions + ArgoCD Image Updater (automated image deployment)
 
 ## Quick Commands
 
@@ -21,7 +21,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 docker-compose -f docker-compose.dev.yml up --build
 
 # Run tests with coverage
-pytest tests/ -v --cov=src --cov-report=html --cov-report=term --timeout=60 -x --maxfail=5
+pytest tests/ -v --cov=src --cov-report=html --cov-report=term --timeout=300 -x
 
 # Run single test file
 pytest tests/test_workers.py -v
@@ -32,10 +32,8 @@ pytest -m "not slow" -v
 # Run integration tests only
 pytest -m integration -v
 
-# Run Rust-style inline integration tests (NEW)
-python3 -m src.handlers.workers              # Worker management integration tests
-python3 -m src.handlers.health_exams         # Health exam integration tests  
-python3 -m src.handlers.chemical_substances  # Chemical substance integration tests
+# Run with specific timeout
+pytest tests/test_api.py -v --timeout=120
 
 # Lint and format
 black src/ tests/
@@ -50,32 +48,29 @@ cd frontend && npm run preview      # Preview production build
 
 ### Testing Configuration
 - **pytest.ini**: Configured with `asyncio_mode = auto` for async fixtures
-- **Timeout**: 60 seconds per test, fail-fast with `-x --maxfail=5`
+- **Timeout**: 60 seconds per test (optimized from 300), fail-fast with `-x --maxfail=5`
 - **Dependencies**: pytest, pytest-asyncio, pytest-cov, pytest-timeout
-- **Test markers**: `slow`, `integration`, `unit`, `smoke`, `critical`
-- **Coverage target**: 70% minimum
-- **Rust-style Inline Tests**: Integration tests embedded directly in handler files using `if __name__ == "__main__":` blocks
-  - Tests complete API → Database → Response flows with real data validation
-  - Each component has isolated SQLite test database
-  - Clear Given-When-Then structure with Korean business logic comments
+- **Test markers**: `slow`, `integration`, `unit` - use `-m "not slow"` to skip slow tests
+- **Coverage target**: 70% minimum (configured in CI/CD)
 
 ### Deployment
 ```bash
-# Deploy to production (automated via GitHub Actions)
+# Deploy to production (automated CI/CD via GitHub Actions + ArgoCD Image Updater)
 git add . && git commit -m "feat: description" && git push
 
-# Manual deployment (if CI/CD fails)
-docker build -t registry.jclee.me/safework:latest .
-echo "bingogo1" | docker login registry.jclee.me -u admin --password-stdin
-docker push registry.jclee.me/safework:latest
+# Manual deployment (backup)
+./scripts/deploy/deploy-main.sh
 
 # Check deployment status
-kubectl get pods -n safework
 curl https://safework.jclee.me/health
+docker logs safework --tail=50
 
-# Monitor CI/CD pipeline
+# Monitor pipeline status
 gh run list --limit 5
 gh run view <run-id> --log-failed
+
+# Check ArgoCD Image Updater logs
+kubectl logs -n argocd deployment/argocd-image-updater -f
 ```
 
 ### Database Operations
@@ -129,7 +124,6 @@ docker exec safework psql -U admin -d health_management -c "\dt"
   - Applied in specific order in `app.py`
 - `services/` - Business logic and external integrations
   - `cache.py` - Redis caching with CacheService class
-  - `auth_service.py` - JWT authentication service
   - `notifications.py` - Alert and notification services
 - `utils/` - Helper functions and utilities
 - `config/` - Database configuration and settings
@@ -195,42 +189,69 @@ async def test_worker(async_session):
 
 ## CI/CD Pipeline
 
-### Current Setup
-- **Runner**: Self-hosted GitHub Actions runner on k8s.jclee.me
-- **Registry**: registry.jclee.me (public, credentials: admin/bingogo1)
-- **Helm Repository**: charts.jclee.me (ArgoCD uses this)
-- **Workflow**: `.github/workflows/deploy.yml`
-- **ArgoCD**: Monitors charts.jclee.me for updates (targetRevision: "*")
+### GitHub Actions Configuration
+- **Runners**: GitHub-hosted (ubuntu-latest) for stability
+- **Service containers**: PostgreSQL (port 5432), Redis (port 6379)
+- **Test timeout**: 5 minutes per test type
+- **ArgoCD Image Updater**: Automatically detects and deploys new images
+- **Concurrency**: Cancels previous runs on new push to same branch
+- **Registry**: registry.jclee.me (public, no authentication)
 
-### Deployment Flow
+### Workflow Files
+- `gitops-deploy.yml` - GitOps CI/CD pipeline with ArgoCD Image Updater
+- Service containers and optimized build process
+- Helm chart deployment to ChartMuseum
+
+### Environment Variables (CI/CD)
+```yaml
+DATABASE_URL: postgresql://admin:password@localhost:5432/health_management
+REDIS_URL: redis://localhost:6379/0
+JWT_SECRET: test-secret-key
+PYTHONPATH: ${{ github.workspace }}
+ENVIRONMENT: development  # For test runs
 ```
-1. Git Push (main) → GitHub Actions (self-hosted runner)
-2. Build Docker Image → Push to registry.jclee.me
-3. Update Helm Chart → Push to charts.jclee.me
-4. ArgoCD detects new chart version → Auto-deploy to K8s
-5. Production health check at https://safework.jclee.me/health
+
+## Deployment Pipeline
+
+### Automated Flow (ArgoCD Image Updater)
 ```
+1. Git Push (main) → GitHub Actions (GitHub-hosted runner)
+2. Run Tests (parallel) → Build Docker Image → Push to registry.jclee.me
+3. ArgoCD Image Updater detects new image (no manual commits needed)
+4. Image Updater updates K8s manifests automatically
+5. ArgoCD auto-sync → Deploy to Kubernetes cluster
+6. Production health check at https://safework.jclee.me/health
+```
+
+### ArgoCD Configuration
+- Monitors Git repository k8s/ directory for changes
+- Auto-sync enabled with self-healing
+- ArgoCD Image Updater monitors registry.jclee.me for new images
+- Image pattern: `^prod-[0-9]{8}-[a-f0-9]{7}$`
+- Dashboard: https://argo.jclee.me/applications/safework
 
 ### Image Tagging Strategy
-- Commit SHA: Used for Docker images (e.g., `abc1234...`)
-- Latest: Always points to most recent build
-- ArgoCD tracks chart versions from charts.jclee.me
+- Production: `prod-YYYYMMDD-SHA7` (e.g., prod-20250104-abc1234)
+- Semantic Version: `1.YYYYMMDD.BUILD_NUMBER` (e.g., 1.20250110.123)
+- Latest: Always points to most recent production build
+- ArgoCD Image Updater tracks these patterns automatically
 
 ## Common Issues & Solutions
 
 ### Development Issues
 | Issue | Solution |
 |-------|----------|
-| Docker 413 error | Use registry.jclee.me instead of ghcr.io |
-| Self-hosted runner offline | Check k8s.jclee.me runner status |
-| Port conflicts | SafeWork uses 3001, PostgreSQL 5432, Redis 6379 |
+| Docker 413 error | Use optimized Dockerfile and registry.jclee.me |
+| Self-hosted runner issues | Switch to GitHub-hosted runners |
+| Port conflicts in CI | Use standard ports (5432, 6379) with GitHub-hosted runners |
 | Async fixture errors | Use `@pytest_asyncio.fixture` decorator |
-| Import errors | Check paths (e.g., `services.cache` not `services.cache_service`) |
-| Tests hanging | Add timeout with pytest-timeout |
+| Import errors | Check import paths (e.g., `services.cache` not `services.cache_service`) |
+| Tests hanging | Add timeout configuration (pytest-timeout) |
 | Korean text garbled | Ensure ko_KR.UTF-8 locale in PostgreSQL |
-| Environment variable missing | Check settings.py defaults |
-| Authentication errors | Set `ENVIRONMENT=development` for dev mode |
-| ArgoCD not syncing | Check charts.jclee.me repository |
+| Environment variable missing | Check settings.py defaults and use `generate_*_url()` methods |
+| Authentication errors | Set `ENVIRONMENT=development` for bypassed auth in dev |
+| API endpoint 404s | Check router prefix in handlers and app.py registration |
+| ArgoCD not updating | Check Image Updater logs and annotations |
 
 ### Production Debugging
 ```bash
@@ -240,14 +261,14 @@ curl https://safework.jclee.me/health
 
 # View logs
 docker logs safework --tail=100 | grep ERROR
-kubectl logs deployment/safework -n safework
+curl http://192.168.50.200:5555/log/safework  # Production log viewer
 
 # Pipeline monitoring
 gh run list --limit 5
 gh run view <run-id> --log-failed
 
 # Force restart
-kubectl rollout restart deployment/safework -n safework
+docker restart safework
 ```
 
 ## API Endpoints
@@ -261,7 +282,7 @@ kubectl rollout restart deployment/safework -n safework
 - `/api/v1/accidents/` - Accident reporting
 - `/api/v1/documents/fill-pdf/{form_name}` - PDF generation
 - `/api/v1/monitoring/ws` - WebSocket real-time monitoring
-- `/health` - Health check endpoint
+- `/api/v1/pipeline/status/{commit}` - CI/CD pipeline status
 
 ### API Documentation
 - Swagger UI: http://localhost:3001/api/docs
@@ -301,6 +322,14 @@ async def create_worker(
 - Rate limiting (100 requests/minute)
 - Secure headers automatically applied
 
+### Required Secrets (GitHub)
+```bash
+REGISTRY_USERNAME
+REGISTRY_PASSWORD
+CHARTMUSEUM_USERNAME
+CHARTMUSEUM_PASSWORD
+```
+
 ## Important Patterns & Conventions
 
 ### API Handler Pattern
@@ -338,6 +367,16 @@ export const workersApi = {
 };
 ```
 
+### Docker Development Commands
+```bash
+# Quick container commands
+docker exec -it safework bash              # Shell access
+docker exec safework python -c "..."        # Run Python commands
+docker logs safework -f                     # Follow logs
+docker-compose ps                           # Check service status
+docker-compose exec db psql -U admin -d health_management  # DB access
+```
+
 ### Async Testing Pattern
 All async tests must use pytest_asyncio:
 ```python
@@ -357,41 +396,6 @@ async def test_worker(async_session: AsyncSession):
 async def test_worker_creation(test_worker):
     assert test_worker.name == "Test"
 ```
-
-### Rust-style Inline Integration Testing Pattern
-Core handlers have embedded integration tests following Rust's approach:
-```python
-# At the end of handler files (e.g., src/handlers/workers.py)
-if __name__ == "__main__":
-    import asyncio
-    import pytest_asyncio
-    from httpx import AsyncClient
-    from sqlalchemy.ext.asyncio import create_async_engine
-
-    # Test database setup
-    SQLALCHEMY_DATABASE_URL = "sqlite+aiosqlite:///./test_component.db"
-    test_engine = create_async_engine(SQLALCHEMY_DATABASE_URL, echo=True)
-    
-    async def test_integration_workflow(async_client: AsyncClient, test_db: AsyncSession):
-        """
-        통합 테스트: 전체 비즈니스 플로우 검증
-        - API 요청 → 검증 → DB 저장 → 응답
-        """
-        # Given: 테스트 데이터
-        test_data = {...}
-        
-        # When: API 호출
-        response = await async_client.post("/api/v1/endpoint", json=test_data)
-        
-        # Then: 응답 및 DB 상태 검증
-        assert response.status_code == 200
-        # DB validation...
-    
-    # Execute: python3 -m src.handlers.component_name
-    asyncio.run(run_integration_tests())
-```
-
-This pattern enables testing complete business workflows with real data validation.
 
 ### Korean Industry Enums
 The system uses Korean occupational safety classifications:
@@ -441,11 +445,12 @@ PDF_FORM_COORDINATES = {
 ```
 
 ### Environment-Specific Configuration
-Settings system provides defaults for all environments:
+The settings system provides defaults for all environments while enforcing security in production:
+
 ```python
 # src/config/settings.py pattern:
 class Settings(BaseSettings):
-    # Development-friendly defaults with env var overrides
+    # Development-friendly defaults with environment variable overrides
     database_host: str = Field(default="localhost", env="DATABASE_HOST")
     jwt_secret: str = Field(default="dev-jwt-secret-change-in-production", env="JWT_SECRET")
     
@@ -456,44 +461,67 @@ class Settings(BaseSettings):
         return f"postgresql://{self.database_user}:{self.database_password}@{self.database_host}:{self.database_port}/{self.database_name}"
 ```
 
-## Recent Updates & Current Status
+Environment usage:
+```bash
+# Development
+ENVIRONMENT=development docker-compose up
 
-### Integration Testing Implementation (2025-01-23)
-- ✅ **Rust-style inline integration tests** implemented for core components
-- ✅ **Worker Management** - Registration, validation, filtering, search, caching tests
-- ✅ **Health Examinations** - Creation, filtering, due-soon detection, statistics tests  
-- ✅ **Chemical Substances** - Registration, CAS validation, usage tracking, inventory tests
-- ✅ **Real data validation** - Tests use actual business data and verify database states
-- ✅ **Isolated test environments** - Each component has dedicated SQLite test database
+# Production
+docker-compose up -d  # Uses default production config
 
-### CI/CD Configuration (2025-01-23)
-- Self-hosted GitHub Actions runner on k8s.jclee.me
-- ArgoCD configured to use charts.jclee.me Helm repository
-- Automatic version tracking with `targetRevision: "*"`
-- Single workflow file: `.github/workflows/deploy.yml`
+# Testing (CI/CD) - Uses defaults with service container ports
+DATABASE_URL=postgresql://admin:password@localhost:25432/health_management
+REDIS_URL=redis://localhost:26379/0
+```
 
-### Production Status
-- ✅ Application running at https://safework.jclee.me
-- ✅ Health check endpoint responding normally
-- ✅ All components connected (PostgreSQL, Redis, FastAPI, React)
-- ✅ HTTPS with valid certificate
-- ✅ Kubernetes deployment via ArgoCD
-- ✅ Comprehensive integration test coverage for critical workflows
+## Recent Best Practices & Lessons Learned
 
-### Testing Infrastructure
-- **Traditional Tests**: pytest-based unit and integration tests in `tests/` directory
-- **Inline Integration Tests**: Rust-style tests embedded in handler files for comprehensive workflow validation
-- **Test Execution**: Both approaches available - `pytest tests/` for traditional, `python3 -m src.handlers.component` for inline
-- **Coverage**: Combined approach provides comprehensive test coverage with focus on real business scenarios
+### CI/CD Optimization (2025-01-10)
+1. **Registry Migration**: Moved from ghcr.io to registry.jclee.me (public registry)
+   - Resolved 413 Request Entity Too Large errors
+   - No authentication required for public registry
+   - Optimized Docker images (50% size reduction)
 
-### Known Issues
-- ArgoCD needs charts.jclee.me to have proper Helm charts
-- Manual deployment required if charts repository is unavailable
-- GitHub Actions billing may affect automated deployments
+2. **ArgoCD Image Updater**: Automated image deployment
+   - No manual K8s manifest updates needed
+   - Automatic detection of new images
+   - Git write-back for audit trail
+   - Semantic versioning support
+
+3. **GitHub-hosted Runners**: Better stability
+   - Resolved self-hosted runner Docker permission issues
+   - Standard port usage (5432, 6379)
+   - Faster parallel test execution
+
+4. **Project Structure**: Major cleanup completed
+   - Removed 38+ duplicate files
+   - Organized scripts into logical directories
+   - Consolidated Docker Compose configurations
+   - Created comprehensive documentation structure
+
+### Project Organization (2025-01-10)
+```
+safework/
+├── src/                    # Backend source code
+├── frontend/               # Frontend source code  
+├── tests/                  # All test files (consolidated)
+├── scripts/                # All scripts (organized)
+│   ├── deploy/             # Deployment scripts
+│   ├── setup/              # Setup scripts
+│   └── utils/              # Utility scripts
+├── k8s/                    # Kubernetes configurations
+│   ├── base/               # Base resources
+│   ├── argocd/             # ArgoCD configurations
+│   └── safework/           # Application manifests
+├── docs/                   # Documentation
+│   ├── deployment/         # Deployment guides
+│   └── setup/              # Setup guides
+└── deployment/             # Docker configurations
+```
 
 ---
-**Version**: 4.1.0  
-**Updated**: 2025-01-23  
+**Version**: 3.5.0  
+**Updated**: 2025-07-24  
 **Maintainer**: SafeWork Pro Development Team  
-**CI/CD Status**: ✅ Active (Self-hosted runner + ArgoCD + charts.jclee.me)  
-**Testing Status**: ✅ Comprehensive (Traditional + Rust-style Inline Integration Tests)
+**CI/CD Status**: ✅ Active (GitHub-hosted runners + ArgoCD Image Updater)  
+**Recent Changes**: Registry migration, ArgoCD Image Updater, project cleanup, CI/CD optimization

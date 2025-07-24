@@ -22,7 +22,7 @@ from openpyxl import Workbook, load_workbook
 from openpyxl.styles import Alignment, Font, PatternFill
 from pydantic import BaseModel, Field
 from reportlab.lib.colors import black
-# import fitz  # PyMuPDF - disabled due to missing dependency
+import fitz  # PyMuPDF
 from reportlab.lib.pagesizes import A4
 from reportlab.pdfbase import pdfmetrics, pdfutils
 from reportlab.pdfbase.ttfonts import TTFont
@@ -35,7 +35,7 @@ from ..services.cache import CacheService, get_cache_service
 from ..utils.auth import get_current_user
 
 # Initialize
-router = APIRouter(prefix="/api/v1/documents", tags=["통합문서관리"])
+router = APIRouter(prefix="/api/v1/integrated-documents", tags=["통합문서관리"])
 logger = logging.getLogger(__name__)
 settings = get_settings()
 
@@ -176,10 +176,7 @@ def edit_pdf_with_data(pdf_path: Path, edit_data: Dict[str, Any]) -> bytes:
     """PDF에 데이터 삽입/편집"""
     try:
         # PDF 읽기
-        # pdf_doc = fitz.open(str(pdf_path))  # PyMuPDF disabled
-        raise HTTPException(
-            status_code=501, detail="PyMuPDF functionality temporarily disabled"
-        )
+        pdf_doc = fitz.open(str(pdf_path))
 
         for page_num in range(len(pdf_doc)):
             page = pdf_doc[page_num]

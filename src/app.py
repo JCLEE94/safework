@@ -238,7 +238,7 @@ def create_app() -> FastAPI:
     from .handlers.sample_data import router as sample_data_router
     from .handlers.worker_feedback import router as worker_feedback_router
 
-    # from .handlers.integrated_documents import router as integrated_documents_router  # Temporarily disabled due to import issue
+    from .handlers.integrated_documents import router as integrated_documents_router
 
     app.include_router(workers_router, prefix="/api/v1/workers", tags=["근로자관리"])
     app.include_router(qr_registration_router, tags=["QR코드등록"])
@@ -275,7 +275,7 @@ def create_app() -> FastAPI:
     app.include_router(document_editor_router, tags=["문서편집"])
     app.include_router(sample_data_router, tags=["샘플데이터"])  # 개발용
     app.include_router(worker_feedback_router, tags=["근로자피드백"])
-    # app.include_router(integrated_documents_router, tags=["통합문서관리"])  # Temporarily disabled
+    app.include_router(integrated_documents_router, tags=["통합문서관리"])
 
     # 정적 파일 서빙 (React 빌드된 파일들) - Mount after all API routes
     try:
