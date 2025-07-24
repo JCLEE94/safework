@@ -100,8 +100,8 @@ async def get_workers(
             if is_active is not None:
                 filters["is_active"] = is_active
 
-            workers, total = await worker_repository.get_multi_with_filters(
-                db, skip=skip, limit=limit, **filters
+            workers, total = await worker_repository.get_multi(
+                db, skip=skip, limit=limit, filters=filters
             )
 
         return WorkerListResponse(
