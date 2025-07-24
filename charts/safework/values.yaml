@@ -23,5 +23,9 @@ resources:
     memory: 128Mi
 
 env:
-  NODE_ENV: production
-  PORT: "8000"
+  DATABASE_URL: "postgresql://admin:password@postgres:5432/health_management"
+  REDIS_HOST: "redis"
+  REDIS_PORT: "6379"
+  JWT_SECRET: "prod-jwt-secret-key"
+  ENVIRONMENT: "production"
+  TZ: "Asia/Seoul"
