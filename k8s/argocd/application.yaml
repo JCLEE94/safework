@@ -21,13 +21,13 @@ spec:
   source:
     repoURL: https://charts.jclee.me
     chart: safework
-    targetRevision: "*"
+    targetRevision: "0.1.*"  # 0.1.x 버전 중 최신 자동 선택
     helm:
       values: |
         image:
           repository: registry.jclee.me/safework
         imagePullSecrets:
-          - name: regcred
+          - name: harbor-registry
   destination:
     server: https://kubernetes.default.svc
     namespace: safework
