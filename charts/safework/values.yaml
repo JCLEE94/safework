@@ -10,9 +10,9 @@ imagePullSecrets:
 
 service:
   type: NodePort
-  port: 80
-  targetPort: 8000
-  nodePort: 30080
+  port: 3001
+  targetPort: 3001
+  nodePort: 32301
 
 resources:
   limits:

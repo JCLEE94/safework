@@ -2,8 +2,8 @@ apiVersion: v2
 name: safework
 description: SafeWork Pro - 건설업 보건관리 시스템
 type: application
-version: 0.1.0-53  # Redis 포트 설정 오류 수정 - REDIS_HOST/PORT 환경변수 분리
-appVersion: "0.1.0-53"  # Redis 포트 설정 오류 수정 - REDIS_HOST/PORT 환경변수 분리
+version: 1.0.3  # 최신 버전 - Redis/Postgres 템플릿 제거, 환경변수 수정
+appVersion: "prod-20250724"  # 최신 버전
 keywords:
   - safework
   - health-management
