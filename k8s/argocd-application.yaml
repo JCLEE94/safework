@@ -9,6 +9,10 @@ spec:
     repoURL: https://github.com/JCLEE94/safework
     path: charts/safework
     targetRevision: HEAD
+    helm:
+      values: |
+        service:
+          targetPort: 8000
   destination:
     server: https://kubernetes.default.svc
     namespace: safework
