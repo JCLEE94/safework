@@ -44,9 +44,9 @@ class DatabaseOptimizer:
             "CREATE INDEX IF NOT EXISTS idx_health_educations_education_date ON health_educations(education_date);",
             "CREATE INDEX IF NOT EXISTS idx_health_education_attendances_status ON health_education_attendances(status);",
             # Chemical substances indexes
-            "CREATE INDEX IF NOT EXISTS idx_chemical_substances_name ON chemical_substances(name);",
+            "CREATE INDEX IF NOT EXISTS idx_chemical_substances_korean_name ON chemical_substances(korean_name);",
             "CREATE INDEX IF NOT EXISTS idx_chemical_substances_cas_number ON chemical_substances(cas_number);",
-            "CREATE INDEX IF NOT EXISTS idx_chemical_substances_danger_grade ON chemical_substances(danger_grade);",
+            "CREATE INDEX IF NOT EXISTS idx_chemical_substances_hazard_class ON chemical_substances(hazard_class);",
             # Accident reports indexes
             "CREATE INDEX IF NOT EXISTS idx_accident_reports_worker_id ON accident_reports(worker_id);",
             "CREATE INDEX IF NOT EXISTS idx_accident_reports_accident_date ON accident_reports(accident_date);",
