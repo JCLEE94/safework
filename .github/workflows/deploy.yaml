@@ -172,17 +172,10 @@ jobs:
           
           # Add ArgoCD Image Updater annotations if not present
           if ! grep -q "argocdImageUpdater:" ./charts/safework/values.yaml; then
-            cat >> ./charts/safework/values.yaml << 'EOF'
-
-# ArgoCD Image Updater Configuration
-argocdImageUpdater:
-  enabled: true
-  annotations:
-    argocd-image-updater.argoproj.io/image-list: "safework=${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}"
-    argocd-image-updater.argoproj.io/safework.update-strategy: "latest"
-    argocd-image-updater.argoproj.io/safework.allow-tags: "regexp:^prod-[0-9]{8}-[a-f0-9]{7}$"
-    argocd-image-updater.argoproj.io/write-back-method: "git"
-EOF
+            echo "" >> ./charts/safework/values.yaml
+            echo "# ArgoCD Image Updater Configuration" >> ./charts/safework/values.yaml
+            echo "argocdImageUpdater:" >> ./charts/safework/values.yaml
+            echo "  enabled: true" >> ./charts/safework/values.yaml
           fi
       
       - name: Package and push Helm chart
@@ -210,7 +203,7 @@ EOF
           mkdir -p k8s/argocd
           
           # Create ArgoCD application manifest
-          cat > k8s/argocd/safework-application.yaml << EOF
+          cat > k8s/argocd/safework-application.yaml << 'ARGOCD_EOF'
           apiVersion: argoproj.io/v1alpha1
           kind: Application
           metadata:
@@ -245,7 +238,7 @@ EOF
               - CreateNamespace=true
               - PruneLast=true
             revisionHistoryLimit: 10
-          EOF
+          ARGOCD_EOF
       
       - name: Create deployment summary
         run: |
