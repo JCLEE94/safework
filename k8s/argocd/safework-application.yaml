@@ -24,11 +24,6 @@ spec:
           pullPolicy: Always
         imagePullSecrets:
           - name: harbor-registry
-        service:
-          type: NodePort
-          port: 3001
-          targetPort: 3001
-          nodePort: 32301
   destination:
     server: https://kubernetes.default.svc
     namespace: safework
