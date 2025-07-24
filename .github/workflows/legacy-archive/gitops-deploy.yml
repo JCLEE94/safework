@@ -1,0 +1,361 @@
+# SafeWork GitOps CI/CD Pipeline
+name: GitOps CI/CD Pipeline
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+env:
+  REGISTRY: ${{ vars.REGISTRY_URL || 'registry.jclee.me' }}
+  IMAGE_NAME: ${{ vars.APP_NAME || 'safework' }}
+  PYTHON_VERSION: '3.11'
+  NODE_VERSION: '18'
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test-backend:
+    name: Backend Tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    
+    services:
+      postgres:
+        image: postgres:15
+        env:
+          POSTGRES_USER: admin
+          POSTGRES_PASSWORD: password
+          POSTGRES_DB: health_management
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+      
+      redis:
+        image: redis:7
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+      
+      - name: Cache dependencies
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/pip
+          key: ${{ runner.os }}-pip-${{ hashFiles('**/requirements*.txt') }}
+          restore-keys: |
+            ${{ runner.os }}-pip-
+      
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install -r requirements-dev.txt
+      
+      - name: Run tests
+        env:
+          DATABASE_URL: postgresql://admin:password@localhost:5432/health_management
+          REDIS_URL: redis://localhost:6379/0
+          JWT_SECRET: test-secret-key
+          PYTHONPATH: ${{ github.workspace }}
+          ENVIRONMENT: development
+        run: |
+          pytest tests/ -v --cov=src --cov-report=html --cov-report=term --timeout=60 -x --maxfail=5
+      
+      - name: Upload coverage reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-report
+          path: htmlcov/
+
+  test-frontend:
+    name: Frontend Tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+          cache-dependency-path: frontend/package-lock.json
+      
+      - name: Install dependencies
+        working-directory: frontend
+        run: npm ci
+      
+      - name: Run lint
+        working-directory: frontend
+        run: npm run lint || true
+      
+      - name: Build frontend
+        working-directory: frontend
+        run: npm run build
+      
+      - name: Run tests
+        working-directory: frontend
+        run: npm test || true
+
+  build-and-push:
+    name: Build and Push Docker Image
+    needs: [test-backend, test-frontend]
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    
+    outputs:
+      image-tag: ${{ steps.meta.outputs.version }}
+      image-digest: ${{ steps.build.outputs.digest }}
+      chart-version: ${{ steps.version.outputs.chart }}
+    
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+      
+      - name: Log in to Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ secrets.REGISTRY_USERNAME }}
+          password: ${{ secrets.REGISTRY_PASSWORD }}
+      
+      - name: Generate versions
+        id: version
+        run: |
+          # Generate semantic version
+          CHART_VERSION="1.$(date +%Y%m%d).${{ github.run_number }}"
+          IMAGE_VERSION="prod-$(date +%Y%m%d)-$(echo ${GITHUB_SHA} | cut -c1-7)"
+          
+          echo "chart=${CHART_VERSION}" >> $GITHUB_OUTPUT
+          echo "image=${IMAGE_VERSION}" >> $GITHUB_OUTPUT
+      
+      - name: Generate metadata
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
+          tags: |
+            type=raw,value=latest
+            type=raw,value=${{ steps.version.outputs.image }}
+            type=sha,prefix=prod-,format=short
+          labels: |
+            org.opencontainers.image.title=SafeWork Pro
+            org.opencontainers.image.description=Construction Site Health Management System
+            org.opencontainers.image.vendor=SafeWork Pro Team
+            org.opencontainers.image.version=${{ steps.version.outputs.chart }}
+      
+      - name: Build and push Docker image
+        id: build
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: deployment/Dockerfile
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+          platforms: linux/amd64
+
+  update-helm-chart:
+    name: Update Helm Chart
+    needs: [build-and-push]
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Install Helm
+        uses: azure/setup-helm@v4
+        with:
+          version: 'latest'
+      
+      - name: Install helm-push plugin
+        run: |
+          helm plugin install https://github.com/chartmuseum/helm-push || true
+      
+      - name: Add Helm repo
+        run: |
+          helm repo add charts ${{ vars.CHARTMUSEUM_URL || 'https://charts.jclee.me' }} \
+            --username ${{ secrets.CHARTMUSEUM_USERNAME }} \
+            --password ${{ secrets.CHARTMUSEUM_PASSWORD }}
+          helm repo update
+      
+      - name: Update Chart version and annotations
+        run: |
+          # Update Chart version
+          sed -i "s/^version:.*/version: ${{ needs.build-and-push.outputs.chart-version }}/" ./charts/safework/Chart.yaml
+          sed -i "s/^appVersion:.*/appVersion: \"${{ needs.build-and-push.outputs.chart-version }}\"/" ./charts/safework/Chart.yaml
+          
+          # Add ArgoCD Image Updater annotations to values.yaml
+          cat > ./charts/safework/values-annotations.yaml << EOF
+          # ArgoCD Image Updater Configuration
+          argocdImageUpdater:
+            enabled: true
+            annotations:
+              argocd-image-updater.argoproj.io/image-list: "safework=${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}"
+              argocd-image-updater.argoproj.io/safework.update-strategy: "latest"
+              argocd-image-updater.argoproj.io/safework.allow-tags: "regexp:^prod-[0-9]{8}-[a-f0-9]{7}$"
+              argocd-image-updater.argoproj.io/write-back-method: "git"
+              argocd-image-updater.argoproj.io/git-branch: "main"
+              argocd-image-updater.argoproj.io/write-back-target: "kustomization"
+          EOF
+          
+          # Merge annotations into values.yaml if not already present
+          if ! grep -q "argocdImageUpdater:" ./charts/safework/values.yaml; then
+            echo "" >> ./charts/safework/values.yaml
+            cat ./charts/safework/values-annotations.yaml >> ./charts/safework/values.yaml
+          fi
+          
+          rm -f ./charts/safework/values-annotations.yaml
+      
+      - name: Package and push Helm chart
+        run: |
+          # Package chart
+          helm package ./charts/safework
+          
+          # Push to ChartMuseum
+          helm cm-push safework-${{ needs.build-and-push.outputs.chart-version }}.tgz charts
+          
+          # Clean up
+          rm -f safework-*.tgz
+
+  update-argocd-app:
+    name: Update ArgoCD Application
+    needs: [build-and-push, update-helm-chart]
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Update ArgoCD Application manifest
+        run: |
+          # Create updated ArgoCD application with Image Updater annotations
+          cat > k8s/argocd/safework-application.yaml << EOF
+          apiVersion: argoproj.io/v1alpha1
+          kind: Application
+          metadata:
+            name: ${{ env.IMAGE_NAME }}
+            namespace: argocd
+            annotations:
+              # ArgoCD Image Updater annotations
+              argocd-image-updater.argoproj.io/image-list: "safework=${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}"
+              argocd-image-updater.argoproj.io/safework.update-strategy: "latest"
+              argocd-image-updater.argoproj.io/safework.allow-tags: "regexp:^prod-[0-9]{8}-[a-f0-9]{7}$"
+              argocd-image-updater.argoproj.io/write-back-method: "git"
+              argocd-image-updater.argoproj.io/git-branch: "main"
+          spec:
+            project: default
+            source:
+              repoURL: ${{ vars.CHARTMUSEUM_URL || 'https://charts.jclee.me' }}
+              chart: ${{ env.IMAGE_NAME }}
+              targetRevision: "${{ needs.build-and-push.outputs.chart-version }}"
+              helm:
+                values: |
+                  image:
+                    repository: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
+                    tag: "${{ needs.build-and-push.outputs.image-tag }}"
+                    pullPolicy: Always
+            destination:
+              server: https://kubernetes.default.svc
+              namespace: ${{ vars.NAMESPACE || 'safework' }}
+            syncPolicy:
+              automated:
+                prune: true
+                selfHeal: true
+              syncOptions:
+              - CreateNamespace=true
+              - PruneLast=true
+            revisionHistoryLimit: 10
+          EOF
+          
+      - name: Commit ArgoCD updates
+        run: |
+          git config --local user.email "github-actions[bot]@users.noreply.github.com"
+          git config --local user.name "github-actions[bot]"
+          
+          if [[ -n $(git status -s k8s/argocd/) ]]; then
+            git add k8s/argocd/safework-application.yaml
+            git commit -m "ci: Update ArgoCD application for version ${{ needs.build-and-push.outputs.chart-version }}"
+            git push
+          fi
+
+  notify-deployment:
+    name: Deployment Summary
+    needs: [build-and-push, update-helm-chart, update-argocd-app]
+    runs-on: ubuntu-latest
+    if: always()
+    
+    steps:
+      - name: Create deployment summary
+        run: |
+          cat >> $GITHUB_STEP_SUMMARY << EOF
+          ## 🚀 SafeWork GitOps Deployment Summary
+          
+          ### 📦 Docker Image
+          - **Registry**: \`${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}\`
+          - **Tag**: \`${{ needs.build-and-push.outputs.image-tag }}\`
+          - **Latest Tag**: \`latest\`
+          
+          ### 📊 Helm Chart
+          - **Version**: \`${{ needs.build-and-push.outputs.chart-version }}\`
+          - **Repository**: ${{ vars.CHARTMUSEUM_URL || 'https://charts.jclee.me' }}
+          
+          ### 🔄 ArgoCD Configuration
+          - **Application**: ${{ env.IMAGE_NAME }}
+          - **Auto-Sync**: Enabled
+          - **Image Updater**: Configured (monitors for new prod-* tags)
+          - **Update Strategy**: Latest matching pattern
+          
+          ### 🔗 Links
+          - [ArgoCD Dashboard](${{ vars.ARGOCD_URL || 'https://argo.jclee.me' }}/applications/${{ env.IMAGE_NAME }})
+          - [Production](https://safework.jclee.me)
+          - [Harbor Registry](${{ env.REGISTRY }}/harbor/projects/1/repositories/${{ env.IMAGE_NAME }})
+          
+          ### 📝 Next Steps
+          1. ArgoCD Image Updater will automatically detect the new image
+          2. Monitor sync status in ArgoCD dashboard
+          3. Verify deployment at production URL
+          
+          ### 🔙 Rollback Instructions
+          If rollback is needed:
+          \`\`\`bash
+          # Via ArgoCD UI: Select previous image tag
+          # Via CLI:
+          argocd app set ${{ env.IMAGE_NAME }} --helm-set image.tag=<previous-tag>
+          argocd app sync ${{ env.IMAGE_NAME }}
+          \`\`\`
+          EOF
+          
+      - name: Check deployment status
+        if: success()
+        run: |
+          echo "✅ All deployment steps completed successfully!"
+          echo "🔄 ArgoCD will now handle the automatic deployment."

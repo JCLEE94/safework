@@ -1,0 +1,26 @@
+name: Simple CI/CD
+on:
+  push:
+    branches: [main]
+env:
+  REGISTRY: ${{ vars.REGISTRY_URL }}
+  IMAGE_NAME: ${{ vars.APP_NAME }}
+jobs:
+  deploy:
+    runs-on: self-hosted
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Docker Build & Push
+        run: |
+          docker login ${{ env.REGISTRY }} -u ${{ secrets.REGISTRY_USERNAME }} -p ${{ secrets.REGISTRY_PASSWORD }}
+          docker build -f deployment/Dockerfile -t ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest .
+          docker push ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest
+          
+      - name: Update Helm Chart
+        run: |
+          CHART_VERSION="1.0.${{ github.run_number }}"
+          sed -i "s/^version:.*/version: ${CHART_VERSION}/" ./charts/safework/Chart.yaml
+          helm package ./charts/safework
+          helm cm-push safework-${CHART_VERSION}.tgz charts
+          rm -f safework-${CHART_VERSION}.tgz

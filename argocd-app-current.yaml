@@ -1,0 +1,143 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  annotations:
+    kubectl.kubernetes.io/last-applied-configuration: |
+      {"apiVersion":"argoproj.io/v1alpha1","kind":"Application","metadata":{"annotations":{},"name":"safework","namespace":"argocd"},"spec":{"destination":{"namespace":"safework","server":"https://kubernetes.default.svc"},"project":"default","source":{"chart":"safework","repoURL":"https://charts.jclee.me","targetRevision":"*"},"syncPolicy":{"automated":{"prune":true,"selfHeal":true},"syncOptions":["CreateNamespace=true"]}}}
+  creationTimestamp: "2025-07-24T14:09:37Z"
+  generation: 89
+  name: safework
+  namespace: argocd
+  resourceVersion: "1483548"
+  uid: ab15ac97-e982-4741-9816-7b90cddfb64f
+spec:
+  destination:
+    namespace: safework
+    server: https://kubernetes.default.svc
+  project: default
+  source:
+    chart: safework
+    repoURL: https://charts.jclee.me
+    targetRevision: '*'
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+    - CreateNamespace=true
+status:
+  controllerNamespace: argocd
+  health:
+    lastTransitionTime: "2025-07-24T14:59:08Z"
+    status: Healthy
+  history:
+  - deployStartedAt: "2025-07-24T14:10:16Z"
+    deployedAt: "2025-07-24T14:10:16Z"
+    id: 0
+    initiatedBy:
+      automated: true
+    revision: 1.0.6
+    source:
+      chart: safework
+      repoURL: https://charts.jclee.me
+      targetRevision: '*'
+  - deployStartedAt: "2025-07-24T14:12:25Z"
+    deployedAt: "2025-07-24T14:12:25Z"
+    id: 1
+    initiatedBy:
+      automated: true
+    revision: 1.0.7
+    source:
+      chart: safework
+      repoURL: https://charts.jclee.me
+      targetRevision: '*'
+  - deployStartedAt: "2025-07-24T14:18:28Z"
+    deployedAt: "2025-07-24T14:18:29Z"
+    id: 2
+    initiatedBy:
+      automated: true
+    revision: 1.0.8
+    source:
+      chart: safework
+      repoURL: https://charts.jclee.me
+      targetRevision: '*'
+  - deployStartedAt: "2025-07-24T14:20:45Z"
+    deployedAt: "2025-07-24T14:20:45Z"
+    id: 3
+    initiatedBy:
+      automated: true
+    revision: 1.0.9
+    source:
+      chart: safework
+      repoURL: https://charts.jclee.me
+      targetRevision: '*'
+  operationState:
+    finishedAt: "2025-07-24T14:59:14Z"
+    message: successfully synced (all tasks run)
+    operation:
+      initiatedBy:
+        automated: true
+      retry:
+        limit: 5
+      sync:
+        autoHealAttemptsCount: 3
+        prune: true
+        resources:
+        - kind: Service
+          name: safework
+        revision: 1.0.9
+        syncOptions:
+        - CreateNamespace=true
+    phase: Succeeded
+    startedAt: "2025-07-24T14:59:14Z"
+    syncResult:
+      resources:
+      - group: ""
+        hookPhase: Running
+        kind: Service
+        message: service/safework configured
+        name: safework
+        namespace: safework
+        status: Synced
+        syncPhase: Sync
+        version: v1
+      revision: 1.0.9
+      source:
+        chart: safework
+        repoURL: https://charts.jclee.me
+        targetRevision: '*'
+  reconciledAt: "2025-07-24T15:13:53Z"
+  resourceHealthSource: appTree
+  resources:
+  - kind: Secret
+    name: harbor-registry
+    namespace: safework
+    status: Synced
+    version: v1
+  - kind: Service
+    name: safework
+    namespace: safework
+    status: Synced
+    version: v1
+  - group: apps
+    kind: Deployment
+    name: safework
+    namespace: safework
+    status: Synced
+    version: v1
+  sourceHydrator: {}
+  sourceType: Helm
+  summary:
+    images:
+    - registry.jclee.me/safework:latest
+  sync:
+    comparedTo:
+      destination:
+        namespace: safework
+        server: https://kubernetes.default.svc
+      source:
+        chart: safework
+        repoURL: https://charts.jclee.me
+        targetRevision: '*'
+    revision: 1.0.9
+    status: Synced
