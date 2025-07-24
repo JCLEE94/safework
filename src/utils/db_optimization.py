@@ -41,7 +41,7 @@ class DatabaseOptimizer:
             "CREATE INDEX IF NOT EXISTS idx_work_environments_measurement_type ON work_environments(measurement_type);",
             "CREATE INDEX IF NOT EXISTS idx_work_environments_result ON work_environments(result);",
             # Health education indexes
-            "CREATE INDEX IF NOT EXISTS idx_health_education_education_date ON health_education(education_date);",
+            "CREATE INDEX IF NOT EXISTS idx_health_educations_education_date ON health_educations(education_date);",
             "CREATE INDEX IF NOT EXISTS idx_health_education_attendances_status ON health_education_attendances(status);",
             # Chemical substances indexes
             "CREATE INDEX IF NOT EXISTS idx_chemical_substances_name ON chemical_substances(name);",
