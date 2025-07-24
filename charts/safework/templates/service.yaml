@@ -1,18 +1,17 @@
 apiVersion: v1
 kind: Service
 metadata:
-  name: {{ include "safework.fullname" . }}
+  name: {{ .Chart.Name }}
+  namespace: {{ .Release.Namespace }}
   labels:
-    {{- include "safework.labels" . | nindent 4 }}
+    app: {{ .Chart.Name }}
 spec:
   type: {{ .Values.service.type }}
+  selector:
+    app: {{ .Chart.Name }}
   ports:
   - port: {{ .Values.service.port }}
     targetPort: http
+    nodePort: {{ .Values.service.nodePort }}
     protocol: TCP
     name: http
-    {{- if and (eq .Values.service.type "NodePort") .Values.service.nodePort }}
-    nodePort: {{ .Values.service.nodePort }}
-    {{- end }}
-  selector:
-    {{- include "safework.selectorLabels" . | nindent 4 }}

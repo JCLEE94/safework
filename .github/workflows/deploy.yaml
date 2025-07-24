@@ -1,0 +1,98 @@
+name: CI/CD Pipeline
+on:
+  push:
+    branches: [main, master]
+    tags: ['v*']
+env:
+  REGISTRY: ${{ vars.REGISTRY_URL }}
+  IMAGE_NAME: ${{ vars.APP_NAME }}
+jobs:
+  build-and-deploy:
+    runs-on: self-hosted
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+        
+      - name: Login to Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ secrets.REGISTRY_USERNAME }}
+          password: ${{ secrets.REGISTRY_PASSWORD }}
+          
+      - name: Extract metadata
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.REGISTRY }}/JCLEE94/${{ env.IMAGE_NAME }}
+          tags: |
+            type=ref,event=branch
+            type=semver,pattern={{version}}
+            type=sha,prefix={{branch}}-,enable={{is_default_branch}}
+            
+      - name: Build and push Docker image
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=registry,ref=${{ env.REGISTRY }}/JCLEE94/${{ env.IMAGE_NAME }}:buildcache
+          cache-to: type=registry,ref=${{ env.REGISTRY }}/JCLEE94/${{ env.IMAGE_NAME }}:buildcache,mode=max
+          
+      - name: Install Helm
+        uses: azure/setup-helm@v3
+        with:
+          version: 'v3.14.0'
+          
+      - name: Package and deploy Helm chart
+        run: |
+          set -e
+          
+          COMMIT_SHA="${{ github.sha }}"
+          BRANCH_NAME="${{ github.ref_name }}"
+          CHART_VERSION="1.0.0-${COMMIT_SHA}"
+          
+          # 첫 번째 태그 추출
+          IMAGE_TAG=$(echo "${{ steps.meta.outputs.tags }}" | head -n1 | cut -d: -f2)
+          
+          echo "Chart Version: ${CHART_VERSION}"
+          echo "Image Tag: ${IMAGE_TAG}"
+          
+          # Chart 버전과 이미지 태그 업데이트
+          sed -i "s/^version:.*/version: ${CHART_VERSION}/" ./charts/${{ vars.APP_NAME }}/Chart.yaml
+          sed -i "s/^appVersion:.*/appVersion: \"${CHART_VERSION}\"/" ./charts/${{ vars.APP_NAME }}/Chart.yaml
+          sed -i "s/tag:.*/tag: \"${IMAGE_TAG}\"/" ./charts/${{ vars.APP_NAME }}/values.yaml
+          
+          # Helm 차트 패키징
+          helm package ./charts/${{ vars.APP_NAME }} --destination ./
+          
+          # ChartMuseum에 업로드
+          CHART_FILE="${{ vars.APP_NAME }}-${CHART_VERSION}.tgz"
+          
+          echo "Uploading ${CHART_FILE} to ChartMuseum..."
+          
+          HTTP_CODE=$(curl -w "%{http_code}" -s -o /tmp/upload_response.txt \
+            -u ${{ secrets.CHARTMUSEUM_USERNAME }}:${{ secrets.CHARTMUSEUM_PASSWORD }} \
+            --data-binary "@${CHART_FILE}" \
+            ${{ vars.CHARTMUSEUM_URL }}/api/charts)
+          
+          echo "HTTP Response Code: ${HTTP_CODE}"
+          echo "Response Body:"
+          cat /tmp/upload_response.txt
+          
+          if [ "${HTTP_CODE}" = "201" ] || [ "${HTTP_CODE}" = "409" ]; then
+            echo "✅ Chart 업로드 성공: ${CHART_VERSION}"
+          else
+            echo "❌ Chart 업로드 실패 (HTTP ${HTTP_CODE})"
+            exit 1
+          fi
+          
+          # 업로드된 차트 확인
+          echo "Verifying chart upload..."
+          curl -s -u ${{ secrets.CHARTMUSEUM_USERNAME }}:${{ secrets.CHARTMUSEUM_PASSWORD }} \
+            ${{ vars.CHARTMUSEUM_URL }}/api/charts/${{ vars.APP_NAME }} | \
+            grep -q "${CHART_VERSION}" && echo "✅ Chart 검증 완료" || echo "⚠ Chart 검증 실패"

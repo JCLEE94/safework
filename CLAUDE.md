@@ -252,6 +252,9 @@ ENVIRONMENT: development  # For test runs
 | Authentication errors | Set `ENVIRONMENT=development` for bypassed auth in dev |
 | API endpoint 404s | Check router prefix in handlers and app.py registration |
 | ArgoCD not updating | Check Image Updater logs and annotations |
+| PyMuPDF import errors | Ensure PyMuPDF is installed: `pip install PyMuPDF` |
+| Document editing fails | Check file permissions in `document/` directory |
+| Mobile registration issues | Test `/register` route accessibility without auth |
 
 ### Production Debugging
 ```bash
@@ -280,7 +283,9 @@ docker restart safework
 - `/api/v1/educations/` - Health education tracking
 - `/api/v1/chemical-substances/` - MSDS and chemical management
 - `/api/v1/accidents/` - Accident reporting
-- `/api/v1/documents/fill-pdf/{form_name}` - PDF generation
+- `/api/v1/documents/` - Legacy document management (PDF generation)
+- `/api/v1/integrated-documents/` - New integrated document system (PDF/Excel/Word editing)
+- `/api/v1/simple-registration/` - Simple worker registration (mobile-friendly)
 - `/api/v1/monitoring/ws` - WebSocket real-time monitoring
 - `/api/v1/pipeline/status/{commit}` - CI/CD pipeline status
 
@@ -470,9 +475,45 @@ ENVIRONMENT=development docker-compose up
 docker-compose up -d  # Uses default production config
 
 # Testing (CI/CD) - Uses defaults with service container ports
-DATABASE_URL=postgresql://admin:password@localhost:25432/health_management
-REDIS_URL=redis://localhost:26379/0
+DATABASE_URL=postgresql://admin:password@localhost:5432/health_management
+REDIS_URL=redis://localhost:6379/0
 ```
+
+### Document Management Systems
+The project has two document management approaches:
+
+1. **Legacy Documents** (`/api/v1/documents/`) - PDF form filling and template-based generation
+2. **Integrated Documents** (`/api/v1/integrated-documents/`) - Advanced PDF/Excel/Word editing with PyMuPDF
+
+```python
+# Integrated document editing pattern
+from src.handlers.integrated_documents import router
+
+# PDF editing with text insertion
+pdf_data = {
+    "text_inserts": [{
+        "text": "Sample text",
+        "x": 100, "y": 100,
+        "font_size": 12,
+        "color": "black"
+    }]
+}
+
+# Excel editing with cell data
+excel_data = {
+    "cell_data": {
+        "A1": "Value",
+        "B1": "Another value"
+    }
+}
+```
+
+### Simple Worker Registration
+Mobile-friendly worker registration system without QR codes:
+- **URL**: `/register` (public access, no authentication)
+- **API**: `/api/v1/simple-registration/worker`
+- **Features**: Employee ID duplicate checking, mobile-optimized UI
+- **Usage**: Direct phone registration instead of complex QR token system
 
 ## Recent Best Practices & Lessons Learned
 
@@ -499,7 +540,22 @@ REDIS_URL=redis://localhost:26379/0
    - Consolidated Docker Compose configurations
    - Created comprehensive documentation structure
 
-### Project Organization (2025-01-10)
+### Recent Features Added (2025-07-24)
+1. **Integrated Document Management System**
+   - PyMuPDF integration for advanced PDF editing
+   - Excel/Word document manipulation with openpyxl
+   - Document categories: 10 predefined categories (업무매뉴얼, 법정서식, etc.)
+   - API prefix: `/api/v1/integrated-documents/` (separated from legacy system)
+
+2. **Simple Worker Registration System**
+   - Mobile-first design for direct worker registration
+   - Eliminated complex QR code token generation process
+   - Real-time employee ID duplicate checking
+   - Public access route: `/register` (no authentication required)
+   - Backend: `src/handlers/simple_worker_registration.py`
+   - Frontend: `frontend/src/components/SimpleWorkerRegistration.tsx`
+
+### Project Organization (2025-07-24)
 ```
 safework/
 ├── src/                    # Backend source code
@@ -520,8 +576,8 @@ safework/
 ```
 
 ---
-**Version**: 3.5.0  
+**Version**: 3.6.0  
 **Updated**: 2025-07-24  
 **Maintainer**: SafeWork Pro Development Team  
 **CI/CD Status**: ✅ Active (GitHub-hosted runners + ArgoCD Image Updater)  
-**Recent Changes**: Registry migration, ArgoCD Image Updater, project cleanup, CI/CD optimization
+**Recent Changes**: Integrated document management system, simple worker registration, PyMuPDF integration

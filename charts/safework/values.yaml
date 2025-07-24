@@ -1,9 +1,9 @@
-replicaCount: 1
+replicaCount: 2
 
 image:
-  repository: registry.jclee.me/safework
+  repository: registry.jclee.me/JCLEE94/safework
   pullPolicy: Always
-  tag: "latest"  # 기본값, ArgoCD Image Updater가 자동으로 업데이트
+  tag: "latest"
 
 imagePullSecrets:
   - name: harbor-registry
@@ -13,8 +13,9 @@ fullnameOverride: ""
 
 service:
   type: NodePort
-  port: 8000
-  nodePort: 32301
+  port: 80
+  targetPort: 8000
+  nodePort: 30080
 
 ingress:
   enabled: true
@@ -33,36 +34,26 @@ ingress:
 
 resources:
   limits:
-    cpu: 1000m
-    memory: 1024Mi
-  requests:
-    cpu: 200m
+    cpu: 500m
     memory: 512Mi
+  requests:
+    cpu: 100m
+    memory: 128Mi
 
 env:
-  - name: ENVIRONMENT
-    value: "production"
-  - name: HOST
-    value: "0.0.0.0"
-  - name: PORT
-    value: "8000"
-  - name: DATABASE_URL
-    value: "postgresql://admin:safework123@postgres-service:5432/health_management"
-  - name: REDIS_URL
-    value: "redis://redis-service:6379/0"
-  - name: REDIS_HOST
-    value: "redis-service"
-  - name: REDIS_PORT
-    value: "6379"
-  - name: JWT_SECRET
-    valueFrom:
-      secretKeyRef:
-        name: safework-secrets
-        key: jwt-secret
-  - name: LOG_LEVEL
-    value: "INFO"
-  - name: TZ
-    value: "Asia/Seoul"
+  NODE_ENV: production
+  PORT: "8000"
+  HOST: "0.0.0.0"
+  DATABASE_URL: "postgresql://admin:safework123@postgres-service:5432/health_management"
+  REDIS_URL: "redis://redis-service:6379/0"
+  REDIS_HOST: "redis-service"
+  REDIS_PORT: "6379"
+  LOG_LEVEL: "INFO"
+  TZ: "Asia/Seoul"
+  ENVIRONMENT: "production"
+
+secrets:
+  JWT_SECRET: "safework-jwt-secret-key-production"
 
 autoscaling:
   enabled: false
@@ -131,18 +122,8 @@ limitRange:
 
 probes:
   liveness:
-    httpGet:
-      path: /health
-      port: 8000
-    initialDelaySeconds: 120
-    periodSeconds: 30
-    timeoutSeconds: 10
-    failureThreshold: 3
+    path: /health
+    port: 8000
   readiness:
-    httpGet:
-      path: /health
-      port: 8000
-    initialDelaySeconds: 30
-    periodSeconds: 10
-    timeoutSeconds: 5
-    failureThreshold: 3
+    path: /health
+    port: 8000
