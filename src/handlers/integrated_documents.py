@@ -32,7 +32,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from ..config.database import get_db
 from ..config.settings import get_settings
 from ..services.cache import CacheService, get_cache_service
-from ..utils.auth import get_current_user
+from ..utils.auth_deps import get_current_user
 
 # Initialize
 router = APIRouter(prefix="/api/v1/integrated-documents", tags=["통합문서관리"])
