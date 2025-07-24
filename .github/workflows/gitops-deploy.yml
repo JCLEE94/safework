@@ -116,8 +116,8 @@ jobs:
           sed -i "s/^version:.*/version: ${{ needs.build.outputs.version }}/" ./charts/${{ vars.APP_NAME }}/Chart.yaml
           sed -i "s/^appVersion:.*/appVersion: \"${{ needs.build.outputs.version }}\"/" ./charts/${{ vars.APP_NAME }}/Chart.yaml
           
-          # Update values.yaml with new image tag
-          sed -i "s/tag:.*/tag: \"${{ needs.build.outputs.image-tag }}\"/" ./charts/${{ vars.APP_NAME }}/values.yaml
+          # Keep values.yaml tag as "latest" - ArgoCD Image Updater will handle image tag updates
+          echo "ℹ️ Keeping values.yaml tag as 'latest' for ArgoCD Image Updater compatibility"
           
       - name: Package Helm Chart
         run: |
