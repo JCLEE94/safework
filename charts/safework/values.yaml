@@ -23,8 +23,8 @@ resources:
     memory: 128Mi
 
 env:
-  DATABASE_URL: "postgresql://admin:password@postgres:5432/health_management"
-  REDIS_HOST: "redis"
+  DATABASE_URL: "postgresql://admin:password@localhost:5432/health_management"
+  REDIS_HOST: "localhost"
   REDIS_PORT: "6379"
   JWT_SECRET: "prod-jwt-secret-key"
   ENVIRONMENT: "production"
