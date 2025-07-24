@@ -6,13 +6,9 @@ metadata:
 spec:
   project: default
   source:
-    repoURL: https://github.com/JCLEE94/safework
-    path: charts/safework
-    targetRevision: HEAD
-    helm:
-      values: |
-        service:
-          targetPort: 8000
+    repoURL: https://charts.jclee.me
+    chart: safework
+    targetRevision: "*"
   destination:
     server: https://kubernetes.default.svc
     namespace: safework
