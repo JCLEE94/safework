@@ -107,9 +107,8 @@ async def get_workers(
         return WorkerListResponse(
             items=[WorkerResponse.model_validate(worker, from_attributes=True) for worker in workers],
             total=total,
-            page=skip // limit + 1,
-            size=limit,
-            pages=(total + limit - 1) // limit,
+            skip=skip,
+            limit=limit,
         )
 
     except Exception as e:
