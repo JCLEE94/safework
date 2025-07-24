@@ -47,9 +47,9 @@ env:
   - name: PORT
     value: "8000"
   - name: DATABASE_URL
-    value: "postgresql://admin:safework123@postgres:5432/health_management"
+    value: "postgresql://admin:safework123@postgres-service:5432/health_management"
   - name: REDIS_URL
-    value: "redis://redis:6379/0"
+    value: "redis://redis-service:6379/0"
   - name: JWT_SECRET
     valueFrom:
       secretKeyRef:
@@ -72,7 +72,7 @@ affinity: {}
 
 # PostgreSQL 설정 (내장)
 postgresql:
-  enabled: false  # SafeWork는 all-in-one 컨테이너 사용
+  enabled: false  # 수동으로 생성된 서비스 사용
   name: safework-postgres
   image:
     repository: postgres
@@ -93,7 +93,7 @@ postgresql:
   
 # Redis 설정 (내장)
 redis:
-  enabled: false  # SafeWork는 all-in-one 컨테이너 사용
+  enabled: false  # 수동으로 생성된 서비스 사용
   name: safework-redis
   image:
     repository: redis
