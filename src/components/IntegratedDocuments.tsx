@@ -63,7 +63,7 @@ const IntegratedDocuments: React.FC = () => {
 
   const fetchCategories = async () => {
     try {
-      const response = await fetch(apiUrl('/documents/categories'));
+      const response = await fetch('/api/v1/documents/categories');
       if (!response.ok) throw new Error('카테고리를 불러오는데 실패했습니다');
       
       const data = await response.json();
@@ -75,7 +75,7 @@ const IntegratedDocuments: React.FC = () => {
 
   const fetchStats = async () => {
     try {
-      const response = await fetch(apiUrl('/documents/stats'));
+      const response = await fetch('/api/v1/documents/stats');
       if (!response.ok) throw new Error('통계를 불러오는데 실패했습니다');
       
       const data = await response.json();
@@ -96,7 +96,7 @@ const IntegratedDocuments: React.FC = () => {
       formData.append('file', uploadFile);
       formData.append('category', uploadCategory);
 
-      const response = await fetch(apiUrl('/documents/upload'), {
+      const response = await fetch('/api/v1/documents/upload', {
         method: 'POST',
         body: formData,
       });
@@ -114,7 +114,7 @@ const IntegratedDocuments: React.FC = () => {
 
   const handleDownload = async (doc: DocumentInfo) => {
     try {
-      const response = await fetch(apiUrl(`/documents/download/${doc.category}/${doc.path}`));
+      const response = await fetch(`/api/v1/documents/download/${doc.category}/${encodeURIComponent(doc.name)}`);
       if (!response.ok) throw new Error('다운로드에 실패했습니다');
 
       const blob = await response.blob();
@@ -144,7 +144,7 @@ const IntegratedDocuments: React.FC = () => {
         data: editData
       };
 
-      const response = await fetch(apiUrl('/documents/edit'), {
+      const response = await fetch('/api/v1/documents/edit', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -175,7 +175,7 @@ const IntegratedDocuments: React.FC = () => {
     if (!confirm(`"${doc.name}" 파일을 삭제하시겠습니까?`)) return;
 
     try {
-      const response = await fetch(apiUrl(`/documents/${doc.category}/${doc.path}`), {
+      const response = await fetch(`/api/v1/documents/${doc.category}/${encodeURIComponent(doc.name)}`, {
         method: 'DELETE',
       });
 
