@@ -67,7 +67,7 @@ affinity: {}
 
 # PostgreSQL 설정 (내장)
 postgresql:
-  enabled: false  # 수동으로 생성된 서비스 사용
+  enabled: true  # PostgreSQL 템플릿 활성화
   name: safework-postgres
   image:
     repository: postgres
@@ -88,7 +88,7 @@ postgresql:
   
 # Redis 설정 (내장)
 redis:
-  enabled: false  # 수동으로 생성된 서비스 사용
+  enabled: true  # Redis 템플릿 활성화
   name: safework-redis
   image:
     repository: redis
