@@ -2,8 +2,8 @@ apiVersion: v2
 name: safework
 description: SafeWork Pro - 건설업 보건관리 시스템
 type: application
-version: 1.0.3  # 최신 버전 - Redis/Postgres 템플릿 제거, 환경변수 수정
-appVersion: "prod-20250724"  # 최신 버전
+version: 1.0.5
+appVersion: "latest"
 keywords:
   - safework
   - health-management

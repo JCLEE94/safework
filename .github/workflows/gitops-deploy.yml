@@ -19,7 +19,7 @@ concurrency:
 jobs:
   validate:
     name: Validate
-    runs-on: ubuntu-latest
+    runs-on: self-hosted
     timeout-minutes: 5
     steps:
       - name: Checkout code
@@ -32,7 +32,7 @@ jobs:
 
   build:
     name: Build and Push
-    runs-on: ubuntu-latest
+    runs-on: self-hosted
     needs: validate
     if: github.event_name != 'pull_request'
     timeout-minutes: 20
@@ -94,7 +94,7 @@ jobs:
 
   deploy-helm:
     name: Deploy Helm Chart
-    runs-on: ubuntu-latest
+    runs-on: self-hosted
     needs: build
     if: github.event_name != 'pull_request'
     timeout-minutes: 10
@@ -147,7 +147,7 @@ jobs:
 
   deploy-status:
     name: Deployment Status
-    runs-on: ubuntu-latest
+    runs-on: self-hosted
     needs: [build, deploy-helm]
     if: always()
     timeout-minutes: 5
