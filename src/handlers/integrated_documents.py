@@ -32,7 +32,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from ..config.database import get_db
 from ..config.settings import get_settings
 from ..services.cache import CacheService, get_cache_service
-from ..utils.auth_deps import get_current_user
+from ..utils.auth_deps import get_current_user_id
 
 # Initialize
 router = APIRouter(prefix="/api/v1/integrated-documents", tags=["통합문서관리"])
@@ -349,7 +349,7 @@ async def download_document(category: str, path: str):
 
 @router.post("/edit")
 async def edit_document(
-    edit_request: DocumentEditRequest, current_user=Depends(get_current_user)
+    edit_request: DocumentEditRequest, current_user_id=Depends(get_current_user_id)
 ):
     """문서 편집 (PDF/Excel)"""
     try:
@@ -403,7 +403,7 @@ async def edit_document(
 async def upload_document(
     file: UploadFile = File(...),
     category: str = Form(...),
-    current_user=Depends(get_current_user),
+    current_user_id=Depends(get_current_user_id),
 ):
     """새 문서 업로드"""
     if category not in DOCUMENT_CATEGORIES:
@@ -434,7 +434,7 @@ async def upload_document(
 
 @router.delete("/{category}/{path:path}")
 async def delete_document(
-    category: str, path: str, current_user=Depends(get_current_user)
+    category: str, path: str, current_user_id=Depends(get_current_user_id)
 ):
     """문서 삭제 (업로드된 파일만)"""
     if category not in DOCUMENT_CATEGORIES:
@@ -470,7 +470,7 @@ async def get_document_templates():
 
 @router.post("/templates")
 async def create_document_template(
-    template: DocumentTemplate, current_user=Depends(get_current_user)
+    template: DocumentTemplate, current_user_id=Depends(get_current_user_id)
 ):
     """새 문서 템플릿 생성"""
     template_file = TEMPLATE_DIR / f"{template.name}.json"
