@@ -5,8 +5,7 @@ image:
   pullPolicy: Always
   tag: "latest"
 
-imagePullSecrets:
-  - name: harbor-registry
+imagePullSecrets: []
 
 service:
   type: NodePort

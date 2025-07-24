@@ -2,7 +2,7 @@ apiVersion: v2
 name: safework
 description: SafeWork Pro - 건설업 보건관리 시스템
 type: application
-version: 1.0.5
+version: 1.0.6
 appVersion: "latest"
 keywords:
   - safework
