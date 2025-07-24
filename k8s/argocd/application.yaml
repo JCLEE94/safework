@@ -1,18 +1,18 @@
 apiVersion: argoproj.io/v1alpha1
 kind: Application
 metadata:
-  name: smartwork
+  name: safework
   namespace: argocd
   labels:
-    app: smartwork
+    app: safework
     environment: production
   annotations:
     argocd.argoproj.io/sync-wave: "1"
     # ArgoCD Image Updater - 자동 이미지 업데이트
-    argocd-image-updater.argoproj.io/image-list: smartwork=registry.jclee.me/safework
-    argocd-image-updater.argoproj.io/smartwork.update-strategy: latest
-    argocd-image-updater.argoproj.io/smartwork.helm.image-name: image.repository
-    argocd-image-updater.argoproj.io/smartwork.helm.image-tag: image.tag
+    argocd-image-updater.argoproj.io/image-list: safework=registry.jclee.me/safework
+    argocd-image-updater.argoproj.io/safework.update-strategy: latest
+    argocd-image-updater.argoproj.io/safework.helm.image-name: image.repository
+    argocd-image-updater.argoproj.io/safework.helm.image-tag: image.tag
     argocd-image-updater.argoproj.io/write-back-method: argocd
   finalizers:
     - resources-finalizer.argocd.argoproj.io
@@ -20,7 +20,7 @@ spec:
   project: default
   source:
     repoURL: https://charts.jclee.me
-    chart: smartwork
+    chart: safework
     targetRevision: "*"
     helm:
       values: |
@@ -30,7 +30,7 @@ spec:
           - name: regcred
   destination:
     server: https://kubernetes.default.svc
-    namespace: smartwork
+    namespace: safework
   syncPolicy:
     automated:
       prune: true
