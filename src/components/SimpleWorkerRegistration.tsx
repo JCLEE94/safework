@@ -5,8 +5,8 @@
  * QR 코드나 복잡한 토큰 시스템 없이 바로 등록 가능합니다.
  */
 
-import React, { useState } from 'react';
-import { CheckCircle, AlertCircle, User, Phone, Building } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { CheckCircle, AlertCircle, User, Phone, Building, QrCode } from 'lucide-react';
 
 interface WorkerRegistrationData {
   name: string;
@@ -44,6 +44,24 @@ const SimpleWorkerRegistration: React.FC = () => {
   const [error, setError] = useState<string>('');
   const [checkingEmployee, setCheckingEmployee] = useState(false);
   const [employeeExists, setEmployeeExists] = useState<boolean | null>(null);
+  const [qrCodeImage, setQrCodeImage] = useState<string>('');
+
+  // QR 코드 이미지 로드
+  useEffect(() => {
+    const loadQRCode = async () => {
+      try {
+        const response = await fetch('/api/v1/common-qr/generate?size=200');
+        if (response.ok) {
+          const blob = await response.blob();
+          const url = URL.createObjectURL(blob);
+          setQrCodeImage(url);
+        }
+      } catch (err) {
+        console.error('QR 코드 로드 실패:', err);
+      }
+    };
+    loadQRCode();
+  }, []);
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
     const { name, value } = e.target;
@@ -181,6 +199,18 @@ const SimpleWorkerRegistration: React.FC = () => {
             <User className="h-12 w-12 text-blue-600 mx-auto mb-2" />
             <h1 className="text-2xl font-bold text-gray-900">근로자 등록</h1>
             <p className="text-gray-600">휴대폰으로 간단하게 등록하세요</p>
+            
+            {/* QR 코드 이미지 표시 */}
+            {qrCodeImage && (
+              <div className="mt-6 inline-block p-4 bg-gray-50 rounded-lg border border-gray-200">
+                <img 
+                  src={qrCodeImage} 
+                  alt="근로자 등록 QR 코드" 
+                  className="w-48 h-48 mx-auto"
+                />
+                <p className="text-sm text-gray-500 mt-2">이 QR코드로 접속 가능합니다</p>
+              </div>
+            )}
           </div>
 
           {error && (
