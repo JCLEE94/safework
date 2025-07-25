@@ -9,7 +9,7 @@ from typing import Optional
 from fastapi import (APIRouter, Depends, HTTPException, Request, Response,
                      status)
 from fastapi.security import OAuth2PasswordRequestForm
-from pydantic import BaseModel, EmailStr, Field
+from pydantic import BaseModel, Field
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from ..config.database import get_db
@@ -24,7 +24,7 @@ router = APIRouter(prefix="/api/v1/auth", tags=["인증"])
 class UserRegister(BaseModel):
     """사용자 등록 모델"""
 
-    email: EmailStr = Field(..., description="이메일 주소")
+    email: str = Field(..., description="이메일 주소 또는 사용자명")
     password: str = Field(..., min_length=8, description="비밀번호")
     name: str = Field(..., description="사용자 이름")
     department: Optional[str] = Field(None, description="부서")
@@ -34,7 +34,7 @@ class UserRegister(BaseModel):
 class UserLogin(BaseModel):
     """사용자 로그인 모델"""
 
-    email: EmailStr = Field(..., description="이메일 주소")
+    email: str = Field(..., description="이메일 주소 또는 사용자명")
     password: str = Field(..., description="비밀번호")
 
 
@@ -57,7 +57,7 @@ class PasswordChange(BaseModel):
 class PasswordReset(BaseModel):
     """비밀번호 재설정 모델"""
 
-    email: EmailStr = Field(..., description="이메일 주소")
+    email: str = Field(..., description="이메일 주소 또는 사용자명")
 
 
 # Initialize utilities
