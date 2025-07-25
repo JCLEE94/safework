@@ -25,6 +25,8 @@ import ConfinedSpace from './components/ConfinedSpace';
 import { QRRegistrationPage } from './pages/QRRegistrationPage';
 import { PublicQRRegistration } from './pages/PublicQRRegistration';
 import SimpleRegistration from './pages/SimpleRegistration';
+import { CommonQRRegistration } from './components/CommonQRRegistration';
+import { CommonQRGenerator } from './components/CommonQRGenerator';
 import { authService } from './services/authService';
 
 function MainApp() {
@@ -98,6 +100,8 @@ function MainApp() {
         return <AdvancedMonitoring />;
       case 'qr-registration':
         return <QRRegistration />;
+      case 'common-qr':
+        return <CommonQRGenerator />;
       case 'confined-space':
         return <ConfinedSpace />;
       case 'cardiovascular':
@@ -156,6 +160,7 @@ function App() {
         <Route path="/qr-register" element={<PublicQRRegistration />} />
         <Route path="/qr-register/:token" element={<QRRegistrationPage />} />
         <Route path="/register" element={<SimpleRegistration />} />
+        <Route path="/register-qr" element={<CommonQRRegistration />} />
         <Route path="/*" element={<MainApp />} />
       </Routes>
     </Router>

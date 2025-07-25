@@ -240,6 +240,7 @@ def create_app() -> FastAPI:
 
     from .handlers.integrated_documents import router as integrated_documents_router
     from .handlers.simple_worker_registration import router as simple_registration_router
+    from .handlers.common_qr_registration import router as common_qr_router
 
     app.include_router(workers_router, prefix="/api/v1/workers", tags=["근로자관리"])
     app.include_router(qr_registration_router, tags=["QR코드등록"])
@@ -278,6 +279,7 @@ def create_app() -> FastAPI:
     app.include_router(worker_feedback_router, tags=["근로자피드백"])
     app.include_router(integrated_documents_router, tags=["통합문서관리"])
     app.include_router(simple_registration_router, tags=["간단등록"])
+    app.include_router(common_qr_router, tags=["공통QR등록"])
 
     # 정적 파일 서빙 (React 빌드된 파일들) - Mount after all API routes
     try:
@@ -295,6 +297,11 @@ def create_app() -> FastAPI:
             @app.get("/qr-register")
             async def serve_qr_register():
                 """QR 등록 페이지를 위한 특별 라우트"""
+                return FileResponse(os.path.join(static_dir, "index.html"))
+            
+            @app.get("/register-qr")
+            async def serve_common_qr_register():
+                """공통 QR 등록 페이지를 위한 특별 라우트"""
                 return FileResponse(os.path.join(static_dir, "index.html"))
             
             # 업로드 디렉토리 생성 및 마운트
