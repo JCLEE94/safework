@@ -34,7 +34,7 @@ export const MENU_ITEMS = [
   { id: 'integrated-documents', name: '통합문서관리', icon: 'FolderOpen', color: 'text-teal-600' },
   { id: 'reports', name: '종합보고서', icon: 'BarChart3', color: 'text-indigo-600' },
   { id: 'monitoring', name: '실시간모니터링', icon: 'MonitorDot', color: 'text-pink-600' },
-  { id: 'qr-registration', name: 'QR코드 등록', icon: 'QrCode', color: 'text-blue-500' },
+  { id: 'qr-registration', name: 'QR코드', icon: 'QrCode', color: 'text-blue-500' },
   { id: 'common-qr', name: '공통 QR 등록', icon: 'Scan', color: 'text-green-500' },
   { id: 'confined-space', name: '밀폐공간 관리', icon: 'Shield', color: 'text-orange-600' },
   { id: 'cardiovascular', name: '뇌심혈관계 관리', icon: 'Heart', color: 'text-red-500' },
