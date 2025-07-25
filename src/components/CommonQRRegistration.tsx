@@ -2,7 +2,6 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Button } from './common/Button';
 import { Card } from './common/Card';
-import { Input } from './common/Input';
 import { Select } from './common/Select';
 
 interface WorkerFormData {
@@ -154,18 +153,28 @@ export function CommonQRRegistration() {
           <form onSubmit={handleSubmit} className="space-y-6">
             {/* 기본 정보 */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <Input
-                label="이름"
-                value={formData.name}
-                onChange={(e) => handleChange('name', e.target.value)}
-                required
-              />
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  이름 <span className="text-red-500">*</span>
+                </label>
+                <input
+                  type="text"
+                  value={formData.name}
+                  onChange={(e) => handleChange('name', e.target.value)}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  required
+                />
+              </div>
 
               <div>
-                <Input
-                  label="사원번호"
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  사원번호 <span className="text-red-500">*</span>
+                </label>
+                <input
+                  type="text"
                   value={formData.employee_id}
                   onChange={(e) => handleChange('employee_id', e.target.value)}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
                   required
                 />
                 {checkingEmployeeId && (
@@ -180,13 +189,18 @@ export function CommonQRRegistration() {
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <Input
-                type="date"
-                label="생년월일"
-                value={formData.birth_date}
-                onChange={(e) => handleChange('birth_date', e.target.value)}
-                required
-              />
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  생년월일 <span className="text-red-500">*</span>
+                </label>
+                <input
+                  type="date"
+                  value={formData.birth_date}
+                  onChange={(e) => handleChange('birth_date', e.target.value)}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  required
+                />
+              </div>
 
               <Select
                 label="성별"
@@ -201,22 +215,32 @@ export function CommonQRRegistration() {
 
             {/* 연락처 정보 */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <Input
-                type="tel"
-                label="연락처"
-                value={formData.phone}
-                onChange={(e) => handleChange('phone', e.target.value)}
-                placeholder="010-0000-0000"
-                required
-              />
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  연락처 <span className="text-red-500">*</span>
+                </label>
+                <input
+                  type="tel"
+                  value={formData.phone}
+                  onChange={(e) => handleChange('phone', e.target.value)}
+                  placeholder="010-0000-0000"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  required
+                />
+              </div>
 
-              <Input
-                type="email"
-                label="이메일"
-                value={formData.email}
-                onChange={(e) => handleChange('email', e.target.value)}
-                placeholder="email@example.com"
-              />
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  이메일
+                </label>
+                <input
+                  type="email"
+                  value={formData.email}
+                  onChange={(e) => handleChange('email', e.target.value)}
+                  placeholder="email@example.com"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                />
+              </div>
             </div>
 
             {/* 소속 정보 */}
@@ -253,37 +277,59 @@ export function CommonQRRegistration() {
               />
             </div>
 
-            <Input
-              type="date"
-              label="입사일"
-              value={formData.join_date}
-              onChange={(e) => handleChange('join_date', e.target.value)}
-              required
-            />
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                입사일 <span className="text-red-500">*</span>
+              </label>
+              <input
+                type="date"
+                value={formData.join_date}
+                onChange={(e) => handleChange('join_date', e.target.value)}
+                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                required
+              />
+            </div>
 
             {/* 추가 정보 */}
-            <Input
-              label="주소"
-              value={formData.address}
-              onChange={(e) => handleChange('address', e.target.value)}
-              placeholder="주소를 입력하세요"
-            />
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                주소
+              </label>
+              <input
+                type="text"
+                value={formData.address}
+                onChange={(e) => handleChange('address', e.target.value)}
+                placeholder="주소를 입력하세요"
+                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+              />
+            </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <Input
-                label="비상연락처 (이름)"
-                value={formData.emergency_contact}
-                onChange={(e) => handleChange('emergency_contact', e.target.value)}
-                placeholder="비상연락처 성명"
-              />
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  비상연락처 (이름)
+                </label>
+                <input
+                  type="text"
+                  value={formData.emergency_contact}
+                  onChange={(e) => handleChange('emergency_contact', e.target.value)}
+                  placeholder="비상연락처 성명"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                />
+              </div>
 
-              <Input
-                type="tel"
-                label="비상연락처 (번호)"
-                value={formData.emergency_phone}
-                onChange={(e) => handleChange('emergency_phone', e.target.value)}
-                placeholder="010-0000-0000"
-              />
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  비상연락처 (번호)
+                </label>
+                <input
+                  type="tel"
+                  value={formData.emergency_phone}
+                  onChange={(e) => handleChange('emergency_phone', e.target.value)}
+                  placeholder="010-0000-0000"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                />
+              </div>
             </div>
 
             {error && (
