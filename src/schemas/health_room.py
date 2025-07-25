@@ -1,287 +1,214 @@
-# 보건관리실 스키마
 """
-보건관리실 기능을 위한 Pydantic 스키마
-- 약품관리
-- 측정기록
-- 체성분분석
-- 일반업무
+건강관리실 관련 Pydantic 스키마
+
+이 모듈은 건강관리실 API에서 사용되는 요청/응답 스키마를 정의합니다.
 """
 
-from pydantic import BaseModel, Field, ConfigDict
-from typing import Optional, List, Dict, Any
-from datetime import datetime, date
-from enum import Enum
+from pydantic import BaseModel, Field, validator
+from typing import Optional, List
+from datetime import datetime
 
 
-class MedicationType(str, Enum):
-    """약품 종류"""
-    PAIN_RELIEF = "진통제"
-    COLD_MEDICINE = "감기약"
-    DIGESTIVE = "소화제"
-    ANTIBIOTIC = "항생제"
-    FIRST_AID = "응급처치약품"
-    PRESCRIPTION = "처방약"
-    OTHER = "기타"
-
-
-class MeasurementType(str, Enum):
-    """측정 항목"""
-    BLOOD_PRESSURE = "혈압"
-    BLOOD_SUGAR = "혈당"
-    BODY_TEMPERATURE = "체온"
-    OXYGEN_SATURATION = "산소포화도"
-    BODY_COMPOSITION = "체성분"
-    HEIGHT_WEIGHT = "신장체중"
-    VISION = "시력"
-    HEARING = "청력"
-
-
-# 약품 관리 스키마
-class MedicationBase(BaseModel):
-    name: str = Field(..., description="약품명")
-    type: MedicationType = Field(..., description="약품 종류")
-    manufacturer: Optional[str] = Field(None, description="제조사")
-    unit: Optional[str] = Field(None, description="단위 (정, 캡슐, ml 등)")
-    
-    current_stock: int = Field(0, description="현재 재고")
-    minimum_stock: int = Field(10, description="최소 재고")
-    maximum_stock: int = Field(100, description="최대 재고")
-    
-    expiration_date: Optional[date] = Field(None, description="유효기간")
-    lot_number: Optional[str] = Field(None, description="로트번호")
-    
-    storage_location: Optional[str] = Field(None, description="보관 위치")
-    storage_conditions: Optional[str] = Field(None, description="보관 조건")
-    
-    dosage_instructions: Optional[str] = Field(None, description="용법용량")
-    precautions: Optional[str] = Field(None, description="주의사항")
-
-
-class MedicationCreate(MedicationBase):
-    pass
-
-
-class MedicationUpdate(BaseModel):
-    name: Optional[str] = None
-    type: Optional[MedicationType] = None
-    manufacturer: Optional[str] = None
-    unit: Optional[str] = None
-    
-    current_stock: Optional[int] = None
-    minimum_stock: Optional[int] = None
-    maximum_stock: Optional[int] = None
-    
-    expiration_date: Optional[date] = None
-    lot_number: Optional[str] = None
-    
-    storage_location: Optional[str] = None
-    storage_conditions: Optional[str] = None
-    
-    dosage_instructions: Optional[str] = None
-    precautions: Optional[str] = None
-    
-    is_active: Optional[bool] = None
-
-
-class MedicationResponse(MedicationBase):
-    id: int
-    is_active: bool
-    created_at: datetime
-    updated_at: datetime
-    
-    model_config = ConfigDict(from_attributes=True)
-
-
-# 약품 불출 스키마
-class MedicationDispensingBase(BaseModel):
-    medication_id: int = Field(..., description="약품 ID")
-    worker_id: int = Field(..., description="근로자 ID")
-    quantity: int = Field(..., description="수량")
-    reason: Optional[str] = Field(None, description="사유")
+# 투약 기록 스키마
+class MedicationRecordBase(BaseModel):
+    medication_name: str = Field(..., description="약품명")
+    dosage: str = Field(..., description="용량")
+    quantity: int = Field(..., description="수량", ge=1)
+    purpose: Optional[str] = Field(None, description="투약 목적")
     symptoms: Optional[str] = Field(None, description="증상")
-    dispensed_by: Optional[str] = Field(None, description="불출 담당자")
-
-
-class MedicationDispensingCreate(MedicationDispensingBase):
-    pass
-
-
-class MedicationDispensingResponse(MedicationDispensingBase):
-    id: int
-    dispensed_at: datetime
-    medication: Optional[MedicationResponse] = None
-    
-    model_config = ConfigDict(from_attributes=True)
-
-
-# 약품 재고 변동 스키마
-class MedicationInventoryBase(BaseModel):
-    medication_id: int = Field(..., description="약품 ID")
-    transaction_type: str = Field(..., description="거래 유형 (입고, 출고, 폐기, 조정)")
-    quantity_change: int = Field(..., description="수량 변동 (+/-)")
-    quantity_after: int = Field(..., description="변동 후 재고")
-    reason: Optional[str] = Field(None, description="사유")
-    reference_number: Optional[str] = Field(None, description="참조 번호")
-    created_by: Optional[str] = Field(None, description="처리자")
-
-
-class MedicationInventoryCreate(MedicationInventoryBase):
-    pass
-
-
-class MedicationInventoryResponse(MedicationInventoryBase):
-    id: int
-    created_at: datetime
-    medication: Optional[MedicationResponse] = None
-    
-    model_config = ConfigDict(from_attributes=True)
-
-
-# 건강 측정 스키마
-class HealthMeasurementBase(BaseModel):
-    worker_id: int = Field(..., description="근로자 ID")
-    measurement_type: MeasurementType = Field(..., description="측정 항목")
-    values: Dict[str, Any] = Field(..., description="측정값")
-    measured_by: Optional[str] = Field(None, description="측정자")
-    
-    is_normal: Optional[bool] = Field(None, description="정상 여부")
-    abnormal_findings: Optional[str] = Field(None, description="이상 소견")
-    
-    action_taken: Optional[str] = Field(None, description="조치사항")
-    follow_up_required: bool = Field(False, description="추적관찰 필요")
-    follow_up_date: Optional[date] = Field(None, description="추적관찰 날짜")
-    
+    administered_by: Optional[str] = Field(None, description="투약자")
     notes: Optional[str] = Field(None, description="비고")
+    follow_up_required: bool = Field(False, description="추적 관찰 필요 여부")
 
 
-class HealthMeasurementCreate(HealthMeasurementBase):
+class MedicationRecordCreate(MedicationRecordBase):
+    worker_id: int = Field(..., description="근로자 ID")
+
+
+class MedicationRecordUpdate(BaseModel):
+    medication_name: Optional[str] = None
+    dosage: Optional[str] = None
+    quantity: Optional[int] = Field(None, ge=1)
+    purpose: Optional[str] = None
+    symptoms: Optional[str] = None
+    notes: Optional[str] = None
+    follow_up_required: Optional[bool] = None
+
+
+class MedicationRecordResponse(MedicationRecordBase):
+    id: int
+    worker_id: int
+    administered_at: datetime
+    created_at: datetime
+    updated_at: datetime
+    
+    class Config:
+        from_attributes = True
+
+
+# 생체 신호 측정 스키마
+class VitalSignRecordBase(BaseModel):
+    systolic_bp: Optional[int] = Field(None, description="수축기 혈압", ge=50, le=300)
+    diastolic_bp: Optional[int] = Field(None, description="이완기 혈압", ge=30, le=200)
+    blood_sugar: Optional[int] = Field(None, description="혈당 (mg/dL)", ge=20, le=600)
+    blood_sugar_type: Optional[str] = Field(None, description="공복/식후")
+    heart_rate: Optional[int] = Field(None, description="심박수", ge=30, le=300)
+    body_temperature: Optional[float] = Field(None, description="체온", ge=30.0, le=45.0)
+    oxygen_saturation: Optional[int] = Field(None, description="산소포화도", ge=50, le=100)
+    measured_by: Optional[str] = Field(None, description="측정자")
+    notes: Optional[str] = Field(None, description="비고")
+    
+    @validator('blood_sugar_type')
+    def validate_blood_sugar_type(cls, v):
+        if v and v not in ['공복', '식후']:
+            raise ValueError('혈당 타입은 "공복" 또는 "식후"여야 합니다')
+        return v
+
+
+class VitalSignRecordCreate(VitalSignRecordBase):
+    worker_id: int = Field(..., description="근로자 ID")
+    
+    @validator('*', pre=True)
+    def at_least_one_measurement(cls, v, values):
+        if not any([
+            values.get('systolic_bp'), values.get('diastolic_bp'),
+            values.get('blood_sugar'), values.get('heart_rate'),
+            values.get('body_temperature'), values.get('oxygen_saturation')
+        ]):
+            raise ValueError('최소 하나 이상의 측정값이 필요합니다')
+        return v
+
+
+class VitalSignRecordUpdate(VitalSignRecordBase):
     pass
 
 
-class HealthMeasurementUpdate(BaseModel):
-    values: Optional[Dict[str, Any]] = None
-    is_normal: Optional[bool] = None
-    abnormal_findings: Optional[str] = None
-    action_taken: Optional[str] = None
-    follow_up_required: Optional[bool] = None
-    follow_up_date: Optional[date] = None
-    notes: Optional[str] = None
-
-
-class HealthMeasurementResponse(HealthMeasurementBase):
+class VitalSignRecordResponse(VitalSignRecordBase):
     id: int
+    worker_id: int
+    measured_at: datetime
+    status: Optional[str]
+    created_at: datetime
+    updated_at: datetime
+    
+    class Config:
+        from_attributes = True
+
+
+# 인바디 측정 스키마
+class InBodyRecordBase(BaseModel):
+    height: float = Field(..., description="신장 (cm)", ge=100, le=250)
+    weight: float = Field(..., description="체중 (kg)", ge=20, le=300)
+    bmi: float = Field(..., description="BMI", ge=10, le=50)
+    
+    # 체성분 분석
+    body_fat_mass: Optional[float] = Field(None, description="체지방량 (kg)", ge=0)
+    body_fat_percentage: Optional[float] = Field(None, description="체지방률 (%)", ge=0, le=60)
+    muscle_mass: Optional[float] = Field(None, description="근육량 (kg)", ge=0)
+    lean_body_mass: Optional[float] = Field(None, description="제지방량 (kg)", ge=0)
+    total_body_water: Optional[float] = Field(None, description="체수분 (L)", ge=0)
+    
+    # 부위별 측정값
+    right_arm_muscle: Optional[float] = Field(None, ge=0)
+    left_arm_muscle: Optional[float] = Field(None, ge=0)
+    trunk_muscle: Optional[float] = Field(None, ge=0)
+    right_leg_muscle: Optional[float] = Field(None, ge=0)
+    left_leg_muscle: Optional[float] = Field(None, ge=0)
+    
+    right_arm_fat: Optional[float] = Field(None, ge=0)
+    left_arm_fat: Optional[float] = Field(None, ge=0)
+    trunk_fat: Optional[float] = Field(None, ge=0)
+    right_leg_fat: Optional[float] = Field(None, ge=0)
+    left_leg_fat: Optional[float] = Field(None, ge=0)
+    
+    # 기타 지표
+    visceral_fat_level: Optional[int] = Field(None, description="내장지방 레벨", ge=1, le=20)
+    basal_metabolic_rate: Optional[int] = Field(None, description="기초대사량 (kcal)", ge=500)
+    body_age: Optional[int] = Field(None, description="체성분 나이", ge=10, le=100)
+    
+    device_model: Optional[str] = Field(None, description="측정 장비 모델")
+    evaluation: Optional[str] = Field(None, description="종합 평가")
+    recommendations: Optional[str] = Field(None, description="권고사항")
+
+
+class InBodyRecordCreate(InBodyRecordBase):
+    worker_id: int = Field(..., description="근로자 ID")
+
+
+class InBodyRecordUpdate(BaseModel):
+    evaluation: Optional[str] = None
+    recommendations: Optional[str] = None
+
+
+class InBodyRecordResponse(InBodyRecordBase):
+    id: int
+    worker_id: int
     measured_at: datetime
     created_at: datetime
     updated_at: datetime
     
-    model_config = ConfigDict(from_attributes=True)
+    class Config:
+        from_attributes = True
 
 
-# 체성분 분석 스키마
-class BodyCompositionBase(BaseModel):
-    worker_id: int = Field(..., description="근로자 ID")
-    measurement_id: Optional[int] = Field(None, description="측정 ID")
-    device_model: Optional[str] = Field(None, description="측정 장비")
-    
-    # 기본 측정값
-    height: float = Field(..., description="신장 (cm)")
-    weight: float = Field(..., description="체중 (kg)")
-    bmi: Optional[float] = Field(None, description="BMI")
-    
-    # 근육/지방
-    muscle_mass: Optional[float] = Field(None, description="근육량 (kg)")
-    body_fat_mass: Optional[float] = Field(None, description="체지방량 (kg)")
-    body_fat_percentage: Optional[float] = Field(None, description="체지방률 (%)")
-    visceral_fat_level: Optional[int] = Field(None, description="내장지방 레벨")
-    
-    # 수분/단백질/무기질
-    total_body_water: Optional[float] = Field(None, description="체수분 (L)")
-    protein_mass: Optional[float] = Field(None, description="단백질량 (kg)")
-    mineral_mass: Optional[float] = Field(None, description="무기질량 (kg)")
-    
-    # 부위별 근육량
-    right_arm_muscle: Optional[float] = None
-    left_arm_muscle: Optional[float] = None
-    trunk_muscle: Optional[float] = None
-    right_leg_muscle: Optional[float] = None
-    left_leg_muscle: Optional[float] = None
-    
-    # 부위별 지방량
-    right_arm_fat: Optional[float] = None
-    left_arm_fat: Optional[float] = None
-    trunk_fat: Optional[float] = None
-    right_leg_fat: Optional[float] = None
-    left_leg_fat: Optional[float] = None
-    
-    # 기타
-    basal_metabolic_rate: Optional[float] = Field(None, description="기초대사율 (kcal)")
-    waist_hip_ratio: Optional[float] = Field(None, description="허리-엉덩이 비율")
-    
-    fitness_score: Optional[float] = Field(None, description="체력 점수")
-    recommendations: Optional[str] = Field(None, description="권장사항")
-
-
-class BodyCompositionCreate(BodyCompositionBase):
-    pass
-
-
-class BodyCompositionResponse(BodyCompositionBase):
-    id: int
-    measured_at: datetime
-    created_at: datetime
-    
-    model_config = ConfigDict(from_attributes=True)
-
-
-# 보건실 방문 스키마
+# 건강관리실 방문 스키마
 class HealthRoomVisitBase(BaseModel):
-    worker_id: int = Field(..., description="근로자 ID")
-    chief_complaint: Optional[str] = Field(None, description="주호소")
-    
-    treatment_provided: Optional[str] = Field(None, description="처치 내용")
-    medications_given: Optional[str] = Field(None, description="투약 내역")
-    
-    measurements_taken: bool = Field(False, description="측정 수행 여부")
-    measurement_ids: Optional[List[int]] = Field(None, description="관련 측정 ID들")
-    
-    rest_taken: bool = Field(False, description="휴식 여부")
-    rest_duration_minutes: Optional[int] = Field(None, description="휴식 시간 (분)")
-    referred_to_hospital: bool = Field(False, description="병원 의뢰 여부")
-    hospital_name: Optional[str] = Field(None, description="의뢰 병원명")
-    
-    work_related: Optional[bool] = Field(None, description="업무 관련성")
-    accident_report_id: Optional[int] = Field(None, description="사고 보고서 ID")
-    
+    visit_reason: str = Field(..., description="방문 사유")
+    chief_complaint: Optional[str] = Field(None, description="주요 증상")
+    treatment_provided: Optional[str] = Field(None, description="제공된 처치")
+    medication_given: bool = Field(False, description="투약 여부")
+    measurement_taken: bool = Field(False, description="측정 여부")
+    follow_up_required: bool = Field(False, description="추적 관찰 필요")
+    referral_required: bool = Field(False, description="의뢰 필요")
+    referral_location: Optional[str] = Field(None, description="의뢰 기관")
     notes: Optional[str] = Field(None, description="비고")
-    treated_by: Optional[str] = Field(None, description="처치자")
 
 
 class HealthRoomVisitCreate(HealthRoomVisitBase):
-    pass
+    worker_id: int = Field(..., description="근로자 ID")
+
+
+class HealthRoomVisitUpdate(BaseModel):
+    visit_reason: Optional[str] = None
+    chief_complaint: Optional[str] = None
+    treatment_provided: Optional[str] = None
+    medication_given: Optional[bool] = None
+    measurement_taken: Optional[bool] = None
+    follow_up_required: Optional[bool] = None
+    referral_required: Optional[bool] = None
+    referral_location: Optional[str] = None
+    notes: Optional[str] = None
+    status: Optional[str] = None
 
 
 class HealthRoomVisitResponse(HealthRoomVisitBase):
     id: int
-    visit_datetime: datetime
+    worker_id: int
+    visit_date: datetime
+    status: str
     created_at: datetime
+    updated_at: datetime
     
-    model_config = ConfigDict(from_attributes=True)
+    class Config:
+        from_attributes = True
 
 
-# 통계 및 대시보드용 스키마
-class MedicationStockAlert(BaseModel):
-    """재고 부족 알림"""
-    medication: MedicationResponse
-    stock_percentage: float
-    days_until_expiration: Optional[int] = None
+# 통계 및 대시보드 스키마
+class HealthRoomStats(BaseModel):
+    total_visits: int
+    total_medications: int
+    total_measurements: int
+    total_inbody_records: int
+    visits_by_reason: dict
+    common_medications: List[dict]
+    abnormal_vital_signs: int
+    follow_up_required: int
 
 
-class HealthRoomStatistics(BaseModel):
-    """보건실 통계"""
-    total_visits_today: int
-    total_visits_week: int
-    total_visits_month: int
-    
-    common_complaints: List[Dict[str, Any]]
-    medication_usage: List[Dict[str, Any]]
-    measurement_summary: Dict[str, int]
+class WorkerHealthSummary(BaseModel):
+    worker_id: int
+    worker_name: str
+    recent_visits: List[HealthRoomVisitResponse]
+    recent_medications: List[MedicationRecordResponse]
+    recent_vital_signs: List[VitalSignRecordResponse]
+    latest_inbody: Optional[InBodyRecordResponse]

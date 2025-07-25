@@ -27,6 +27,7 @@ import { PublicQRRegistration } from './pages/PublicQRRegistration';
 import SimpleRegistration from './pages/SimpleRegistration';
 import { CommonQRRegistration } from './components/CommonQRRegistration';
 import { CommonQRGenerator } from './components/CommonQRGenerator';
+import HealthRoom from './pages/HealthRoom';
 import { authService } from './services/authService';
 
 function MainApp() {
@@ -106,6 +107,8 @@ function MainApp() {
         return <ConfinedSpace />;
       case 'cardiovascular':
         return <div>심혈관 시스템 (임시 비활성화)</div>;
+      case 'health-room':
+        return <HealthRoom />;
       case 'settings':
         return <Settings />;
       default:

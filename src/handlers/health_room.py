@@ -1,636 +1,521 @@
-# 보건관리실 API 핸들러
 """
-보건관리실 기능을 위한 API 엔드포인트
-- 약품관리
-- 측정기록
-- 체성분분석
-- 일반업무
+건강관리실 API 핸들러
+
+이 모듈은 건강관리실 관련 기능의 API 엔드포인트를 제공합니다.
+- 투약 기록 관리
+- 생체 신호 측정 관리
+- 인바디 측정 관리
+- 건강관리실 방문 기록
 """
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, func, and_, or_, desc
-from sqlalchemy.orm import selectinload
 from typing import List, Optional
-from datetime import datetime, date, timedelta
+from datetime import datetime, timedelta
 
-from src.config.database import get_db
-from src.models import health_room as models
-from src.schemas import health_room as schemas
-from src.utils.auth_deps import CurrentUserId
-from src.services.cache import CacheService, get_cache_service
+from ..models.database import get_db
+from ..models.health_room import (
+    MedicationRecord, VitalSignRecord, InBodyRecord, HealthRoomVisit
+)
+from ..models.worker import Worker
+from ..schemas.health_room import (
+    MedicationRecordCreate, MedicationRecordUpdate, MedicationRecordResponse,
+    VitalSignRecordCreate, VitalSignRecordUpdate, VitalSignRecordResponse,
+    InBodyRecordCreate, InBodyRecordUpdate, InBodyRecordResponse,
+    HealthRoomVisitCreate, HealthRoomVisitUpdate, HealthRoomVisitResponse,
+    HealthRoomStats, WorkerHealthSummary
+)
+from ..utils.auth_deps import CurrentUserId
+from ..utils.logger import logger
 
-router = APIRouter(prefix="/api/v1/health-room", tags=["health-room"])
+router = APIRouter(prefix="/api/v1/health-room", tags=["건강관리실"])
 
 
-# 약품 관리 엔드포인트
-@router.get("/medications/", response_model=List[schemas.MedicationResponse])
-async def get_medications(
-    skip: int = 0,
-    limit: int = 100,
-    active_only: bool = True,
-    low_stock: bool = False,
-    db: AsyncSession = Depends(get_db),
+# 투약 기록 관리
+@router.post("/medications", response_model=MedicationRecordResponse)
+async def create_medication_record(
+    record: MedicationRecordCreate,
     current_user_id: str = CurrentUserId,
+    db: AsyncSession = Depends(get_db)
 ):
-    """약품 목록 조회"""
-    query = select(models.Medication)
-    
-    if active_only:
-        query = query.where(models.Medication.is_active == True)
-    
-    if low_stock:
-        # 최소 재고 이하인 약품만
-        query = query.where(
-            models.Medication.current_stock <= models.Medication.minimum_stock
-        )
-    
-    query = query.offset(skip).limit(limit)
-    
-    result = await db.execute(query)
-    medications = result.scalars().all()
-    
-    return medications
+    """투약 기록 생성"""
+    try:
+        # 근로자 확인
+        worker = await db.get(Worker, record.worker_id)
+        if not worker:
+            raise HTTPException(status_code=404, detail="근로자를 찾을 수 없습니다")
+        
+        # 투약 기록 생성
+        new_record = MedicationRecord(**record.dict())
+        db.add(new_record)
+        await db.commit()
+        await db.refresh(new_record)
+        
+        logger.info(f"투약 기록 생성: Worker {record.worker_id}, 약품 {record.medication_name}")
+        return new_record
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"투약 기록 생성 실패: {str(e)}")
+        raise HTTPException(status_code=500, detail="투약 기록 생성 중 오류가 발생했습니다")
 
 
-@router.post("/medications/", response_model=schemas.MedicationResponse)
-async def create_medication(
-    medication: schemas.MedicationCreate,
-    db: AsyncSession = Depends(get_db),
-    current_user_id: str = CurrentUserId,
-):
-    """약품 등록"""
-    db_medication = models.Medication(**medication.model_dump())
-    
-    db.add(db_medication)
-    await db.commit()
-    await db.refresh(db_medication)
-    
-    return db_medication
-
-
-@router.get("/medications/{medication_id}", response_model=schemas.MedicationResponse)
-async def get_medication(
-    medication_id: int,
-    db: AsyncSession = Depends(get_db),
-    current_user_id: str = CurrentUserId,
-    cache: CacheService = Depends(get_cache_service),
-):
-    """특정 약품 상세 조회"""
-    cache_key = f"medication:{medication_id}"
-    cached = await cache.get(cache_key)
-    if cached:
-        return cached
-    
-    query = select(models.Medication).where(models.Medication.id == medication_id)
-    result = await db.execute(query)
-    medication = result.scalar_one_or_none()
-    
-    if not medication:
-        raise HTTPException(status_code=404, detail="약품을 찾을 수 없습니다")
-    
-    await cache.set(cache_key, medication, ttl=300)
-    return medication
-
-
-@router.put("/medications/{medication_id}", response_model=schemas.MedicationResponse)
-async def update_medication(
-    medication_id: int,
-    medication_update: schemas.MedicationUpdate,
-    db: AsyncSession = Depends(get_db),
-    current_user_id: str = CurrentUserId,
-):
-    """약품 정보 수정"""
-    query = select(models.Medication).where(models.Medication.id == medication_id)
-    result = await db.execute(query)
-    medication = result.scalar_one_or_none()
-    
-    if not medication:
-        raise HTTPException(status_code=404, detail="약품을 찾을 수 없습니다")
-    
-    update_data = medication_update.model_dump(exclude_unset=True)
-    for key, value in update_data.items():
-        setattr(medication, key, value)
-    
-    medication.updated_at = datetime.utcnow()
-    
-    await db.commit()
-    await db.refresh(medication)
-    
-    return medication
-
-
-# 약품 불출 관리
-@router.post("/medications/dispense/", response_model=schemas.MedicationDispensingResponse)
-async def dispense_medication(
-    dispensing: schemas.MedicationDispensingCreate,
-    db: AsyncSession = Depends(get_db),
-    current_user_id: str = CurrentUserId,
-):
-    """약품 불출"""
-    # 약품 확인
-    medication_query = select(models.Medication).where(
-        models.Medication.id == dispensing.medication_id
-    )
-    result = await db.execute(medication_query)
-    medication = result.scalar_one_or_none()
-    
-    if not medication:
-        raise HTTPException(status_code=404, detail="약품을 찾을 수 없습니다")
-    
-    if medication.current_stock < dispensing.quantity:
-        raise HTTPException(status_code=400, detail="재고가 부족합니다")
-    
-    # 불출 기록 생성
-    db_dispensing = models.MedicationDispensing(**dispensing.model_dump())
-    db.add(db_dispensing)
-    
-    # 재고 차감
-    medication.current_stock -= dispensing.quantity
-    
-    # 재고 변동 기록
-    inventory_log = models.MedicationInventory(
-        medication_id=medication.id,
-        transaction_type="출고",
-        quantity_change=-dispensing.quantity,
-        quantity_after=medication.current_stock,
-        reason=f"불출: {dispensing.reason or '일반 불출'}",
-        created_by=dispensing.dispensed_by or current_user_id,
-    )
-    db.add(inventory_log)
-    
-    await db.commit()
-    await db.refresh(db_dispensing)
-    
-    # medication 정보 포함해서 반환
-    db_dispensing.medication = medication
-    
-    return db_dispensing
-
-
-@router.get("/medications/dispensing/history", response_model=List[schemas.MedicationDispensingResponse])
-async def get_dispensing_history(
+@router.get("/medications", response_model=List[MedicationRecordResponse])
+async def get_medication_records(
     worker_id: Optional[int] = None,
-    medication_id: Optional[int] = None,
-    start_date: Optional[date] = None,
-    end_date: Optional[date] = None,
+    start_date: Optional[datetime] = None,
+    end_date: Optional[datetime] = None,
+    follow_up_only: bool = False,
     skip: int = 0,
     limit: int = 100,
-    db: AsyncSession = Depends(get_db),
     current_user_id: str = CurrentUserId,
+    db: AsyncSession = Depends(get_db)
 ):
-    """약품 불출 이력 조회"""
-    query = select(models.MedicationDispensing).options(
-        selectinload(models.MedicationDispensing.medication)
-    )
+    """투약 기록 조회"""
+    query = select(MedicationRecord)
     
     if worker_id:
-        query = query.where(models.MedicationDispensing.worker_id == worker_id)
-    
-    if medication_id:
-        query = query.where(models.MedicationDispensing.medication_id == medication_id)
-    
+        query = query.where(MedicationRecord.worker_id == worker_id)
     if start_date:
-        query = query.where(models.MedicationDispensing.dispensed_at >= start_date)
-    
+        query = query.where(MedicationRecord.administered_at >= start_date)
     if end_date:
-        end_datetime = datetime.combine(end_date, datetime.max.time())
-        query = query.where(models.MedicationDispensing.dispensed_at <= end_datetime)
+        query = query.where(MedicationRecord.administered_at <= end_date)
+    if follow_up_only:
+        query = query.where(MedicationRecord.follow_up_required == True)
     
-    query = query.order_by(desc(models.MedicationDispensing.dispensed_at))
+    query = query.order_by(desc(MedicationRecord.administered_at))
     query = query.offset(skip).limit(limit)
     
     result = await db.execute(query)
-    dispensing_records = result.scalars().all()
-    
-    return dispensing_records
+    return result.scalars().all()
 
 
-# 재고 관리
-@router.post("/medications/inventory/", response_model=schemas.MedicationInventoryResponse)
-async def update_inventory(
-    inventory: schemas.MedicationInventoryCreate,
-    db: AsyncSession = Depends(get_db),
+# 생체 신호 측정 관리
+@router.post("/vital-signs", response_model=VitalSignRecordResponse)
+async def create_vital_sign_record(
+    record: VitalSignRecordCreate,
     current_user_id: str = CurrentUserId,
+    db: AsyncSession = Depends(get_db)
 ):
-    """재고 입출고 처리"""
-    # 약품 확인
-    medication_query = select(models.Medication).where(
-        models.Medication.id == inventory.medication_id
-    )
-    result = await db.execute(medication_query)
-    medication = result.scalar_one_or_none()
-    
-    if not medication:
-        raise HTTPException(status_code=404, detail="약품을 찾을 수 없습니다")
-    
-    # 재고 업데이트
-    new_stock = medication.current_stock + inventory.quantity_change
-    if new_stock < 0:
-        raise HTTPException(status_code=400, detail="재고가 음수가 될 수 없습니다")
-    
-    medication.current_stock = new_stock
-    
-    # 재고 변동 기록
-    db_inventory = models.MedicationInventory(
-        **inventory.model_dump(),
-        quantity_after=new_stock,
-        created_by=inventory.created_by or current_user_id,
-    )
-    db.add(db_inventory)
-    
-    await db.commit()
-    await db.refresh(db_inventory)
-    
-    db_inventory.medication = medication
-    
-    return db_inventory
-
-
-@router.get("/medications/stock-alerts/", response_model=List[schemas.MedicationStockAlert])
-async def get_stock_alerts(
-    db: AsyncSession = Depends(get_db),
-    current_user_id: str = CurrentUserId,
-):
-    """재고 부족 및 유효기간 임박 알림"""
-    alerts = []
-    
-    # 재고 부족 약품
-    low_stock_query = select(models.Medication).where(
-        and_(
-            models.Medication.is_active == True,
-            models.Medication.current_stock <= models.Medication.minimum_stock
-        )
-    )
-    result = await db.execute(low_stock_query)
-    low_stock_meds = result.scalars().all()
-    
-    for med in low_stock_meds:
-        stock_percentage = (med.current_stock / med.minimum_stock * 100) if med.minimum_stock > 0 else 0
-        days_until_exp = None
+    """생체 신호 측정 기록 생성"""
+    try:
+        # 근로자 확인
+        worker = await db.get(Worker, record.worker_id)
+        if not worker:
+            raise HTTPException(status_code=404, detail="근로자를 찾을 수 없습니다")
         
-        if med.expiration_date:
-            days_until_exp = (med.expiration_date - date.today()).days
+        # 상태 자동 평가
+        new_record = VitalSignRecord(**record.dict())
+        new_record.status = evaluate_vital_signs(record)
         
-        alerts.append(schemas.MedicationStockAlert(
-            medication=med,
-            stock_percentage=stock_percentage,
-            days_until_expiration=days_until_exp
-        ))
-    
-    # 유효기간 30일 이내 약품
-    expiry_date = date.today() + timedelta(days=30)
-    expiry_query = select(models.Medication).where(
-        and_(
-            models.Medication.is_active == True,
-            models.Medication.expiration_date != None,
-            models.Medication.expiration_date <= expiry_date
-        )
-    )
-    result = await db.execute(expiry_query)
-    expiring_meds = result.scalars().all()
-    
-    for med in expiring_meds:
-        if med not in low_stock_meds:  # 중복 제거
-            days_until_exp = (med.expiration_date - date.today()).days
-            stock_percentage = (med.current_stock / med.minimum_stock * 100) if med.minimum_stock > 0 else 100
-            
-            alerts.append(schemas.MedicationStockAlert(
-                medication=med,
-                stock_percentage=stock_percentage,
-                days_until_expiration=days_until_exp
-            ))
-    
-    return alerts
-
-
-# 건강 측정 관리
-@router.post("/measurements/", response_model=schemas.HealthMeasurementResponse)
-async def create_measurement(
-    measurement: schemas.HealthMeasurementCreate,
-    db: AsyncSession = Depends(get_db),
-    current_user_id: str = CurrentUserId,
-):
-    """건강 측정 기록 생성"""
-    db_measurement = models.HealthMeasurement(**measurement.model_dump())
-    
-    # 정상 범위 자동 판정 (측정 유형에 따라)
-    if measurement.measurement_type == schemas.MeasurementType.BLOOD_PRESSURE:
-        values = measurement.values
-        systolic = values.get("systolic", 0)
-        diastolic = values.get("diastolic", 0)
+        db.add(new_record)
+        await db.commit()
+        await db.refresh(new_record)
         
-        # 고혈압 기준: 수축기 140 이상 또는 이완기 90 이상
-        if systolic >= 140 or diastolic >= 90:
-            db_measurement.is_normal = False
-            db_measurement.abnormal_findings = f"고혈압 의심 (수축기: {systolic}, 이완기: {diastolic})"
-    
-    elif measurement.measurement_type == schemas.MeasurementType.BLOOD_SUGAR:
-        value = measurement.values.get("value", 0)
-        timing = measurement.values.get("timing", "공복")
+        logger.info(f"생체 신호 측정 기록 생성: Worker {record.worker_id}")
+        return new_record
         
-        # 당뇨 기준: 공복 126 이상, 식후 200 이상
-        if (timing == "공복" and value >= 126) or (timing == "식후" and value >= 200):
-            db_measurement.is_normal = False
-            db_measurement.abnormal_findings = f"당뇨 의심 ({timing} 혈당: {value})"
-    
-    db.add(db_measurement)
-    await db.commit()
-    await db.refresh(db_measurement)
-    
-    return db_measurement
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"생체 신호 측정 기록 생성 실패: {str(e)}")
+        raise HTTPException(status_code=500, detail="측정 기록 생성 중 오류가 발생했습니다")
 
 
-@router.get("/measurements/", response_model=List[schemas.HealthMeasurementResponse])
-async def get_measurements(
+def evaluate_vital_signs(record: VitalSignRecordCreate) -> str:
+    """생체 신호 상태 평가"""
+    status = "정상"
+    
+    # 혈압 평가
+    if record.systolic_bp and record.diastolic_bp:
+        if record.systolic_bp >= 140 or record.diastolic_bp >= 90:
+            status = "위험"
+        elif record.systolic_bp >= 130 or record.diastolic_bp >= 80:
+            status = "주의"
+    
+    # 혈당 평가
+    if record.blood_sugar:
+        if record.blood_sugar_type == "공복":
+            if record.blood_sugar >= 126:
+                status = "위험"
+            elif record.blood_sugar >= 100:
+                status = "주의" if status == "정상" else status
+        else:  # 식후
+            if record.blood_sugar >= 200:
+                status = "위험"
+            elif record.blood_sugar >= 140:
+                status = "주의" if status == "정상" else status
+    
+    # 심박수 평가
+    if record.heart_rate:
+        if record.heart_rate > 100 or record.heart_rate < 60:
+            status = "주의" if status == "정상" else status
+    
+    return status
+
+
+@router.get("/vital-signs", response_model=List[VitalSignRecordResponse])
+async def get_vital_sign_records(
     worker_id: Optional[int] = None,
-    measurement_type: Optional[schemas.MeasurementType] = None,
-    start_date: Optional[date] = None,
-    end_date: Optional[date] = None,
-    abnormal_only: bool = False,
+    status: Optional[str] = None,
+    start_date: Optional[datetime] = None,
+    end_date: Optional[datetime] = None,
     skip: int = 0,
     limit: int = 100,
-    db: AsyncSession = Depends(get_db),
     current_user_id: str = CurrentUserId,
+    db: AsyncSession = Depends(get_db)
 ):
-    """건강 측정 기록 조회"""
-    query = select(models.HealthMeasurement)
+    """생체 신호 측정 기록 조회"""
+    query = select(VitalSignRecord)
     
     if worker_id:
-        query = query.where(models.HealthMeasurement.worker_id == worker_id)
-    
-    if measurement_type:
-        query = query.where(models.HealthMeasurement.measurement_type == measurement_type)
-    
+        query = query.where(VitalSignRecord.worker_id == worker_id)
+    if status:
+        query = query.where(VitalSignRecord.status == status)
     if start_date:
-        query = query.where(models.HealthMeasurement.measured_at >= start_date)
-    
+        query = query.where(VitalSignRecord.measured_at >= start_date)
     if end_date:
-        end_datetime = datetime.combine(end_date, datetime.max.time())
-        query = query.where(models.HealthMeasurement.measured_at <= end_datetime)
+        query = query.where(VitalSignRecord.measured_at <= end_date)
     
-    if abnormal_only:
-        query = query.where(models.HealthMeasurement.is_normal == False)
-    
-    query = query.order_by(desc(models.HealthMeasurement.measured_at))
+    query = query.order_by(desc(VitalSignRecord.measured_at))
     query = query.offset(skip).limit(limit)
     
     result = await db.execute(query)
-    measurements = result.scalars().all()
-    
-    return measurements
+    return result.scalars().all()
 
 
-@router.put("/measurements/{measurement_id}", response_model=schemas.HealthMeasurementResponse)
-async def update_measurement(
-    measurement_id: int,
-    measurement_update: schemas.HealthMeasurementUpdate,
-    db: AsyncSession = Depends(get_db),
+# 인바디 측정 관리
+@router.post("/inbody", response_model=InBodyRecordResponse)
+async def create_inbody_record(
+    record: InBodyRecordCreate,
     current_user_id: str = CurrentUserId,
+    db: AsyncSession = Depends(get_db)
 ):
-    """건강 측정 기록 수정"""
-    query = select(models.HealthMeasurement).where(
-        models.HealthMeasurement.id == measurement_id
-    )
+    """인바디 측정 기록 생성"""
+    try:
+        # 근로자 확인
+        worker = await db.get(Worker, record.worker_id)
+        if not worker:
+            raise HTTPException(status_code=404, detail="근로자를 찾을 수 없습니다")
+        
+        # BMI 자동 계산
+        if not record.bmi:
+            record.bmi = record.weight / ((record.height / 100) ** 2)
+        
+        new_record = InBodyRecord(**record.dict())
+        db.add(new_record)
+        await db.commit()
+        await db.refresh(new_record)
+        
+        logger.info(f"인바디 측정 기록 생성: Worker {record.worker_id}")
+        return new_record
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"인바디 측정 기록 생성 실패: {str(e)}")
+        raise HTTPException(status_code=500, detail="인바디 기록 생성 중 오류가 발생했습니다")
+
+
+@router.get("/inbody", response_model=List[InBodyRecordResponse])
+async def get_inbody_records(
+    worker_id: Optional[int] = None,
+    start_date: Optional[datetime] = None,
+    end_date: Optional[datetime] = None,
+    skip: int = 0,
+    limit: int = 100,
+    current_user_id: str = CurrentUserId,
+    db: AsyncSession = Depends(get_db)
+):
+    """인바디 측정 기록 조회"""
+    query = select(InBodyRecord)
+    
+    if worker_id:
+        query = query.where(InBodyRecord.worker_id == worker_id)
+    if start_date:
+        query = query.where(InBodyRecord.measured_at >= start_date)
+    if end_date:
+        query = query.where(InBodyRecord.measured_at <= end_date)
+    
+    query = query.order_by(desc(InBodyRecord.measured_at))
+    query = query.offset(skip).limit(limit)
+    
     result = await db.execute(query)
-    measurement = result.scalar_one_or_none()
-    
-    if not measurement:
-        raise HTTPException(status_code=404, detail="측정 기록을 찾을 수 없습니다")
-    
-    update_data = measurement_update.model_dump(exclude_unset=True)
-    for key, value in update_data.items():
-        setattr(measurement, key, value)
-    
-    measurement.updated_at = datetime.utcnow()
-    
-    await db.commit()
-    await db.refresh(measurement)
-    
-    return measurement
+    return result.scalars().all()
 
 
-# 체성분 분석
-@router.post("/body-composition/", response_model=schemas.BodyCompositionResponse)
-async def create_body_composition(
-    body_comp: schemas.BodyCompositionCreate,
-    db: AsyncSession = Depends(get_db),
-    current_user_id: str = CurrentUserId,
-):
-    """체성분 분석 기록 생성"""
-    # BMI 자동 계산
-    if not body_comp.bmi and body_comp.height and body_comp.weight:
-        height_m = body_comp.height / 100
-        body_comp.bmi = body_comp.weight / (height_m ** 2)
-    
-    db_body_comp = models.BodyCompositionAnalysis(**body_comp.model_dump())
-    
-    # 체성분 측정 기록도 함께 생성
-    measurement = models.HealthMeasurement(
-        worker_id=body_comp.worker_id,
-        measurement_type=schemas.MeasurementType.BODY_COMPOSITION,
-        values={
-            "weight": body_comp.weight,
-            "height": body_comp.height,
-            "bmi": body_comp.bmi,
-            "body_fat_percentage": body_comp.body_fat_percentage,
-            "muscle_mass": body_comp.muscle_mass
-        },
-        measured_by=current_user_id,
-        is_normal=True  # 체성분은 별도 평가
-    )
-    db.add(measurement)
-    await db.flush()
-    
-    db_body_comp.measurement_id = measurement.id
-    db.add(db_body_comp)
-    
-    await db.commit()
-    await db.refresh(db_body_comp)
-    
-    return db_body_comp
-
-
-@router.get("/body-composition/worker/{worker_id}", response_model=List[schemas.BodyCompositionResponse])
-async def get_worker_body_composition_history(
+@router.get("/inbody/{worker_id}/latest", response_model=InBodyRecordResponse)
+async def get_latest_inbody_record(
     worker_id: int,
-    limit: int = 10,
-    db: AsyncSession = Depends(get_db),
     current_user_id: str = CurrentUserId,
+    db: AsyncSession = Depends(get_db)
 ):
-    """근로자 체성분 분석 이력 조회"""
-    query = select(models.BodyCompositionAnalysis).where(
-        models.BodyCompositionAnalysis.worker_id == worker_id
-    ).order_by(desc(models.BodyCompositionAnalysis.measured_at)).limit(limit)
+    """최신 인바디 측정 기록 조회"""
+    query = select(InBodyRecord).where(
+        InBodyRecord.worker_id == worker_id
+    ).order_by(desc(InBodyRecord.measured_at)).limit(1)
     
     result = await db.execute(query)
-    body_comps = result.scalars().all()
+    record = result.scalar_one_or_none()
     
-    return body_comps
+    if not record:
+        raise HTTPException(status_code=404, detail="인바디 측정 기록이 없습니다")
+    
+    return record
 
 
-# 보건실 방문 관리
-@router.post("/visits/", response_model=schemas.HealthRoomVisitResponse)
-async def create_visit(
-    visit: schemas.HealthRoomVisitCreate,
-    db: AsyncSession = Depends(get_db),
+# 건강관리실 방문 기록
+@router.post("/visits", response_model=HealthRoomVisitResponse)
+async def create_health_room_visit(
+    visit: HealthRoomVisitCreate,
     current_user_id: str = CurrentUserId,
+    db: AsyncSession = Depends(get_db)
 ):
-    """보건실 방문 기록 생성"""
-    db_visit = models.HealthRoomVisit(
-        **visit.model_dump(),
-        treated_by=visit.treated_by or current_user_id
-    )
-    
-    db.add(db_visit)
-    await db.commit()
-    await db.refresh(db_visit)
-    
-    return db_visit
+    """건강관리실 방문 기록 생성"""
+    try:
+        # 근로자 확인
+        worker = await db.get(Worker, visit.worker_id)
+        if not worker:
+            raise HTTPException(status_code=404, detail="근로자를 찾을 수 없습니다")
+        
+        new_visit = HealthRoomVisit(**visit.dict())
+        db.add(new_visit)
+        await db.commit()
+        await db.refresh(new_visit)
+        
+        logger.info(f"건강관리실 방문 기록 생성: Worker {visit.worker_id}")
+        return new_visit
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"방문 기록 생성 실패: {str(e)}")
+        raise HTTPException(status_code=500, detail="방문 기록 생성 중 오류가 발생했습니다")
 
 
-@router.get("/visits/", response_model=List[schemas.HealthRoomVisitResponse])
-async def get_visits(
+@router.get("/visits", response_model=List[HealthRoomVisitResponse])
+async def get_health_room_visits(
     worker_id: Optional[int] = None,
-    start_date: Optional[date] = None,
-    end_date: Optional[date] = None,
-    work_related: Optional[bool] = None,
+    start_date: Optional[datetime] = None,
+    end_date: Optional[datetime] = None,
+    follow_up_only: bool = False,
+    referral_only: bool = False,
     skip: int = 0,
     limit: int = 100,
-    db: AsyncSession = Depends(get_db),
     current_user_id: str = CurrentUserId,
+    db: AsyncSession = Depends(get_db)
 ):
-    """보건실 방문 기록 조회"""
-    query = select(models.HealthRoomVisit)
+    """건강관리실 방문 기록 조회"""
+    query = select(HealthRoomVisit)
     
     if worker_id:
-        query = query.where(models.HealthRoomVisit.worker_id == worker_id)
-    
+        query = query.where(HealthRoomVisit.worker_id == worker_id)
     if start_date:
-        query = query.where(models.HealthRoomVisit.visit_datetime >= start_date)
-    
+        query = query.where(HealthRoomVisit.visit_date >= start_date)
     if end_date:
-        end_datetime = datetime.combine(end_date, datetime.max.time())
-        query = query.where(models.HealthRoomVisit.visit_datetime <= end_datetime)
+        query = query.where(HealthRoomVisit.visit_date <= end_date)
+    if follow_up_only:
+        query = query.where(HealthRoomVisit.follow_up_required == True)
+    if referral_only:
+        query = query.where(HealthRoomVisit.referral_required == True)
     
-    if work_related is not None:
-        query = query.where(models.HealthRoomVisit.work_related == work_related)
-    
-    query = query.order_by(desc(models.HealthRoomVisit.visit_datetime))
+    query = query.order_by(desc(HealthRoomVisit.visit_date))
     query = query.offset(skip).limit(limit)
     
     result = await db.execute(query)
-    visits = result.scalars().all()
-    
-    return visits
+    return result.scalars().all()
 
 
 # 통계 및 대시보드
-@router.get("/statistics/", response_model=schemas.HealthRoomStatistics)
-async def get_health_room_statistics(
-    db: AsyncSession = Depends(get_db),
+@router.get("/stats", response_model=HealthRoomStats)
+async def get_health_room_stats(
+    start_date: Optional[datetime] = Query(None, description="시작일"),
+    end_date: Optional[datetime] = Query(None, description="종료일"),
     current_user_id: str = CurrentUserId,
-    cache: CacheService = Depends(get_cache_service),
+    db: AsyncSession = Depends(get_db)
 ):
-    """보건실 통계 조회"""
-    cache_key = "health_room_statistics"
-    cached = await cache.get(cache_key)
-    if cached:
-        return cached
-    
-    today = date.today()
-    week_ago = today - timedelta(days=7)
-    month_ago = today - timedelta(days=30)
+    """건강관리실 통계 조회"""
+    # 기본 기간 설정 (최근 30일)
+    if not end_date:
+        end_date = datetime.now()
+    if not start_date:
+        start_date = end_date - timedelta(days=30)
     
     # 방문 통계
-    today_visits_query = select(func.count(models.HealthRoomVisit.id)).where(
-        func.date(models.HealthRoomVisit.visit_datetime) == today
+    visit_query = select(func.count(HealthRoomVisit.id)).where(
+        and_(
+            HealthRoomVisit.visit_date >= start_date,
+            HealthRoomVisit.visit_date <= end_date
+        )
     )
-    week_visits_query = select(func.count(models.HealthRoomVisit.id)).where(
-        models.HealthRoomVisit.visit_datetime >= week_ago
-    )
-    month_visits_query = select(func.count(models.HealthRoomVisit.id)).where(
-        models.HealthRoomVisit.visit_datetime >= month_ago
-    )
+    total_visits = (await db.execute(visit_query)).scalar() or 0
     
-    today_visits = (await db.execute(today_visits_query)).scalar() or 0
-    week_visits = (await db.execute(week_visits_query)).scalar() or 0
-    month_visits = (await db.execute(month_visits_query)).scalar() or 0
+    # 투약 통계
+    medication_query = select(func.count(MedicationRecord.id)).where(
+        and_(
+            MedicationRecord.administered_at >= start_date,
+            MedicationRecord.administered_at <= end_date
+        )
+    )
+    total_medications = (await db.execute(medication_query)).scalar() or 0
     
-    # 주요 호소 증상 (최근 30일)
-    complaints_query = select(
-        models.HealthRoomVisit.chief_complaint,
-        func.count(models.HealthRoomVisit.id).label("count")
+    # 측정 통계
+    measurement_query = select(func.count(VitalSignRecord.id)).where(
+        and_(
+            VitalSignRecord.measured_at >= start_date,
+            VitalSignRecord.measured_at <= end_date
+        )
+    )
+    total_measurements = (await db.execute(measurement_query)).scalar() or 0
+    
+    # 인바디 통계
+    inbody_query = select(func.count(InBodyRecord.id)).where(
+        and_(
+            InBodyRecord.measured_at >= start_date,
+            InBodyRecord.measured_at <= end_date
+        )
+    )
+    total_inbody_records = (await db.execute(inbody_query)).scalar() or 0
+    
+    # 방문 사유별 통계
+    visit_reason_query = select(
+        HealthRoomVisit.visit_reason,
+        func.count(HealthRoomVisit.id)
     ).where(
         and_(
-            models.HealthRoomVisit.visit_datetime >= month_ago,
-            models.HealthRoomVisit.chief_complaint != None
+            HealthRoomVisit.visit_date >= start_date,
+            HealthRoomVisit.visit_date <= end_date
         )
-    ).group_by(
-        models.HealthRoomVisit.chief_complaint
-    ).order_by(
-        desc("count")
+    ).group_by(HealthRoomVisit.visit_reason)
+    
+    visit_reason_result = await db.execute(visit_reason_query)
+    visits_by_reason = {reason: count for reason, count in visit_reason_result}
+    
+    # 자주 사용된 약품
+    common_meds_query = select(
+        MedicationRecord.medication_name,
+        func.count(MedicationRecord.id).label('count')
+    ).where(
+        and_(
+            MedicationRecord.administered_at >= start_date,
+            MedicationRecord.administered_at <= end_date
+        )
+    ).group_by(MedicationRecord.medication_name).order_by(
+        desc('count')
     ).limit(10)
     
-    complaints_result = await db.execute(complaints_query)
-    common_complaints = [
-        {"complaint": row[0], "count": row[1]}
-        for row in complaints_result
+    common_meds_result = await db.execute(common_meds_query)
+    common_medications = [
+        {"name": name, "count": count} 
+        for name, count in common_meds_result
     ]
     
-    # 약품 사용량 (최근 30일)
-    medication_query = select(
-        models.Medication.name,
-        models.Medication.type,
-        func.sum(models.MedicationDispensing.quantity).label("total_quantity")
-    ).join(
-        models.MedicationDispensing,
-        models.Medication.id == models.MedicationDispensing.medication_id
-    ).where(
-        models.MedicationDispensing.dispensed_at >= month_ago
-    ).group_by(
-        models.Medication.id,
-        models.Medication.name,
-        models.Medication.type
-    ).order_by(
-        desc("total_quantity")
-    ).limit(10)
-    
-    medication_result = await db.execute(medication_query)
-    medication_usage = [
-        {
-            "name": row[0],
-            "type": row[1],
-            "total_quantity": row[2]
-        }
-        for row in medication_result
-    ]
-    
-    # 측정 유형별 건수 (최근 30일)
-    measurement_query = select(
-        models.HealthMeasurement.measurement_type,
-        func.count(models.HealthMeasurement.id).label("count")
-    ).where(
-        models.HealthMeasurement.measured_at >= month_ago
-    ).group_by(
-        models.HealthMeasurement.measurement_type
+    # 이상 측정값 수
+    abnormal_query = select(func.count(VitalSignRecord.id)).where(
+        and_(
+            VitalSignRecord.measured_at >= start_date,
+            VitalSignRecord.measured_at <= end_date,
+            VitalSignRecord.status.in_(['주의', '위험'])
+        )
     )
+    abnormal_vital_signs = (await db.execute(abnormal_query)).scalar() or 0
     
-    measurement_result = await db.execute(measurement_query)
-    measurement_summary = {
-        row[0]: row[1]
-        for row in measurement_result
-    }
-    
-    statistics = schemas.HealthRoomStatistics(
-        total_visits_today=today_visits,
-        total_visits_week=week_visits,
-        total_visits_month=month_visits,
-        common_complaints=common_complaints,
-        medication_usage=medication_usage,
-        measurement_summary=measurement_summary
+    # 추적 관찰 필요 수
+    follow_up_query = select(func.count(HealthRoomVisit.id)).where(
+        and_(
+            HealthRoomVisit.visit_date >= start_date,
+            HealthRoomVisit.visit_date <= end_date,
+            HealthRoomVisit.follow_up_required == True
+        )
     )
+    follow_up_required = (await db.execute(follow_up_query)).scalar() or 0
     
-    await cache.set(cache_key, statistics, ttl=300)  # 5분 캐시
+    return HealthRoomStats(
+        total_visits=total_visits,
+        total_medications=total_medications,
+        total_measurements=total_measurements,
+        total_inbody_records=total_inbody_records,
+        visits_by_reason=visits_by_reason,
+        common_medications=common_medications,
+        abnormal_vital_signs=abnormal_vital_signs,
+        follow_up_required=follow_up_required
+    )
+
+
+@router.get("/workers/{worker_id}/summary", response_model=WorkerHealthSummary)
+async def get_worker_health_summary(
+    worker_id: int,
+    days: int = Query(30, description="조회 기간 (일)"),
+    current_user_id: str = CurrentUserId,
+    db: AsyncSession = Depends(get_db)
+):
+    """근로자 건강 요약 정보 조회"""
+    # 근로자 확인
+    worker = await db.get(Worker, worker_id)
+    if not worker:
+        raise HTTPException(status_code=404, detail="근로자를 찾을 수 없습니다")
     
-    return statistics
+    start_date = datetime.now() - timedelta(days=days)
+    
+    # 최근 방문 기록
+    visits_query = select(HealthRoomVisit).where(
+        and_(
+            HealthRoomVisit.worker_id == worker_id,
+            HealthRoomVisit.visit_date >= start_date
+        )
+    ).order_by(desc(HealthRoomVisit.visit_date)).limit(10)
+    
+    visits = (await db.execute(visits_query)).scalars().all()
+    
+    # 최근 투약 기록
+    medications_query = select(MedicationRecord).where(
+        and_(
+            MedicationRecord.worker_id == worker_id,
+            MedicationRecord.administered_at >= start_date
+        )
+    ).order_by(desc(MedicationRecord.administered_at)).limit(10)
+    
+    medications = (await db.execute(medications_query)).scalars().all()
+    
+    # 최근 측정 기록
+    vital_signs_query = select(VitalSignRecord).where(
+        and_(
+            VitalSignRecord.worker_id == worker_id,
+            VitalSignRecord.measured_at >= start_date
+        )
+    ).order_by(desc(VitalSignRecord.measured_at)).limit(10)
+    
+    vital_signs = (await db.execute(vital_signs_query)).scalars().all()
+    
+    # 최신 인바디 기록
+    inbody_query = select(InBodyRecord).where(
+        InBodyRecord.worker_id == worker_id
+    ).order_by(desc(InBodyRecord.measured_at)).limit(1)
+    
+    latest_inbody = (await db.execute(inbody_query)).scalar_one_or_none()
+    
+    return WorkerHealthSummary(
+        worker_id=worker_id,
+        worker_name=worker.name,
+        recent_visits=[HealthRoomVisitResponse.from_orm(v) for v in visits],
+        recent_medications=[MedicationRecordResponse.from_orm(m) for m in medications],
+        recent_vital_signs=[VitalSignRecordResponse.from_orm(v) for v in vital_signs],
+        latest_inbody=InBodyRecordResponse.from_orm(latest_inbody) if latest_inbody else None
+    )
+
+
+if __name__ == "__main__":
+    print("✅ 건강관리실 API 핸들러 정의 완료")
+    print("📝 API 엔드포인트:")
+    print("  - POST /api/v1/health-room/medications - 투약 기록 생성")
+    print("  - GET /api/v1/health-room/medications - 투약 기록 조회")
+    print("  - POST /api/v1/health-room/vital-signs - 생체 신호 측정 기록 생성")
+    print("  - GET /api/v1/health-room/vital-signs - 생체 신호 측정 기록 조회")
+    print("  - POST /api/v1/health-room/inbody - 인바디 측정 기록 생성")
+    print("  - GET /api/v1/health-room/inbody - 인바디 측정 기록 조회")
+    print("  - POST /api/v1/health-room/visits - 건강관리실 방문 기록 생성")
+    print("  - GET /api/v1/health-room/visits - 건강관리실 방문 기록 조회")
+    print("  - GET /api/v1/health-room/stats - 건강관리실 통계")
+    print("  - GET /api/v1/health-room/workers/{worker_id}/summary - 근로자 건강 요약")

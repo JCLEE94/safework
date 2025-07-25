@@ -117,6 +117,20 @@ class Worker(Base):
     feedbacks = relationship(
         "WorkerFeedback", back_populates="worker", cascade="all, delete-orphan"
     )
+    
+    # 건강관리실 관련 관계
+    medication_records = relationship(
+        "MedicationRecord", back_populates="worker", cascade="all, delete-orphan"
+    )
+    vital_sign_records = relationship(
+        "VitalSignRecord", back_populates="worker", cascade="all, delete-orphan"
+    )
+    inbody_records = relationship(
+        "InBodyRecord", back_populates="worker", cascade="all, delete-orphan"
+    )
+    health_room_visits = relationship(
+        "HealthRoomVisit", back_populates="worker", cascade="all, delete-orphan"
+    )
 
     # 복합 인덱스
     __table_args__ = (
