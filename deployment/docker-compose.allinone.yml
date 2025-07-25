@@ -1,0 +1,40 @@
+version: '3.8'
+
+services:
+  safework-allinone:
+    image: registry.jclee.me/safework:allinone
+    build:
+      context: ..
+      dockerfile: deployment/Dockerfile.allinone
+      args:
+        BUILD_TIME: ${BUILD_TIME:-unknown}
+    container_name: safework-allinone
+    ports:
+      - "3001:8000"    # FastAPI
+      - "5432:5432"    # PostgreSQL
+      - "6379:6379"    # Redis
+    environment:
+      - DATABASE_URL=postgresql://admin:password@localhost:5432/health_management
+      - REDIS_HOST=localhost
+      - REDIS_PORT=6379
+      - JWT_SECRET=prod-jwt-secret-key
+      - ENVIRONMENT=production
+      - ADMIN_USERNAME=admin
+      - ADMIN_PASSWORD=bingogo1
+      - TZ=Asia/Seoul
+    volumes:
+      - ./uploads:/app/uploads
+      - ./logs:/app/logs
+      - postgres_data:/var/lib/postgresql/15/main
+      - redis_data:/var/lib/redis
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 60s
+
+volumes:
+  postgres_data:
+  redis_data:

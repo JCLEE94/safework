@@ -135,7 +135,7 @@ async def create_users_table(db):
             """
         INSERT INTO users (email, password_hash, name, role, is_active, is_verified, created_at)
         VALUES (
-            'admin@safework.local',
+            'admin',
             '$2b$12$LQv3c1yqBWVHxkd0LHAkCOYz6TtxMQJqhN8/LeJLaKwnyU6t6V5rS',  -- 'admin123!'
             '시스템 관리자',
             'admin',

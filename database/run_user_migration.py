@@ -29,7 +29,7 @@ async def main():
             
             print("✅ 사용자 테이블 마이그레이션 완료!")
             print("\n📋 기본 관리자 계정:")
-            print("  이메일: admin@safework.local")
+            print("  사용자명: admin")
             print("  비밀번호: admin123!")
             print("  역할: admin")
             

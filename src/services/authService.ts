@@ -146,7 +146,7 @@ class AuthService {
       return {
         id: payload.sub,
         email: payload.email,
-        name: payload.email.split('@')[0], // 이메일에서 이름 추출
+        name: payload.email && payload.email.includes('@') ? payload.email.split('@')[0] : payload.email, // 이메일 또는 사용자명에서 이름 추출
         role: payload.role || 'user'
       };
     } catch (error) {

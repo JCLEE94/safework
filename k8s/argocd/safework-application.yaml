@@ -24,6 +24,15 @@ spec:
           pullPolicy: Always
         imagePullSecrets:
           - name: harbor-registry
+        env:
+          ADMIN_USERNAME: "admin"
+          ADMIN_PASSWORD: "bingogo1"
+          DATABASE_URL: "postgresql://admin:password@postgres:5432/health_management"
+          REDIS_HOST: "redis"
+          REDIS_PORT: "6379"
+          JWT_SECRET: "prod-jwt-secret-key"
+          ENVIRONMENT: "production"
+          TZ: "Asia/Seoul"
   destination:
     server: https://kubernetes.default.svc
     namespace: safework

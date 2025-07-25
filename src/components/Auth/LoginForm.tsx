@@ -39,7 +39,7 @@ export function LoginForm({ onLoginSuccess }: LoginFormProps) {
     try {
       await authService.register({
         ...formData,
-        name: formData.email.split('@')[0], // 이메일에서 이름 추출
+        name: formData.email.includes('@') ? formData.email.split('@')[0] : formData.email, // 이메일 또는 사용자명에서 이름 추출
       });
       onLoginSuccess();
     } catch (err) {
@@ -64,10 +64,10 @@ export function LoginForm({ onLoginSuccess }: LoginFormProps) {
         <form onSubmit={showRegister ? handleRegister : handleLogin} className="space-y-6">
           <div>
             <label htmlFor="email" className="block text-sm font-medium text-gray-700 mb-2">
-              이메일
+              이메일 / 사용자명
             </label>
             <input
-              type="email"
+              type="text"
               id="email"
               value={formData.email}
               onChange={(e) => setFormData({ ...formData, email: e.target.value })}
@@ -118,7 +118,7 @@ export function LoginForm({ onLoginSuccess }: LoginFormProps) {
         <div className="mt-6 p-4 bg-blue-50 rounded-md">
           <h3 className="font-semibold text-blue-900 mb-2">기본 관리자 계정:</h3>
           <p className="text-sm text-blue-800">
-            이메일: admin@safework.local<br />
+            사용자명: admin<br />
             비밀번호: admin123!
           </p>
         </div>
