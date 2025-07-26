@@ -14,7 +14,7 @@ from sqlalchemy import select, func, and_, or_, desc
 from typing import List, Optional
 from datetime import datetime, timedelta
 
-from ..models.database import get_db
+from ..config.database import get_db
 from ..models.health_room import (
     MedicationRecord, VitalSignRecord, InBodyRecord, HealthRoomVisit
 )

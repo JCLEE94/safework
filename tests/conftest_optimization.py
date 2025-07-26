@@ -73,7 +73,7 @@ async def async_client(
 ) -> AsyncGenerator[AsyncClient, None]:
     """비동기 HTTP 클라이언트"""
     from src.app import create_app
-    from src.models.database import get_db
+    from src.config.database import get_db
 
     app = create_app()
 
