@@ -7,6 +7,12 @@ metadata:
     app: safework
     env: production
     deployment-method: gitops
+  annotations:
+    argocd-image-updater.argoproj.io/image-list: safework=registry.jclee.me/safework:latest
+    argocd-image-updater.argoproj.io/safework.update-strategy: latest
+    argocd-image-updater.argoproj.io/safework.helm.image-name: image.repository
+    argocd-image-updater.argoproj.io/safework.helm.image-tag: image.tag
+    argocd-image-updater.argoproj.io/write-back-method: argocd
   finalizers:
     - resources-finalizer.argocd.argoproj.io
 spec:

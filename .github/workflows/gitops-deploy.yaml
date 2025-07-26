@@ -75,17 +75,17 @@ jobs:
           
           echo "✅ Helm Chart 패키징 및 업로드 완료"
           
-      - name: Trigger ArgoCD sync
+      - name: Tag latest for ArgoCD Image Updater
         run: |
-          echo "🔄 ArgoCD 동기화 트리거"
+          echo "🔄 Latest 태그 업데이트"
           
-          # ArgoCD CLI 설치
-          curl -sSL -o argocd-linux-amd64 https://github.com/argoproj/argo-cd/releases/latest/download/argocd-linux-amd64
-          sudo install -m 555 argocd-linux-amd64 /usr/local/bin/argocd
-          rm argocd-linux-amd64
+          # 이미지 태그 설정
+          COMMIT_SHA="${{ github.sha }}"
+          IMAGE_TAG="${COMMIT_SHA:0:7}"
           
-          # ArgoCD 로그인 및 동기화
-          argocd login argo.jclee.me --username admin --password bingogo1 --insecure --grpc-web
-          argocd app sync safework --grpc-web
+          # latest 태그로도 푸시 (ArgoCD Image Updater가 감지)
+          docker tag ${REGISTRY}/${IMAGE_NAME}:${IMAGE_TAG} ${REGISTRY}/${IMAGE_NAME}:latest
+          docker push ${REGISTRY}/${IMAGE_NAME}:latest
           
-          echo "✅ ArgoCD 동기화 완료"
+          echo "✅ Latest 태그 업데이트 완료"
+          echo "🔄 ArgoCD Image Updater가 자동으로 배포합니다"
