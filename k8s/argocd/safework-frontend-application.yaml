@@ -1,0 +1,30 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: safework
+  namespace: argocd
+  annotations:
+    # ArgoCD Image Updater annotations for frontend
+    argocd-image-updater.argoproj.io/image-list: "frontend=registry.jclee.me/safework-frontend-v2"
+    argocd-image-updater.argoproj.io/frontend.update-strategy: "latest"
+    argocd-image-updater.argoproj.io/frontend.allow-tags: "regexp:^(latest|v2-[0-9]{8}-[a-f0-9]{7})$"
+    argocd-image-updater.argoproj.io/write-back-method: "git"
+    argocd-image-updater.argoproj.io/git-branch: "main"
+    argocd-image-updater.argoproj.io/git-repository: "https://github.com/JCLEE94/safework.git"
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/JCLEE94/safework.git
+    path: k8s/frontend
+    targetRevision: main
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: safework
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+    - CreateNamespace=true
+    - PruneLast=true
+  revisionHistoryLimit: 10
