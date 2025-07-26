@@ -1,40 +1,28 @@
-import { defineConfig } from 'vite'
-import react from '@vitejs/plugin-react'
-import path from 'path'
+import { defineConfig } from 'vite';
+import react from '@vitejs/plugin-react';
+import path from 'path';
 
 // https://vitejs.dev/config/
 export default defineConfig({
   plugins: [react()],
-  root: path.resolve(__dirname, '.'),
   resolve: {
     alias: {
-      '@': path.resolve(__dirname, '../src'),
+      '@': path.resolve(__dirname, './src'),
+      '@components': path.resolve(__dirname, './src/components'),
+      '@features': path.resolve(__dirname, './src/features'),
+      '@services': path.resolve(__dirname, './src/services'),
+      '@hooks': path.resolve(__dirname, './src/hooks'),
+      '@utils': path.resolve(__dirname, './src/utils'),
+      '@types': path.resolve(__dirname, './src/types'),
     },
   },
   server: {
-    port: 5173,
+    port: 3000,
     proxy: {
       '/api': {
-        target: 'http://localhost:8000',
+        target: 'http://localhost:3001',
         changeOrigin: true,
       },
     },
   },
-  build: {
-    outDir: 'dist',
-    rollupOptions: {
-      input: path.resolve(__dirname, 'index.html'),
-      onwarn(warning, defaultHandler) {
-        if (warning.code !== 'UNRESOLVED_IMPORT') {
-          defaultHandler(warning);
-        }
-      },
-    },
-    commonjsOptions: {
-      include: [/lucide-react/, /node_modules/],
-    },
-  },
-  optimizeDeps: {
-    include: ['lucide-react'],
-  },
-})
+});
