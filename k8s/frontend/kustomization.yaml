@@ -9,7 +9,7 @@ resources:
 - ingress.yaml
 
 images:
-- name: registry.jclee.me/safework-frontend-v2
+- name: registry.jclee.me/safework-frontend
   newTag: latest
 
 labels:

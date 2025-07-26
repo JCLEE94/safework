@@ -5,9 +5,9 @@ metadata:
   namespace: argocd
   annotations:
     # ArgoCD Image Updater annotations for frontend
-    argocd-image-updater.argoproj.io/image-list: "frontend=registry.jclee.me/safework-frontend-v2"
+    argocd-image-updater.argoproj.io/image-list: "frontend=registry.jclee.me/safework-frontend"
     argocd-image-updater.argoproj.io/frontend.update-strategy: "latest"
-    argocd-image-updater.argoproj.io/frontend.allow-tags: "regexp:^(latest|v2-[0-9]{8}-[a-f0-9]{7})$"
+    argocd-image-updater.argoproj.io/frontend.allow-tags: "regexp:^(latest|[0-9]{8}-[a-f0-9]{7})$"
     argocd-image-updater.argoproj.io/write-back-method: "git"
     argocd-image-updater.argoproj.io/git-branch: "main"
     argocd-image-updater.argoproj.io/git-repository: "https://github.com/JCLEE94/safework.git"
