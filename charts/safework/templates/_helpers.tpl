@@ -46,4 +46,16 @@ Selector labels
 {{- define "safework.selectorLabels" -}}
 app.kubernetes.io/name: {{ include "safework.name" . }}
 app.kubernetes.io/instance: {{ .Release.Name }}
+app: safework
+{{- end }}
+
+{{/*
+Create the name of the service account to use
+*/}}
+{{- define "safework.serviceAccountName" -}}
+{{- if .Values.serviceAccount.create }}
+{{- default (include "safework.fullname" .) .Values.serviceAccount.name }}
+{{- else }}
+{{- default "default" .Values.serviceAccount.name }}
+{{- end }}
 {{- end }}

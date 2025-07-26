@@ -1,0 +1,113 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: safework-gitops
+  namespace: argocd
+  labels:
+    app: safework
+    env: production
+    deployment-method: gitops
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  project: default
+  source:
+    repoURL: https://charts.jclee.me
+    chart: safework
+    targetRevision: "*"
+    helm:
+      releaseName: safework
+      values: |
+        replicaCount: 1
+        image:
+          repository: registry.jclee.me/safework
+          tag: "latest"
+          pullPolicy: Always
+        
+        service:
+          type: NodePort
+          port: 80
+          targetPort: 3001
+          nodePort: 32301
+        
+        resources:
+          limits:
+            cpu: 2000m
+            memory: 4Gi
+            ephemeral-storage: 8Gi
+          requests:
+            cpu: 500m
+            memory: 1Gi
+            ephemeral-storage: 2Gi
+        
+        env:
+          DATABASE_URL: "postgresql://admin:password@localhost:5432/health_management"
+          REDIS_HOST: "localhost"
+          REDIS_PORT: "6379"
+          JWT_SECRET: "prod-jwt-secret-key"
+          ENVIRONMENT: "production"
+          ADMIN_USERNAME: "admin"
+          ADMIN_PASSWORD: "bingogo1"
+          TZ: "Asia/Seoul"
+        
+        persistence:
+          postgres:
+            enabled: true
+            size: 10Gi
+            storageClass: local-path
+          redis:
+            enabled: true
+            size: 5Gi
+            storageClass: local-path
+            
+        probes:
+          liveness:
+            enabled: true
+            initialDelaySeconds: 60
+            periodSeconds: 30
+            timeoutSeconds: 10
+          readiness:
+            enabled: true
+            initialDelaySeconds: 30
+            periodSeconds: 10
+            timeoutSeconds: 5
+          startup:
+            enabled: true
+            initialDelaySeconds: 10
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 30
+            
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: safework
+    
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+      allowEmpty: false
+    syncOptions:
+    - CreateNamespace=true
+    - ServerSideApply=true
+    - PruneLast=true
+    - RespectIgnoreDifferences=true
+    - ApplyOutOfSyncOnly=true
+    retry:
+      limit: 5
+      backoff:
+        duration: 5s
+        factor: 2
+        maxDuration: 3m
+        
+  revisionHistoryLimit: 10
+  
+  ignoreDifferences:
+  - group: apps
+    kind: Deployment
+    jsonPointers:
+    - /spec/replicas
+  - group: ""
+    kind: Service
+    jsonPointers:
+    - /spec/clusterIP

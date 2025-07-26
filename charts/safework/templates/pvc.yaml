@@ -1,0 +1,39 @@
+{{- if .Values.persistence.postgres.enabled }}
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: safework-postgres-pvc
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "safework.labels" . | nindent 4 }}
+    component: postgres
+spec:
+  accessModes:
+    - {{ .Values.persistence.postgres.accessMode }}
+  resources:
+    requests:
+      storage: {{ .Values.persistence.postgres.size }}
+  {{- if .Values.persistence.postgres.storageClass }}
+  storageClassName: {{ .Values.persistence.postgres.storageClass }}
+  {{- end }}
+---
+{{- end }}
+{{- if .Values.persistence.redis.enabled }}
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: safework-redis-pvc
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "safework.labels" . | nindent 4 }}
+    component: redis
+spec:
+  accessModes:
+    - {{ .Values.persistence.redis.accessMode }}
+  resources:
+    requests:
+      storage: {{ .Values.persistence.redis.size }}
+  {{- if .Values.persistence.redis.storageClass }}
+  storageClassName: {{ .Values.persistence.redis.storageClass }}
+  {{- end }}
+{{- end }}

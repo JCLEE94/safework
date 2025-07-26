@@ -3,21 +3,21 @@
 <div align="center">
   <img src="https://img.shields.io/badge/Python-3.9+-blue?style=for-the-badge&logo=python">
   <img src="https://img.shields.io/badge/FastAPI-0.104.1-green?style=for-the-badge&logo=fastapi">
-  <img src="https://img.shields.io/badge/React-18-blue?style=for-the-badge&logo=react">
+  <img src="https://img.shields.io/badge/React-19-blue?style=for-the-badge&logo=react">
   <img src="https://img.shields.io/badge/PostgreSQL-15-blue?style=for-the-badge&logo=postgresql">
   <img src="https://img.shields.io/badge/Docker-Ready-2496ED?style=for-the-badge&logo=docker">
 </div>
 
 <div align="center">
   <br>
-  <a href="https://github.com/JCLEE94/health/actions/workflows/build-push.yml">
-    <img src="https://github.com/JCLEE94/health/actions/workflows/build-push.yml/badge.svg" alt="Build & Push">
+  <a href="https://github.com/JCLEE94/safework/actions/workflows/build-push.yml">
+    <img src="https://github.com/JCLEE94/safework/actions/workflows/build-push.yml/badge.svg" alt="Build & Push">
   </a>
-  <a href="https://github.com/JCLEE94/health/actions/workflows/test.yml">
-    <img src="https://github.com/JCLEE94/health/actions/workflows/test.yml/badge.svg" alt="Tests">
+  <a href="https://github.com/JCLEE94/safework/actions/workflows/test.yml">
+    <img src="https://github.com/JCLEE94/safework/actions/workflows/test.yml/badge.svg" alt="Tests">
   </a>
-  <a href="https://github.com/JCLEE94/health/actions/workflows/security.yml">
-    <img src="https://github.com/JCLEE94/health/actions/workflows/security.yml/badge.svg" alt="Security">
+  <a href="https://github.com/JCLEE94/safework/actions/workflows/security.yml">
+    <img src="https://github.com/JCLEE94/safework/actions/workflows/security.yml/badge.svg" alt="Security">
   </a>
   <a href="LICENSE">
     <img src="https://img.shields.io/badge/license-MIT-blue.svg" alt="License">
@@ -66,24 +66,29 @@ docker-compose -f docker-compose.dev.yml up --build
 
 > 📖 **자세한 배포 가이드**: [DEPLOYMENT.md](DEPLOYMENT.md) 참조
 
-애플리케이션 접속: http://localhost:3001
+애플리케이션 접속: 
+- 로컬 개발: http://localhost:3001
+- 프로덕션: https://safework.jclee.me
+- NodePort 접속: Port 32301 (Kubernetes 환경)
 
 ### 수동 설치
 
 #### 백엔드
 ```bash
-# 가상환경 생성 및 활성화
-python -m venv venv
-source venv/bin/activate  # Windows: venv\Scripts\activate
-
-# 의존성 설치
-pip install -r requirements.txt
+# UV 패키지 관리자 사용 (권장)
+# 의존성 설치 및 가상환경 자동 생성
+uv sync
 
 # 데이터베이스 마이그레이션
-alembic upgrade head
+uv run alembic upgrade head
 
 # 서버 실행
-python main.py
+uv run python main.py
+
+# 또는 기존 방식
+python -m venv venv
+source venv/bin/activate  # Windows: venv\Scripts\activate
+pip install -r requirements.txt
 ```
 
 #### 프론트엔드
@@ -102,16 +107,19 @@ npm run build
 
 ### 애플리케이션 아키텍처
 ```
-┌─────────────┐     ┌─────────────┐     ┌─────────────┐
-│   React UI  │────▶│  FastAPI    │────▶│ PostgreSQL  │
-│  (Port 3001)│     │   Backend   │     │  Database   │
-└─────────────┘     └──────┬──────┘     └─────────────┘
-                           │
-                           ▼
-                    ┌─────────────┐
-                    │    Redis    │
-                    │    Cache    │
-                    └─────────────┘
+┌─────────────────────────────────────────────────┐
+│                SafeWork Pro                     │
+│  ┌─────────────┐  ┌─────────────┐  ┌─────────┐ │
+│  │  React UI   │──│  FastAPI    │──│ PG 15   │ │
+│  │  (Nginx)    │  │  Backend    │  │ Database│ │
+│  │  :3001      │  └──────┬──────┘  └─────────┘ │
+│  └─────────────┘         │                     │
+│                  ┌───────┴───────┐             │
+│                  │   Redis 7     │             │
+│                  │   Cache       │             │
+│                  └───────────────┘             │
+└─────────────────────────────────────────────────┘
+        External Port: 3001 / NodePort: 32301
 ```
 
 ### CI/CD 아키텍처
@@ -129,8 +137,10 @@ npm run build
 ```
 
 ### 기술 스택
-- **Backend**: Python 3.9+, FastAPI, SQLAlchemy, Alembic
-- **Frontend**: React 18, TypeScript, Vite, Tailwind CSS
+- **Backend**: Python 3.11, FastAPI 0.104.1, SQLAlchemy, Alembic
+- **Frontend**: React 19, TypeScript, Vite, Ant Design 5.26.6, TanStack Query 5.83+
+- **State Management**: Redux Toolkit 2.8+ (UI 상태), TanStack Query (서버 상태)
+- **Testing**: Jest 30 + React Testing Library 16.3+ + Testing Library User Event
 - **Database**: PostgreSQL 15
 - **Cache**: Redis 7
 - **Container**: Docker, Docker Compose
@@ -221,11 +231,20 @@ FastAPI 자동 생성 문서:
 ## 🧪 테스트
 
 ```bash
-# 백엔드 테스트
+# 백엔드 테스트 (UV 사용 권장)
+uv run pytest tests/ -v --cov=src --cov-report=html --timeout=60 -x
+
+# 또는 기존 방식
 pytest tests/ -v --cov=src --cov-report=html
 
+# 코드 품질 검사
+uv run black src/ tests/ && uv run isort src/ tests/ && uv run flake8 src/ tests/
+
 # 프론트엔드 테스트
-npm run test
+cd frontend && npm run test
+
+# 프론트엔드 린팅
+cd frontend && npm run lint
 
 # 통합 테스트
 docker-compose -f docker-compose.test.yml up --abort-on-container-exit
@@ -318,7 +337,7 @@ gh secret set DEPLOY_KEY < ~/.ssh/id_rsa
 
 ## 📞 문의
 
-프로젝트 관련 문의사항은 [Issues](https://github.com/qws941/health/issues)에 등록해주세요.
+프로젝트 관련 문의사항은 [Issues](https://github.com/JCLEE94/safework/issues)에 등록해주세요.
 
 ---
 
