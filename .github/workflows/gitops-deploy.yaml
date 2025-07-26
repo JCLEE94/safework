@@ -16,7 +16,7 @@ env:
   
 jobs:
   test:
-    runs-on: self-hosted
+    runs-on: ubuntu-latest
     if: github.event_name == 'pull_request'
     steps:
       - name: Checkout code
@@ -36,7 +36,7 @@ jobs:
           pytest tests/ -v --timeout=60 -x
 
   build-and-deploy:
-    runs-on: self-hosted
+    runs-on: ubuntu-latest
     if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master'
     permissions:
       contents: read
