@@ -1,0 +1,1 @@
+export { TextEllipsis, default } from './TextEllipsis';

@@ -34,6 +34,7 @@ import {
 } from '@ant-design/icons';
 import styled from 'styled-components';
 import { designTokens } from '../../../styles/theme';
+import { TextEllipsis } from '../../atoms/TextEllipsis';
 import type { ColumnsType } from 'antd/es/table';
 
 const { Title, Text } = Typography;
@@ -205,8 +206,12 @@ export const WorkerList: React.FC = () => {
         <WorkerNameCell>
           <Avatar icon={<UserOutlined />} />
           <div className="worker-info">
-            <div className="worker-name">{text}</div>
-            <div className="worker-id">{record.employeeId}</div>
+            <TextEllipsis width={140} showTooltip={true}>
+              <div className="worker-name">{text}</div>
+            </TextEllipsis>
+            <TextEllipsis width={140} showTooltip={true}>
+              <div className="worker-id">{record.employeeId}</div>
+            </TextEllipsis>
           </div>
         </WorkerNameCell>
       ),
@@ -216,12 +221,22 @@ export const WorkerList: React.FC = () => {
       dataIndex: 'department',
       key: 'department',
       width: 120,
+      render: (text) => (
+        <TextEllipsis width={100} showTooltip={true}>
+          {text}
+        </TextEllipsis>
+      ),
     },
     {
       title: '직위',
       dataIndex: 'position',
       key: 'position',
       width: 100,
+      render: (text) => (
+        <TextEllipsis width={80} showTooltip={true}>
+          {text}
+        </TextEllipsis>
+      ),
     },
     {
       title: '고용형태',

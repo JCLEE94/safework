@@ -6,6 +6,7 @@ import { safeworkTheme } from './styles/theme';
 import { store } from './store';
 import { AppRoutes } from './routes/AppRoutes';
 import { DashboardLayout } from './components/templates/DashboardLayout';
+import GlobalTableStyles from './styles/GlobalTableStyles';
 import './styles/global.css';
 
 const queryClient = new QueryClient({
@@ -24,6 +25,7 @@ function App() {
     <Provider store={store}>
       <QueryClientProvider client={queryClient}>
         <ConfigProvider theme={safeworkTheme}>
+          <GlobalTableStyles />
           <BrowserRouter>
             <DashboardLayout>
               <AppRoutes />

@@ -1,0 +1,14 @@
+# Secret is created via kubectl create secret docker-registry command
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: argocd-image-updater-config
+  namespace: argocd
+data:
+  registries.conf: |
+    registries:
+    - name: registry.jclee.me
+      api_url: https://registry.jclee.me
+      credentials: pullsecret:argocd/argocd-image-updater-secret
+      insecure: no
