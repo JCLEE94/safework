@@ -52,6 +52,7 @@ export function Layout({
     { id: 'workers', label: '근로자 관리', icon: <People /> },
     { id: 'health', label: '건강검진', icon: <LocalHospital /> },
     { id: 'appointments', label: '검진 예약', icon: <Assignment /> },
+    { id: 'health-exam-management', label: '건강검진 통합관리', icon: <LocalHospital /> },
     { id: 'health-room', label: '건강관리실', icon: <MedicalServices /> },
     { id: 'environment', label: '작업환경 측정', icon: <Assessment /> },
     { id: 'education', label: '보건교육', icon: <School /> },

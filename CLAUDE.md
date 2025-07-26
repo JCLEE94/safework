@@ -13,6 +13,14 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - **Architecture**: All-in-one container (PostgreSQL + Redis + FastAPI + React)
 - **CI/CD**: GitHub Actions + ArgoCD Image Updater (automated image deployment)
 
+### Frontend V2 Information
+- **Framework**: React 18 + TypeScript + Vite
+- **UI Library**: Ant Design 5.x
+- **State Management**: Redux Toolkit (client state) + React Query/TanStack Query (server state)
+- **Styling**: Styled Components + CSS-in-JS
+- **Build Tool**: Vite 7.x
+- **Package Manager**: npm
+
 ## Quick Commands
 
 ### Development
@@ -40,7 +48,14 @@ black src/ tests/
 isort src/ tests/
 flake8 src/ tests/
 
-# Frontend development (run from frontend/ directory)
+# Frontend V2 development (run from safework-frontend-v2/ directory)
+cd safework-frontend-v2 && npm install    # Install dependencies
+cd safework-frontend-v2 && npm run dev    # Start Vite dev server (port 5173)
+cd safework-frontend-v2 && npm run build  # Build for production
+cd safework-frontend-v2 && npm run lint   # Run ESLint
+cd safework-frontend-v2 && npm run preview # Preview production build
+
+# Frontend V1 development (legacy - run from frontend/ directory)
 cd frontend && npm run dev          # Start Vite dev server (port 5173)
 cd frontend && npm run build        # Build for production
 cd frontend && npm run preview      # Preview production build
@@ -128,7 +143,24 @@ docker exec safework psql -U admin -d health_management -c "\dt"
 - `utils/` - Helper functions and utilities
 - `config/` - Database configuration and settings
 
-#### Frontend (`frontend/`)
+#### Frontend V2 (`safework-frontend-v2/`) - Modern Architecture
+- `src/App.tsx` - Main app with providers (Redux, React Query, Ant Design)
+- `src/components/` - Atomic Design structure
+  - `atoms/` - Basic UI elements (Button, Input, etc.)
+  - `molecules/` - Composite components
+  - `organisms/` - Complex components (DataTable, etc.)
+  - `templates/` - Page layouts (DashboardLayout)
+- `src/features/` - Feature-based module structure
+  - Each feature has: components/, hooks/, pages/, services/, types/
+  - Examples: health-monitoring/, incident-management/, compliance/
+- `src/pages/` - Route-level page components
+- `src/services/api/` - API client layer with typed endpoints
+- `src/store/` - Redux store with feature slices
+- `src/utils/` - Shared utilities (formatters, validators)
+- `src/routes/` - React Router configuration
+- `src/styles/` - Global styles and Ant Design theme
+
+#### Frontend V1 (`frontend/`) - Legacy
 - `src/App.tsx` - Main React application with sidebar navigation
 - `src/components/` - Reusable UI components
 - `src/pages/` - Feature-specific page components
@@ -357,7 +389,53 @@ async def get_workers(
     # Implementation
 ```
 
-### Frontend API Integration Pattern
+### Frontend V2 API Integration Pattern
+Frontend V2 uses axios-based API client with TypeScript interfaces:
+```typescript
+// src/services/api/baseApi.ts
+import axios from 'axios';
+
+const API_BASE = '/api/v1';
+export const apiClient = axios.create({
+  baseURL: API_BASE,
+  headers: { 'Content-Type': 'application/json' }
+});
+
+// src/services/api/workers.ts
+export interface Worker {
+  id: number;
+  name: string;
+  employee_id: string;
+  department: string;
+  // ...
+}
+
+export const workersApi = {
+  getList: (params?: any) => 
+    apiClient.get<Worker[]>('/workers/', { params }),
+  create: (data: Omit<Worker, 'id'>) => 
+    apiClient.post<Worker>('/workers/', data),
+  update: (id: number, data: Partial<Worker>) =>
+    apiClient.put<Worker>(`/workers/${id}`, data)
+};
+```
+
+### Frontend V2 State Management Pattern
+Uses Redux Toolkit for client state and React Query for server state:
+```typescript
+// React Query for server state
+const { data, isLoading, error } = useQuery({
+  queryKey: ['workers', filters],
+  queryFn: () => workersApi.getList(filters),
+});
+
+// Redux Toolkit for UI state
+const dispatch = useAppDispatch();
+const { sidebarCollapsed } = useAppSelector((state) => state.ui);
+dispatch(uiActions.toggleSidebar());
+```
+
+### Frontend V1 API Integration Pattern (Legacy)
 Frontend uses consistent API client pattern:
 ```typescript
 const API_BASE = '/api/v1';
@@ -540,14 +618,22 @@ Mobile-friendly worker registration system without QR codes:
    - Consolidated Docker Compose configurations
    - Created comprehensive documentation structure
 
-### Recent Features Added (2025-07-24)
-1. **Integrated Document Management System**
+### Recent Features Added (2025-07-26)
+1. **Frontend V2 Complete Refactoring**
+   - Modern React architecture with TypeScript
+   - Ant Design 5.x for professional UI components
+   - Redux Toolkit + React Query for optimal state management
+   - Atomic Design pattern for component organization
+   - Feature-based module structure for better scalability
+   - Vite for fast development and optimized builds
+
+2. **Integrated Document Management System** (2025-07-24)
    - PyMuPDF integration for advanced PDF editing
    - Excel/Word document manipulation with openpyxl
    - Document categories: 10 predefined categories (업무매뉴얼, 법정서식, etc.)
    - API prefix: `/api/v1/integrated-documents/` (separated from legacy system)
 
-2. **Simple Worker Registration System**
+3. **Simple Worker Registration System** (2025-07-24)
    - Mobile-first design for direct worker registration
    - Eliminated complex QR code token generation process
    - Real-time employee ID duplicate checking
@@ -555,29 +641,175 @@ Mobile-friendly worker registration system without QR codes:
    - Backend: `src/handlers/simple_worker_registration.py`
    - Frontend: `frontend/src/components/SimpleWorkerRegistration.tsx`
 
-### Project Organization (2025-07-24)
+### Project Organization (2025-07-26)
 ```
 safework/
 ├── src/                    # Backend source code
-├── frontend/               # Frontend source code  
+├── frontend/               # Frontend V1 source code (legacy)
+├── safework-frontend-v2/   # Frontend V2 source code (modern)
+│   ├── src/                # Source files
+│   │   ├── components/     # Atomic Design components
+│   │   │   ├── atoms/      # Basic UI elements
+│   │   │   ├── molecules/  # Composite components
+│   │   │   ├── organisms/  # Complex components
+│   │   │   └── templates/  # Page layouts
+│   │   ├── features/       # Feature modules
+│   │   ├── pages/          # Route pages
+│   │   ├── services/       # API services
+│   │   ├── store/          # Redux store
+│   │   ├── routes/         # React Router config
+│   │   ├── hooks/          # Custom React hooks
+│   │   ├── types/          # TypeScript types
+│   │   └── utils/          # Utilities
+│   ├── public/             # Static assets
+│   ├── package.json        # Dependencies
+│   ├── tsconfig.json       # TypeScript config
+│   ├── vite.config.ts      # Vite build config
+│   ├── Dockerfile          # Docker build config
+│   └── nginx.conf          # Nginx server config
 ├── tests/                  # All test files (consolidated)
 ├── scripts/                # All scripts (organized)
 │   ├── deploy/             # Deployment scripts
+│   │   ├── deploy-frontend-v2.sh
+│   │   ├── deploy-frontend-v2-local.sh
+│   │   ├── canary-deploy-frontend.sh
+│   │   ├── migrate-to-v2.sh
+│   │   └── test-frontend-v2.sh
 │   ├── setup/              # Setup scripts
 │   └── utils/              # Utility scripts
 ├── k8s/                    # Kubernetes configurations
 │   ├── base/               # Base resources
 │   ├── argocd/             # ArgoCD configurations
-│   └── safework/           # Application manifests
+│   ├── safework/           # Application manifests (legacy)
+│   ├── safework-frontend-v2/ # Frontend V2 K8s manifests
+│   │   ├── deployment.yaml
+│   │   ├── deployment-local.yaml
+│   │   ├── service.yaml
+│   │   ├── ingress.yaml
+│   │   └── kustomization.yaml
+│   ├── cloudflare/         # Cloudflare tunnel configs
+│   └── helm/               # Helm charts
 ├── docs/                   # Documentation
 │   ├── deployment/         # Deployment guides
 │   └── setup/              # Setup guides
-└── deployment/             # Docker configurations
+├── deployment/             # Docker configurations
+└── 재설계.pdf              # System redesign specification
 ```
 
+### Frontend V2 Deployment
+```bash
+# Build and run Frontend V2 locally
+cd safework-frontend-v2
+npm install
+npm run build
+
+# Deploy to Kubernetes
+cd scripts/deploy
+./deploy-frontend-v2.sh        # Standard deployment
+./canary-deploy-frontend.sh    # Canary deployment
+./migrate-to-v2.sh            # Full migration from V1 to V2
+
+# Test deployment
+./test-frontend-v2.sh
+
+# Rollback if needed
+kubectl patch ingress safework -n safework --type='json' \
+  -p='[{"op": "replace", "path": "/spec/rules/0/http/paths/0/backend/service/name", "value":"safework"}]'
+```
+
+## Frontend V2 Key Features
+
+### Modern Architecture
+1. **Component Architecture**: Atomic Design pattern
+   - Atoms: Button, Input, Label, Icon components
+   - Molecules: Form fields, Search bars, Card headers
+   - Organisms: DataTable, Navigation, Complex forms
+   - Templates: DashboardLayout, AuthLayout
+
+2. **State Management**: Hybrid approach
+   - Redux Toolkit: UI state, theme, user preferences
+   - React Query: Server state, caching, background refetch
+   - Local state: Component-specific interactions
+
+3. **Type Safety**: Full TypeScript coverage
+   - Strict mode enabled
+   - Interface definitions for all API responses
+   - Type-safe Redux actions and selectors
+   - Generics for reusable components
+
+4. **Performance Optimizations**
+   - Code splitting with React.lazy
+   - Virtual scrolling for large lists
+   - Memoization with React.memo and useMemo
+   - Optimistic UI updates
+   - Image lazy loading
+
+### UI/UX Improvements
+- **Responsive Design**: Mobile-first approach with breakpoints
+- **Dark Mode**: System preference detection and manual toggle
+- **Accessibility**: WCAG 2.1 AA compliance
+- **Internationalization**: Korean/English support ready
+- **Loading States**: Skeleton screens and progress indicators
+- **Error Handling**: Graceful error boundaries with recovery
+
+### Development Experience
+- **Hot Module Replacement**: Instant feedback during development
+- **ESLint + Prettier**: Consistent code style
+- **Husky + lint-staged**: Pre-commit hooks
+- **Jest + React Testing Library**: Unit and integration tests
+- **Storybook**: Component documentation and testing
+
+## System Redesign Overview (재설계.pdf)
+
+The system underwent a comprehensive redesign based on the specifications in 재설계.pdf, focusing on:
+
+1. **Service-Oriented Architecture**
+   - Modular service design
+   - Clear separation of concerns
+   - API-first approach
+   - Microservices-ready architecture
+
+2. **Enhanced Security**
+   - OAuth 2.0 + JWT tokens
+   - Role-based access control (RBAC)
+   - API rate limiting
+   - Input validation and sanitization
+
+3. **Scalability Improvements**
+   - Horizontal scaling support
+   - Database connection pooling
+   - Redis caching layer
+   - CDN integration ready
+
+4. **Monitoring & Observability**
+   - Structured logging
+   - Metrics collection
+   - Distributed tracing ready
+   - Health check endpoints
+
+## Troubleshooting Guide
+
+### Frontend V2 Issues
+| Issue | Solution |
+|-------|----------|
+| Build fails with memory error | Increase Node memory: `NODE_OPTIONS='--max-old-space-size=4096' npm run build` |
+| TypeScript errors after update | Delete node_modules and package-lock.json, then reinstall |
+| Ant Design styles not loading | Check ConfigProvider theme configuration in App.tsx |
+| API calls fail with CORS | Ensure backend CORS middleware includes frontend URL |
+| Redux DevTools not showing | Install browser extension and check store configuration |
+| React Query cache issues | Clear cache with queryClient.clear() or adjust staleTime |
+
+### Deployment Issues
+| Issue | Solution |
+|-------|----------|
+| Image pull errors in K8s | Check imagePullSecrets and registry credentials |
+| Frontend V2 not accessible | Verify ingress configuration and service selector |
+| Environment variables missing | Check ConfigMap and Secret configurations |
+| Health check failures | Ensure /health endpoint returns 200 status |
+
 ---
-**Version**: 3.6.0  
-**Updated**: 2025-07-24  
+**Version**: 3.7.0  
+**Updated**: 2025-07-26  
 **Maintainer**: SafeWork Pro Development Team  
 **CI/CD Status**: ✅ Active (GitHub-hosted runners + ArgoCD Image Updater)  
-**Recent Changes**: Integrated document management system, simple worker registration, PyMuPDF integration
+**Recent Changes**: Frontend V2 complete refactoring with modern React architecture, Ant Design UI, Redux Toolkit + React Query state management, comprehensive system redesign implementation

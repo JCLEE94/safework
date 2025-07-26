@@ -28,6 +28,7 @@ import SimpleRegistration from './pages/SimpleRegistration';
 import { CommonQRRegistration } from './components/CommonQRRegistration';
 import { CommonQRGenerator } from './components/CommonQRGenerator';
 import HealthRoom from './pages/HealthRoom';
+import HealthExamManagement from './pages/HealthExamManagement';
 import { authService } from './services/authService';
 
 function MainApp() {
@@ -109,6 +110,8 @@ function MainApp() {
         return <div>심혈관 시스템 (임시 비활성화)</div>;
       case 'health-room':
         return <HealthRoom />;
+      case 'health-exam-management':
+        return <HealthExamManagement />;
       case 'settings':
         return <Settings />;
       default:
