@@ -21,7 +21,7 @@ spec:
     spec:
       containers:
       - name: frontend
-        image: registry.jclee.me/safework-frontend-v2:latest
+        image: nginx:alpine
         imagePullPolicy: Always
         ports:
         - containerPort: 80
